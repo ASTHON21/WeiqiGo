@@ -1,115 +1,154 @@
-'use client';
+"use client";
 
-import type { Board, Player } from '@/types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useMemo } from "react";
+import type { Board, Move, Player } from "@/types";
+import { cn } from "@/lib/utils";
+import { Icons } from "./icons";
 
 interface GoBoardProps {
   board: Board;
-  boardSize: number;
   onMove: (row: number, col: number) => void;
   disabled: boolean;
+  moveHistory: Move[];
+  boardSize: number;
   isAiThinking: boolean;
+  currentPlayer: Player;
 }
 
-const Stone = ({ player, isLastMove = false }: { player: Player; isLastMove?: boolean }) => {
-  const stoneColor = player === 'B' ? 'bg-gray-900' : 'bg-gray-100';
-  const shadow = player === 'B' 
-    ? 'shadow-[1px_1px_2px_rgba(255,255,255,0.3)_inset,_0_0_10px_rgba(0,0,0,0.9)]'
-    : 'shadow-[1px_1px_2px_rgba(0,0,0,0.2)_inset,_0_0_10px_rgba(255,255,255,0.7)]';
-  
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.5 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.5 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
-      className={`absolute w-full h-full rounded-full ${stoneColor} ${shadow} flex items-center justify-center`}
-    >
-      {isLastMove && <div className="w-1/3 h-1/3 rounded-full bg-accent/70" />}
-    </motion.div>
-  );
+const getStarPoints = (size: number): [number, number][] => {
+    if (size === 9) {
+        return [[2, 2], [2, 6], [6, 2], [6, 6], [4, 4]];
+    }
+    if (size === 13) {
+        return [[3, 3], [3, 9], [9, 3], [9, 9], [6, 6]];
+    }
+    if (size === 19) {
+        return [
+            [3, 3], [3, 9], [3, 15],
+            [9, 3], [9, 9], [9, 15],
+            [15, 3], [15, 9], [15, 15]
+        ];
+    }
+    return [];
 };
 
-export function GoBoard({ board, boardSize, onMove, disabled, isAiThinking }: GoBoardProps) {
-  const starPoints = boardSize === 9 ? [[2, 2], [2, 6], [4, 4], [6, 2], [6, 6]] : [];
+
+export function GoBoard({ board, onMove, disabled, moveHistory, boardSize, isAiThinking, currentPlayer }: GoBoardProps) {
+  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
+  
+  const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
+
+  const starPoints = useMemo(() => getStarPoints(boardSize), [boardSize]);
+
+  // The width/height of the clickable area around an intersection.
+  // This is the distance between two lines.
+  const interactiveCellSize = `${(1 / (boardSize - 1)) * 100}%`;
 
   return (
-    <div className="relative aspect-square w-full max-w-xl bg-[#e3c16f] p-4 md:p-6 rounded-lg shadow-2xl" style={{ boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)' }}>
+    <div
+      className="relative aspect-square w-[90vw] max-w-[80vh] rounded-lg border-8 border-[#6a4a2f] p-4 shadow-lg"
+      style={{
+        backgroundColor: '#deb887', // "burlywood", a wood-like color
+      }}
+    >
       <div
-        className="grid absolute inset-4 md:inset-6"
-        style={{
-          gridTemplateColumns: `repeat(${boardSize - 1}, 1fr)`,
-          gridTemplateRows: `repeat(${boardSize - 1}, 1fr)`,
-          backgroundSize: `calc(100% / ${boardSize - 1}) calc(100% / ${boardSize - 1})`,
-          backgroundImage: 'linear-gradient(to right, #333333 1px, transparent 1px), linear-gradient(to bottom, #333333 1px, transparent 1px)',
-        }}
+        className="relative h-full w-full"
+        onMouseLeave={() => setHoveredCell(null)}
       >
-      </div>
+        {/* SVG Background Grid */}
+        <svg
+          width="100%"
+          height="100%"
+          className="pointer-events-none absolute left-0 top-0"
+        >
+          {/* Draw lines */}
+          {Array.from({ length: boardSize }).map((_, i) => {
+            const pos = `${(i / (boardSize - 1)) * 100}%`;
+            return (
+              <g key={`grid-line-${i}`}>
+                <line
+                  x1="0%" y1={pos}
+                  x2="100%" y2={pos}
+                  stroke="#000"
+                  strokeOpacity="0.6"
+                  strokeWidth="1"
+                />
+                <line
+                  x1={pos} y1="0%"
+                  x2={pos} y2="100%"
+                  stroke="#000"
+                  strokeOpacity="0.6"
+                  strokeWidth="1"
+                />
+              </g>
+            );
+          })}
+          {/* Draw star points */}
+          {starPoints.map(([r, c], i) => {
+            const cx = `${(c / (boardSize - 1)) * 100}%`;
+            const cy = `${(r / (boardSize - 1)) * 100}%`;
+            return (
+              <circle
+                key={`star-${i}`}
+                cx={cx}
+                cy={cy}
+                r="3.5" // Pixel radius
+                fill="black"
+                fillOpacity="0.6"
+              />
+            );
+          })}
+        </svg>
 
-      {starPoints.map(([row, col]) => (
-        <div 
-          key={`star-${row}-${col}`}
-          className="absolute w-1.5 h-1.5 bg-black rounded-full"
-          style={{
-            top: `calc(${(row / (boardSize - 1)) * 100}% + calc(var(--grid-padding) - 0.375rem / 2))`,
-            left: `calc(${(col / (boardSize - 1)) * 100}% + calc(var(--grid-padding) - 0.375rem / 2))`,
-            transform: 'translate(-50%, -50%)',
-            '--grid-padding': '1.5rem',
-          }}
-        />
-      ))}
-
-      <div
-        className="grid absolute inset-4 md:inset-6"
-        style={{
-          gridTemplateColumns: `repeat(${boardSize}, 1fr)`,
-          gridTemplateRows: `repeat(${boardSize}, 1fr)`,
-        }}
-      >
-        <AnimatePresence>
-          {board.map((row, r) =>
-            row.map((cell, c) => {
-              const intersectionKey = `int-${r}-${c}`;
-              if (cell !== '_') {
-                return (
-                  <div key={intersectionKey} className="relative flex items-center justify-center">
-                    <div className="absolute w-[95%] h-[95%]">
-                      <Stone player={cell} />
-                    </div>
-                  </div>
-                );
-              } else {
-                return (
-                  <button
-                    key={intersectionKey}
-                    onClick={() => onMove(r, c)}
-                    disabled={disabled}
-                    className="group relative flex items-center justify-center rounded-full"
-                    aria-label={`Place stone at ${r}, ${c}`}
-                  >
-                    {!disabled && (
-                      <div className="absolute w-[95%] h-[95%] rounded-full bg-black opacity-0 group-hover:opacity-30 transition-opacity duration-200" />
+        {/* Interactive Layer & Stones: {boardSize*boardSize} absolutely positioned divs for each intersection */}
+        {Array.from({ length: boardSize }).map((_, row) =>
+          Array.from({ length: boardSize }).map((_, col) => {
+            const cell = board[row]?.[col];
+            
+            return (
+              <div
+                key={`${row}-${col}`}
+                className="absolute flex items-center justify-center"
+                style={{
+                  top: `${(row / (boardSize - 1)) * 100}%`,
+                  left: `${(col / (boardSize - 1)) * 100}%`,
+                  width: interactiveCellSize,
+                  height: interactiveCellSize,
+                  transform: 'translate(-50%, -50%)',
+                  cursor: disabled ? 'default' : 'pointer',
+                }}
+                onClick={() => !disabled && onMove(row, col)}
+                onMouseEnter={() => !disabled && setHoveredCell({ row, col })}
+              >
+                {/* Placed stone */}
+                {cell && (
+                  <Icons.Stone
+                    className={cn(
+                      "absolute h-[95%] w-[95%] transition-transform duration-150 z-10",
+                      cell === "B" ? "fill-black" : "fill-white stroke-black stroke-[0.5px]",
+                      lastMove?.col === col && lastMove?.row === row ? "scale-105" : "scale-100",
                     )}
-                  </button>
-                );
-              }
-            })
-          )}
-        </AnimatePresence>
-      </div>
-      
-      {isAiThinking && (
-         <div className="absolute inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center rounded-lg">
-           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-white text-lg font-headline bg-black/50 px-4 py-2 rounded-md"
-           >
-             AI is thinking...
-           </motion.div>
-         </div>
-      )}
+                  />
+                )}
+                
+                {lastMove?.col === col && lastMove?.row === row && (
+                  <div className="absolute h-1/4 w-1/4 rounded-full bg-red-500/80 animate-ping z-20"/>
+                )}
 
+                {/* Hover ghost stone */}
+                {!disabled && hoveredCell?.row === row && hoveredCell?.col === col && !cell && (
+                  <Icons.Stone
+                      className={cn(
+                          "absolute h-[95%] w-[95%] opacity-50 z-10",
+                          currentPlayer === 'B' ? "fill-black" : "fill-white stroke-black stroke-[0.5px]",
+                      )}
+                  />
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }

@@ -131,6 +131,8 @@ export default function GamePage() {
             onMove={handlePlayerMove}
             disabled={currentPlayer !== 'B' || isAiThinking || isGameOver}
             isAiThinking={isAiThinking}
+            moveHistory={moveHistory}
+            currentPlayer={currentPlayer}
           />
           <SearchTreeVisualization isThinking={isAiThinking} />
           <GameControls 
