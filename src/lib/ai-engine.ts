@@ -177,14 +177,20 @@ export function findBestMove(
     let bestValue = -Infinity;
 
     for (const move of possibleMoves) {
-        if (move.r === -1) continue; // 暂时让 AI 尽量不 Pass
-
-        const { success, newBoard } = processMove(board, move.r, move.c, player, boardHistory);
+        if (move.r === -1) continue;
+    
+        const { success, newBoard, capturedStones } = processMove(board, move.r, move.c, player, boardHistory);
         if (!success) continue;
-
+    
+        // 1. 基础 Alpha-Beta 分数
         let boardValue = alphaBeta(newBoard, [...boardHistory, newBoard], SEARCH_DEPTH - 1, -Infinity, Infinity, false, player);
-        boardValue += getShapeBonus(board, move.r, move.c, player); // Apply the bonus
-
+    
+        // 2. 加上“形状字典”奖金
+        boardValue += getShapeBonus(board, move.r, move.c, player);
+        
+        // 3. 提子奖励 (针对 SGF 中 AI 不会提子的问题)
+        if (capturedStones > 0) boardValue += (capturedStones * 800);
+    
         if (boardValue > bestValue) {
             bestValue = boardValue;
             bestMove = move;
