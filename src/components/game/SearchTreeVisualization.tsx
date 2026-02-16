@@ -1,4 +1,3 @@
-
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
@@ -78,10 +77,10 @@ export function SearchTreeVisualization({ isThinking }: SearchTreeVisualizationP
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.5, ease: 'easeInOut' }}
-          className="w-full max-w-xl overflow-hidden"
+          className="w-full overflow-hidden"
         >
-          <div className="p-4 rounded-lg bg-card/50 backdrop-blur-sm border border-black/10 text-center">
-            <h3 className="text-sm font-semibold text-muted-foreground mb-2">AI Search Analysis</h3>
+          <div className="p-4 rounded-lg bg-secondary/50 text-center">
+            <h3 className="text-sm font-semibold text-muted-foreground mb-2">AI Analyzing...</h3>
             <motion.svg viewBox="0 0 100 85" className="w-full h-auto max-h-48">
               {paths.map((path, index) => (
                 <motion.path

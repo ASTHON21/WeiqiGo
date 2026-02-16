@@ -34,3 +34,6 @@ export interface GameHistoryEntry {
   moveHistory: Move[];
   boardSize: number;
 }
+
+export type GameMode = 'pvp' | 'pve';
+export type GamePhase = 'Fuseki' | 'Chuban' | 'Yose' | 'Unknown';

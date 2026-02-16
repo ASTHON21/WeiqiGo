@@ -22,6 +22,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Icons } from "@/components/icons";
 import { useToast } from "@/hooks/use-toast";
+import { getAiMove } from "@/lib/actions";
+import { AIStrategy } from "@/components/game/AIStrategy";
+import { SearchTreeVisualization } from "@/components/game/SearchTreeVisualization";
 import type {
   Player,
   BoardState,
@@ -30,14 +33,16 @@ import type {
   Move,
   GameHistoryEntry,
   ScoreDetails,
+  GameMode,
+  GamePhase,
 } from "@/lib/types";
 import { processMove, calculateScore } from "@/lib/go-logic";
 import { cn } from "@/lib/utils";
 
 const timeSettings: { [key: number]: number } = {
-  9: 60 * 60 * 1000, // 1 hour
-  13: 2 * 60 * 60 * 1000, // 2 hours
-  19: 3 * 60 * 60 * 1000, // 3 hours
+  9: 60 * 60 * 1000,
+  13: 2 * 60 * 60 * 1000,
+  19: 3 * 60 * 60 * 1000,
 };
 
 const createEmptyBoard = (size: number): BoardState =>
@@ -57,10 +62,11 @@ interface GameState {
   boardHistory: BoardState[];
   lastMove: Move | null;
   captures: { black: number; white: number };
+  gameMode: GameMode;
 }
 
 type GameAction =
-  | { type: 'START_GAME'; payload: { boardSize: number; } }
+  | { type: 'START_GAME'; payload: { boardSize: number; gameMode: GameMode; } }
   | { type: 'MAKE_MOVE'; payload: { board: BoardState; move: Move; capturedStones: number; } }
   | { type: 'PASS_TURN' }
   | { type: 'UNDO' }
@@ -77,19 +83,25 @@ const getInitialState = (size: number = 19): GameState => ({
   boardHistory: [createEmptyBoard(size)],
   lastMove: null,
   captures: { black: 0, white: 0 },
+  gameMode: 'pve',
 });
 
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'START_GAME': {
-      const { boardSize } = action.payload;
+      const { boardSize, gameMode } = action.payload;
       return {
         ...getInitialState(boardSize),
+        gameMode,
         gameStatus: 'playing',
       };
     }
     case 'MAKE_MOVE': {
       const { board, move, capturedStones } = action.payload;
+      const newCaptures = { ...state.captures };
+      if (capturedStones > 0) {
+        newCaptures[state.currentPlayer] = state.captures[state.currentPlayer] + capturedStones;
+      }
       return {
         ...state,
         board,
@@ -97,10 +109,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         boardHistory: [...state.boardHistory, board],
         lastMove: move,
         currentPlayer: state.currentPlayer === 'black' ? 'white' : 'black',
-        captures: {
-          ...state.captures,
-          [state.currentPlayer]: state.captures[state.currentPlayer] + capturedStones,
-        },
+        captures: newCaptures,
       };
     }
     case 'PASS_TURN': {
@@ -108,7 +117,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
        return {
          ...state,
          moveHistory: [...state.moveHistory, passMove],
-         boardHistory: [...state.boardHistory, state.board], // Board state doesn't change
+         boardHistory: [...state.boardHistory, state.board],
          lastMove: passMove,
          currentPlayer: state.currentPlayer === "black" ? "white" : "black",
        };
@@ -121,9 +130,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const lastValidBoard = newBoardHistory[newBoardHistory.length - 1] || createEmptyBoard(state.boardSize);
       const newLastMove = newMoveHistory[newMoveHistory.length - 1] || null;
 
-      // This is a simplified recalculation. A more accurate one would need to store captures per move.
-      // For now, we accept this limitation of the undo feature.
-      const newCaptures = { black: 0, white: 0 };
+      const newCaptures = { black: 0, white: 0 }; // Simplified reset
 
       return {
           ...state,
@@ -131,8 +138,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           boardHistory: newBoardHistory,
           board: lastValidBoard,
           lastMove: newLastMove,
-          currentPlayer: newLastMove ? (newLastMove.player === 'black' ? 'white' : 'black') : 'black',
-          captures: newCaptures, // Captures are reset on undo for simplicity
+          currentPlayer: state.gameMode === 'pve' ? 'black' : (newLastMove ? (newLastMove.player === 'black' ? 'white' : 'black') : 'black'),
+          captures: newCaptures,
       };
     }
     case 'END_GAME': {
@@ -159,7 +166,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
 export default function GamePage() {
   const [gameState, dispatch] = useReducer(gameReducer, getInitialState());
-  const { board, boardSize, currentPlayer, gameStatus, gameResult, moveHistory, boardHistory, lastMove, captures } = gameState;
+  const { board, boardSize, currentPlayer, gameStatus, gameResult, moveHistory, boardHistory, lastMove, captures, gameMode } = gameState;
 
   const { toast } = useToast();
   
@@ -167,10 +174,16 @@ export default function GamePage() {
     black: timeSettings[19],
     white: timeSettings[19],
   });
+  
+  const [isAiThinking, setIsAiThinking] = useState(false);
+  const [aiGamePhase, setAiGamePhase] = useState<GamePhase>('Unknown');
+  const [aiExplanation, setAiExplanation] = useState("The AI is waiting for the game to start.");
 
-  const handleStartGame = useCallback((options: { boardSize: number; }) => {
+  const handleStartGame = useCallback((options: { boardSize: number; gameMode: GameMode }) => {
     dispatch({ type: 'START_GAME', payload: options });
     setTimers({ black: timeSettings[options.boardSize], white: timeSettings[options.boardSize] });
+    setAiExplanation("AI is ready. Make your first move.");
+    setAiGamePhase("Fuseki");
   }, []);
 
   const endGame = useCallback((winner: Player | 'draw', reason: string, scores?: {blackScore: number, whiteScore: number, details?: ScoreDetails}) => {
@@ -201,16 +214,16 @@ export default function GamePage() {
   }
 
   const handleUndo = () => {
-    if (gameStatus !== 'playing' || moveHistory.length < 1) {
+    if (gameStatus !== 'playing' || moveHistory.length < (gameMode === 'pve' ? 2 : 1)) {
        toast({ title: 'Cannot Undo', description: 'No moves to undo.', variant: 'destructive' });
        return;
     }
     dispatch({ type: 'UNDO' });
-    toast({ title: 'Undo Successful', description: `Reverted 1 move. Captures reset.`});
+    toast({ title: 'Undo Successful', description: `Reverted ${gameMode === 'pve' ? 'your last move and the AI\'s response' : '1 move'}.`});
   }
 
   const handleMove = useCallback((row: number, col: number) => {
-      if (gameStatus !== "playing") return;
+      if (gameStatus !== "playing" || (gameMode === 'pve' && currentPlayer === 'white')) return;
       
       if (row === -1 && col === -1) {
           handlePass();
@@ -230,8 +243,42 @@ export default function GamePage() {
           
           toast({ title: "Invalid Move", description, variant: "destructive" });
       }
-    }, [board, boardHistory, currentPlayer, gameStatus, handlePass, toast]
+    }, [board, boardHistory, currentPlayer, gameStatus, handlePass, toast, gameMode]
   );
+  
+    // AI Turn Logic
+  useEffect(() => {
+    if (gameMode === 'pve' && currentPlayer === 'white' && gameStatus === 'playing' && !isAiThinking) {
+      const handleAiTurn = async () => {
+        setIsAiThinking(true);
+        setAiExplanation("Thinking...");
+
+        const aiResult = await getAiMove(board, 'white', moveHistory, boardSize);
+
+        if (aiResult.success && aiResult.bestMove) {
+          setAiGamePhase(aiResult.gamePhase);
+          setAiExplanation(aiResult.explanation);
+          
+          const gameResult = processMove(board, aiResult.bestMove.row, aiResult.bestMove.col, 'white', boardHistory);
+          if (gameResult.success) {
+            const aiMove: Move = { row: aiResult.bestMove.row, col: aiResult.bestMove.col, player: 'white' };
+            dispatch({ type: 'MAKE_MOVE', payload: { board: gameResult.newBoard, move: aiMove, capturedStones: gameResult.capturedStones } });
+          } else {
+            toast({ title: "AI Error", description: "AI suggested an invalid move, passing its turn.", variant: "destructive" });
+            dispatch({ type: 'PASS_TURN' });
+          }
+        } else {
+          toast({ title: "AI Error", description: aiResult.error || "The AI failed to make a move. Passing its turn.", variant: "destructive" });
+          dispatch({ type: 'PASS_TURN' });
+        }
+        
+        setIsAiThinking(false);
+      };
+
+      const timeoutId = setTimeout(handleAiTurn, 1000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentPlayer, gameMode, gameStatus, isAiThinking, board, moveHistory, boardSize, boardHistory, toast]);
   
   useEffect(() => {
       if (gameStatus !== 'playing') return;
@@ -253,7 +300,7 @@ export default function GamePage() {
       const newHistoryEntry: GameHistoryEntry = {
           id: new Date().toISOString(),
           date: new Date().toISOString(),
-          mode: 'local',
+          mode: gameMode === 'pve' ? 'ai' : 'local',
           result: gameResult,
           moveHistory: moveHistory,
           boardSize: boardSize,
@@ -269,7 +316,7 @@ export default function GamePage() {
         toast({ title: "Could not save game", description: "There was an error saving this game to your history.", variant: "destructive" });
       }
     }
-  }, [gameStatus, gameResult, toast, moveHistory, boardSize]);
+  }, [gameStatus, gameResult, toast, moveHistory, boardSize, gameMode]);
 
 
   const formatTime = (ms: number) => {
@@ -281,6 +328,7 @@ export default function GamePage() {
   };
 
   const renderPlayerCard = (player: Player) => {
+    const isAI = gameMode === 'pve' && player === 'white';
     return (
         <Card key={`${player}-${currentPlayer}`} className={cn(
         "text-center transition-all duration-300",
@@ -289,7 +337,7 @@ export default function GamePage() {
         <CardHeader>
             <CardTitle className="flex items-center justify-center gap-2 text-xl font-headline">
             <Icons.Stone className={cn("w-6 h-6", player === 'black' ? 'fill-black' : 'fill-white stroke-black stroke-[2px]')}/>
-            <span>{player.charAt(0).toUpperCase() + player.slice(1)}</span>
+            <span>{isAI ? 'Shadow AI' : (player.charAt(0).toUpperCase() + player.slice(1))}</span>
             </CardTitle>
             <CardDescription>Captures: {captures[player]}</CardDescription>
         </CardHeader>
@@ -368,16 +416,27 @@ export default function GamePage() {
       
       <div className="w-full lg:w-1/4 flex flex-col gap-4">
         {renderPlayerCard('white')}
+        {gameMode === 'pve' && (
+          <>
+            <AIStrategy 
+              phase={aiGamePhase} 
+              explanation={aiExplanation} 
+              isThinking={isAiThinking} 
+            />
+            <SearchTreeVisualization isThinking={isAiThinking} />
+          </>
+        )}
       </div>
 
       <div className="relative">
         <GoBoard 
           board={board} 
           onMove={handleMove} 
-          disabled={gameStatus !== 'playing'}
+          disabled={gameStatus !== 'playing' || (gameMode === 'pve' && currentPlayer === 'white')}
           lastMove={lastMove} 
           size={boardSize}
           currentPlayer={currentPlayer}
+          isAiThinking={isAiThinking}
         />
       </div>
 
@@ -388,13 +447,13 @@ export default function GamePage() {
             <CardTitle className="font-headline text-xl">Controls</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            <Button onClick={handlePass} disabled={gameStatus !== 'playing'}>
+            <Button onClick={handlePass} disabled={gameStatus !== 'playing' || isAiThinking}>
               <Icons.Play className="mr-2 -rotate-90"/> Pass Turn
             </Button>
-             <Button onClick={handleUndo} disabled={gameStatus !== 'playing' || moveHistory.length < 1}>
+             <Button onClick={handleUndo} disabled={gameStatus !== 'playing' || isAiThinking || moveHistory.length < (gameMode === 'pve' ? 2 : 1)}>
                 <Icons.Undo className="mr-2"/> Undo
             </Button>
-            <Button variant="destructive" onClick={handleResign} disabled={gameStatus !== 'playing'}>
+            <Button variant="destructive" onClick={handleResign} disabled={gameStatus !== 'playing' || isAiThinking}>
               <Icons.Resign className="mr-2"/> Resign
             </Button>
             <Button variant="outline" onClick={() => dispatch({type: 'SET_GAME_STATUS', payload: 'setup'})}>
@@ -412,15 +471,17 @@ function NewGameDialog({
   onStartGame, 
   isPlayAgain = false,
 }: { 
-  onStartGame: (options: { boardSize: number }) => void; 
+  onStartGame: (options: { boardSize: number, gameMode: GameMode }) => void; 
   isPlayAgain?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [boardSize, setBoardSize] = useState("19");
+  const [boardSize, setBoardSize] = useState("9");
+  const [gameMode, setGameMode] = useState<GameMode>("pve");
 
   const handleStart = () => {
     onStartGame({ 
       boardSize: Number(boardSize),
+      gameMode: gameMode,
     });
     setIsOpen(false);
   };
@@ -438,6 +499,21 @@ function NewGameDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 py-4">
+            <div className="grid gap-2">
+                <Label>Game Mode</Label>
+                <Select 
+                    value={gameMode} 
+                    onValueChange={(value) => setGameMode(value as GameMode)}
+                >
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select a game mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="pve">Player vs. AI</SelectItem>
+                        <SelectItem value="pvp">Player vs. Player</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
             <div className="grid gap-2">
                 <Label>Board Size</Label>
                 <Select 

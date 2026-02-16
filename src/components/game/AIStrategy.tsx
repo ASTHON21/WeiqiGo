@@ -1,22 +1,27 @@
 'use client';
 
 import { BrainCircuit, Loader2 } from 'lucide-react';
-import type { GamePhase } from '@/types';
+import type { GamePhase } from '@/lib/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 interface AIStrategyProps {
   phase: GamePhase;
   explanation: string;
   isThinking: boolean;
+  className?: string;
 }
 
-export function AIStrategy({ phase, explanation, isThinking }: AIStrategyProps) {
+export function AIStrategy({ phase, explanation, isThinking, className }: AIStrategyProps) {
   return (
-    <div>
-      <h3 className="text-lg font-semibold mb-4 font-headline flex items-center gap-2">
-        <BrainCircuit className="text-accent" />
-        AI Strategy
-      </h3>
-      <div className="space-y-4 p-4 rounded-md bg-secondary/50">
+    <Card className={cn(className)}>
+      <CardHeader>
+        <CardTitle className="font-headline text-xl flex items-center gap-2">
+            <BrainCircuit className="text-accent" />
+            AI Strategy
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
         <div>
           <p className="text-sm font-semibold text-muted-foreground">Game Phase</p>
           <p className="font-medium text-lg">{phase}</p>
@@ -28,7 +33,7 @@ export function AIStrategy({ phase, explanation, isThinking }: AIStrategyProps) 
             <p className="text-sm text-foreground/90 italic">"{explanation}"</p>
           </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -74,12 +74,7 @@ const aiGoMoveSuggesterFlow = ai.defineFlow(
     outputSchema: AiGoMoveSuggesterOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt({
-      boardState: JSON.stringify(input.boardState),
-      playerTurn: input.playerTurn,
-      moveHistory: input.moveHistory,
-      boardSize: input.boardSize,
-    });
+    const { output } = await prompt(input);
     return output!;
   }
 );

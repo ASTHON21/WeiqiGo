@@ -12,6 +12,7 @@ interface GoBoardProps {
   lastMove: Move | null;
   size: number;
   currentPlayer: Player;
+  isAiThinking: boolean;
 }
 
 const getStarPoints = (size: number): [number, number][] => {
@@ -32,12 +33,14 @@ const getStarPoints = (size: number): [number, number][] => {
 };
 
 
-export function GoBoard({ board, onMove, disabled, lastMove, size, currentPlayer }: GoBoardProps) {
+export function GoBoard({ board, onMove, disabled, lastMove, size, currentPlayer, isAiThinking }: GoBoardProps) {
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
   
   const starPoints = useMemo(() => getStarPoints(size), [size]);
 
   const interactiveCellSize = `${(1 / (size - 1)) * 100}%`;
+
+  const isBoardDisabled = disabled || isAiThinking;
 
   return (
     <div
@@ -110,10 +113,10 @@ export function GoBoard({ board, onMove, disabled, lastMove, size, currentPlayer
                   width: interactiveCellSize,
                   height: interactiveCellSize,
                   transform: 'translate(-50%, -50%)',
-                  cursor: disabled ? 'default' : 'pointer',
+                  cursor: isBoardDisabled ? 'not-allowed' : 'pointer',
                 }}
-                onClick={() => !disabled && onMove(row, col)}
-                onMouseEnter={() => !disabled && setHoveredCell({ row, col })}
+                onClick={() => !isBoardDisabled && onMove(row, col)}
+                onMouseEnter={() => !isBoardDisabled && setHoveredCell({ row, col })}
               >
                 {/* Placed stone */}
                 {cell && (
@@ -131,7 +134,7 @@ export function GoBoard({ board, onMove, disabled, lastMove, size, currentPlayer
                 )}
 
                 {/* Hover ghost stone */}
-                {!disabled && hoveredCell?.row === row && hoveredCell?.col === col && !cell && (
+                {!isBoardDisabled && hoveredCell?.row === row && hoveredCell?.col === col && !cell && (
                   <Icons.Stone
                       className={cn(
                           "absolute h-[95%] w-[95%] opacity-50 z-10",
