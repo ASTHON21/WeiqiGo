@@ -4,7 +4,7 @@ import { FirebaseClientProvider } from '@/firebase';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { SidebarProvider, Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarHeader } from '@/components/ui/sidebar';
-import { History, Settings, Play } from 'lucide-react';
+import { History, Play } from 'lucide-react';
 import Link from 'next/link';
 import { Icons } from '@/components/icons';
 
@@ -50,14 +50,6 @@ export default function RootLayout({
                     <SidebarMenuButton>
                       <History />
                       <span>Game History</span>
-                    </SidebarMenuButton>
-                  </Link>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                   <Link href="/appearance">
-                    <SidebarMenuButton>
-                      <Settings />
-                      <span>Appearance</span>
                     </SidebarMenuButton>
                   </Link>
                 </SidebarMenuItem>
