@@ -1,6 +1,7 @@
 'use server';
 
 import type { BoardState, Move, Player } from '@/lib/types';
+import { findBestMove } from './ai-engine';
 
 export async function getAiMove(
   boardState: BoardState,
@@ -8,13 +9,56 @@ export async function getAiMove(
   moveHistory: Move[],
   boardSize: number
 ) {
-    const errorMsg = 'AI functionality has been removed.';
-    console.error('Error in getAiMove server action:', errorMsg);
-    return { 
-      success: false, 
-      error: errorMsg,
-      debugLog: {
-        error: errorMsg
-      }
-    };
+    try {
+        const { bestMove, explanation, gamePhase } = findBestMove(
+            boardState,
+            playerTurn,
+            moveHistory,
+            boardSize
+        );
+        
+        if (!bestMove) {
+            return {
+                success: false,
+                error: "AI could not find a valid move.",
+                debugLog: { error: "No best move returned from `findBestMove`." }
+            };
+        }
+
+        return {
+            success: true,
+            bestMove: { r: bestMove.r, c: bestMove.c },
+            explanation,
+            gamePhase,
+            debugLog: {
+                phaseInput: {
+                    gamePhase,
+                    moveHistory: moveHistory.length,
+                },
+                phaseResult: {
+                    gamePhase
+                },
+                moveInput: {
+                    boardState,
+                    playerTurn,
+                    moveHistory,
+                    boardSize,
+                },
+                moveResult: {
+                    bestMove,
+                    explanation,
+                }
+            }
+        };
+
+    } catch (e: any) {
+        console.error('Error in getAiMove server action:', e);
+        return { 
+            success: false, 
+            error: e.message || "An unexpected error occurred in the AI engine.",
+            debugLog: {
+                error: e.toString(),
+            }
+        };
+    }
 }
