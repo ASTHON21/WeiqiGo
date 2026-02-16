@@ -38,26 +38,26 @@ export default function RootLayout({
               </SidebarHeader>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <Link href="/game" asChild>
+                  <Link href="/game">
                     <SidebarMenuButton>
                       <Play />
-                      Play Game
+                      <span>Play Game</span>
                     </SidebarMenuButton>
                   </Link>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                   <Link href="/history" asChild>
+                   <Link href="/history">
                     <SidebarMenuButton>
                       <History />
-                      Game History
+                      <span>Game History</span>
                     </SidebarMenuButton>
                   </Link>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                   <Link href="/appearance" asChild>
+                   <Link href="/appearance">
                     <SidebarMenuButton>
                       <Settings />
-                      Appearance
+                      <span>Appearance</span>
                     </SidebarMenuButton>
                   </Link>
                 </SidebarMenuItem>
