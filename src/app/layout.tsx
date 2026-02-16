@@ -3,7 +3,7 @@ import './globals.css';
 import { FirebaseClientProvider } from '@/firebase';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
-import { SidebarProvider, Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarHeader } from '@/components/ui/sidebar';
+import { SidebarProvider, Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarHeader, SidebarTrigger } from '@/components/ui/sidebar';
 import { History, Play } from 'lucide-react';
 import Link from 'next/link';
 import { Icons } from '@/components/icons';
@@ -28,8 +28,8 @@ export default function RootLayout({
       </head>
       <body className={cn('font-body antialiased min-h-screen bg-background')}>
         <FirebaseClientProvider>
-          <SidebarProvider>
-            <Sidebar>
+          <SidebarProvider defaultOpen={false}>
+            <Sidebar collapsible="offcanvas">
               <SidebarHeader>
                 <div className="flex items-center gap-2">
                   <Icons.Logo className="w-6 h-6 text-primary" />
@@ -56,7 +56,12 @@ export default function RootLayout({
               </SidebarMenu>
             </Sidebar>
             <SidebarInset>
-              <main className="flex-1">{children}</main>
+              <header className="flex h-14 shrink-0 items-center border-b bg-background px-4 sticky top-0 z-10">
+                <SidebarTrigger />
+              </header>
+              <div className="flex-1 overflow-y-auto">
+                {children}
+              </div>
             </SidebarInset>
           </SidebarProvider>
           <Toaster />
