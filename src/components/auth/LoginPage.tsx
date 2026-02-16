@@ -7,6 +7,7 @@ import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 function GoogleIcon() {
   return (
@@ -23,6 +24,7 @@ export function LoginPage() {
   const router = useRouter();
   const { user, isUserLoading: loading } = useUser();
   const auth = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!loading && user) {
@@ -35,8 +37,13 @@ export function LoginPage() {
       const googleProvider = new GoogleAuthProvider();
       await signInWithPopup(auth, googleProvider);
       router.push('/game');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing in with Google', error);
+      toast({
+        variant: "destructive",
+        title: "Sign-in Failed",
+        description: error.message || "An unknown error occurred. Please ensure Google Sign-In is enabled in your Firebase project.",
+      });
     }
   };
   
