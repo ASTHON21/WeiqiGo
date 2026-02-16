@@ -1,20 +1,15 @@
 'use client';
 
 import type { Player } from '@/types';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { User } from 'firebase/auth';
+import { Avatar } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
 interface PlayerInfoProps {
   currentPlayer: Player;
   capturedStones: { B: number; W: number };
-  user: User | null;
 }
 
-export function PlayerInfo({ currentPlayer, capturedStones, user }: PlayerInfoProps) {
-  const getPlayerInitial = (name: string | null | undefined) => {
-    return name ? name.charAt(0).toUpperCase() : 'U';
-  };
+export function PlayerInfo({ currentPlayer, capturedStones }: PlayerInfoProps) {
   
   return (
     <div>
@@ -25,11 +20,11 @@ export function PlayerInfo({ currentPlayer, capturedStones, user }: PlayerInfoPr
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 border-2 border-white">
               <div className="w-full h-full bg-gray-900 flex items-center justify-center">
-                  <span className="text-white font-bold">{getPlayerInitial(user?.displayName)}</span>
+                  <span className="text-white font-bold">P</span>
               </div>
             </Avatar>
             <div>
-              <p className="font-semibold">{user?.displayName || 'Player'}</p>
+              <p className="font-semibold">Player</p>
               <p className="text-sm text-muted-foreground">Black</p>
             </div>
           </div>

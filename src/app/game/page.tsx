@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/firebase';
 import { GoBoard } from '@/components/game/GoBoard';
 import { GameInfoPanel } from '@/components/game/GameInfoPanel';
 import { GameControls } from '@/components/game/GameControls';
@@ -11,12 +10,10 @@ import type { Board, Move, Player, GamePhase } from '@/types';
 import { createEmptyBoard, placeStoneAndHandleCaptures, isValidMove } from '@/lib/gameLogic';
 import { getAiMove } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
 
 const BOARD_SIZE = 9;
 
 export default function GamePage() {
-  const { user, isUserLoading: authLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -45,12 +42,8 @@ export default function GamePage() {
   }, []);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace('/login');
-    } else if (!authLoading && user) {
-      startNewGame();
-    }
-  }, [authLoading, user, router, startNewGame]);
+    startNewGame();
+  }, [startNewGame]);
 
   const handleAiTurn = useCallback(async (currentBoard: Board, history: Move[]) => {
     setIsAiThinking(true);
@@ -128,15 +121,6 @@ export default function GamePage() {
     }
   }, [isGameOver, isAiThinking, currentPlayer, lastPlayerPass, capturedStones.B, capturedStones.W, toast, handleAiTurn, board, moveHistory]);
 
-
-  if (authLoading || !user) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-accent" />
-      </div>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-background text-foreground font-body p-4 md:p-6 lg:p-8">
       <div className="container mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -165,7 +149,7 @@ export default function GamePage() {
             aiGamePhase={aiGamePhase}
             aiExplanation={aiExplanation}
             isAiThinking={isAiThinking}
-            user={user}
+            user={null}
             isGameOver={isGameOver}
             winner={winner}
           />

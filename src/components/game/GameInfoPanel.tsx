@@ -4,7 +4,6 @@ import type { Move, Player, GamePhase } from '@/types';
 import { PlayerInfo } from './PlayerInfo';
 import { AIStrategy } from './AIStrategy';
 import { MoveHistory } from './MoveHistory';
-import { User } from 'firebase/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
@@ -15,7 +14,7 @@ interface GameInfoPanelProps {
   aiGamePhase: GamePhase;
   aiExplanation: string;
   isAiThinking: boolean;
-  user: User | null;
+  user: null;
   isGameOver: boolean;
   winner: Player | 'Draw' | null;
 }
@@ -27,7 +26,6 @@ export function GameInfoPanel({
   aiGamePhase,
   aiExplanation,
   isAiThinking,
-  user,
   isGameOver,
   winner,
 }: GameInfoPanelProps) {
@@ -47,7 +45,6 @@ export function GameInfoPanel({
         <PlayerInfo
           currentPlayer={currentPlayer}
           capturedStones={capturedStones}
-          user={user}
         />
         <Separator />
         <AIStrategy

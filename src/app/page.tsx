@@ -1,23 +1,15 @@
 'use client';
 
-import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
 export default function HomePage() {
-  const { user, isUserLoading: loading } = useUser();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) {
-      if (user) {
-        router.replace('/game');
-      } else {
-        router.replace('/login');
-      }
-    }
-  }, [user, loading, router]);
+    router.replace('/game');
+  }, [router]);
 
   return (
     <div className="flex h-screen w-full items-center justify-center bg-background text-foreground">
