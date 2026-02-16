@@ -29,8 +29,8 @@ export async function getAiMove(
     const convertedBoard = convertBoardForAI(boardState);
     const convertedPlayer = convertPlayerForAI(playerTurn);
     const convertedHistory = moveHistory.map(m => ({
-        row: m.row,
-        col: m.col,
+        r: m.r,
+        c: m.c,
         player: convertPlayerForAI(m.player)
     }));
 

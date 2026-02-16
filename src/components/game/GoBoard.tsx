@@ -7,7 +7,7 @@ import { Icons } from "@/components/icons";
 
 interface GoBoardProps {
   board: BoardState;
-  onMove: (row: number, col: number) => void;
+  onMove: (r: number, c: number) => void;
   disabled: boolean;
   lastMove: Move | null;
   size: number;
@@ -34,7 +34,7 @@ const getStarPoints = (size: number): [number, number][] => {
 
 
 export function GoBoard({ board, onMove, disabled, lastMove, size, currentPlayer, isAiThinking }: GoBoardProps) {
-  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
+  const [hoveredCell, setHoveredCell] = useState<{ r: number; c: number } | null>(null);
   
   const starPoints = useMemo(() => getStarPoints(size), [size]);
 
@@ -99,24 +99,24 @@ export function GoBoard({ board, onMove, disabled, lastMove, size, currentPlayer
         </svg>
 
         {/* Interactive Layer & Stones */}
-        {Array.from({ length: size }).map((_, row) =>
-          Array.from({ length: size }).map((_, col) => {
-            const cell = board[row]?.[col];
+        {Array.from({ length: size }).map((_, r) =>
+          Array.from({ length: size }).map((_, c) => {
+            const cell = board[r]?.[c];
             
             return (
               <div
-                key={`${row}-${col}`}
+                key={`${r}-${c}`}
                 className="absolute flex items-center justify-center"
                 style={{
-                  top: `${(row / (size - 1)) * 100}%`,
-                  left: `${(col / (size - 1)) * 100}%`,
+                  top: `${(r / (size - 1)) * 100}%`,
+                  left: `${(c / (size - 1)) * 100}%`,
                   width: interactiveCellSize,
                   height: interactiveCellSize,
                   transform: 'translate(-50%, -50%)',
                   cursor: isBoardDisabled ? 'not-allowed' : 'pointer',
                 }}
-                onClick={() => !isBoardDisabled && onMove(row, col)}
-                onMouseEnter={() => !isBoardDisabled && setHoveredCell({ row, col })}
+                onClick={() => !isBoardDisabled && onMove(r, c)}
+                onMouseEnter={() => !isBoardDisabled && setHoveredCell({ r, c })}
               >
                 {/* Placed stone */}
                 {cell && (
@@ -124,17 +124,17 @@ export function GoBoard({ board, onMove, disabled, lastMove, size, currentPlayer
                     className={cn(
                       "absolute h-[95%] w-[95%] transition-transform duration-150 z-10",
                       cell === "black" ? "fill-black" : "fill-white stroke-black stroke-[0.5px]",
-                      lastMove?.col === col && lastMove?.row === row ? "scale-105" : "scale-100",
+                      lastMove?.c === c && lastMove?.r === r ? "scale-105" : "scale-100",
                     )}
                   />
                 )}
                 
-                {lastMove?.col === col && lastMove?.row === row && (
+                {lastMove?.c === c && lastMove?.r === r && (
                   <div className="absolute h-1/4 w-1/4 rounded-full bg-red-500/80 animate-ping z-20"/>
                 )}
 
                 {/* Hover ghost stone */}
-                {!isBoardDisabled && hoveredCell?.row === row && hoveredCell?.col === col && !cell && (
+                {!isBoardDisabled && hoveredCell?.r === r && hoveredCell?.c === c && !cell && (
                   <Icons.Stone
                       className={cn(
                           "absolute h-[95%] w-[95%] opacity-50 z-10",

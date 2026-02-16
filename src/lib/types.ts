@@ -3,8 +3,8 @@ export type Stone = Player | null;
 export type BoardState = Stone[][];
 
 export type Move = {
-  row: number;
-  col: number;
+  r: number;
+  c: number;
   player: Player;
 };
 

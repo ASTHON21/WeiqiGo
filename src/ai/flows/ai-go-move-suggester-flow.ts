@@ -19,8 +19,8 @@ const AiGoMoveSuggesterInputSchema = z.object({
   ),
   moveHistory: z.array(
     z.object({
-      row: z.number().int().min(0).describe('The 0-indexed row coordinate of the move.'),
-      col: z.number().int().min(0).describe('The 0-indexed column coordinate of the move.'),
+      r: z.number().int().min(0).describe('The 0-indexed row coordinate of the move.'),
+      c: z.number().int().min(0).describe('The 0-indexed column coordinate of the move.'),
       player: z.enum(['B', 'W']).describe('The player who made this move.'),
     })
   ).describe('An ordered list of all previous moves in the game.').default([]),
@@ -30,8 +30,8 @@ export type AiGoMoveSuggesterInput = z.infer<typeof AiGoMoveSuggesterInputSchema
 
 const AiGoMoveSuggesterOutputSchema = z.object({
   bestMove: z.object({
-    row: z.number().int().min(0).describe('The 0-indexed row coordinate of the suggested best move.'),
-    col: z.number().int().min(0).describe('The 0-indexed column coordinate of the suggested best move.'),
+    r: z.number().int().min(0).describe('The 0-indexed row coordinate of the suggested best move.'),
+    c: z.number().int().min(0).describe('The 0-indexed column coordinate of the suggested best move.'),
   }).describe('The coordinates of the suggested optimal move.'),
   explanation: z.string().describe('A concise explanation of the strategic rationale behind the suggested move, considering Alpha-Beta pruning and pattern matching principles.'),
 });
@@ -57,13 +57,13 @@ Current Board State (represented as a 2D array where '_' is empty, 'B' is Black,
 Move History (chronological order):
 {{#if moveHistory}}
 {{#each moveHistory}}
-  Player {{this.player}} played at ({{this.row}}, {{this.col}}).
+  Player {{this.player}} played at ({{this.r}}, {{this.c}}).
 {{/each}}
 {{else}}
   No moves have been played yet.
 {{/if}}
 
-Analyze the current board state and move history to determine the single most strategic move for the current player. Provide the coordinates (row, col) of the best move and a concise explanation of its strategic rationale. The coordinates should be 0-indexed. Ensure the suggested move is on an empty intersection.
+Analyze the current board state and move history to determine the single most strategic move for the current player. Provide the coordinates (r, c) of the best move and a concise explanation of its strategic rationale. The coordinates should be 0-indexed. Ensure the suggested move is on an empty intersection.
 `,
 });
 

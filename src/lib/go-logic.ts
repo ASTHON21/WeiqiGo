@@ -1,30 +1,30 @@
 import type { BoardState, Player, ScoreDetails } from './types';
 
-function getNeighbors(row: number, col: number, size: number): { row: number, col: number }[] {
+function getNeighbors(r: number, c: number, size: number): { r: number, c: number }[] {
     return [
-        { row: row - 1, col }, { row: row + 1, col },
-        { row, col: col - 1 }, { row, col: col + 1 }
-    ].filter(p => p.row >= 0 && p.row < size && p.col >= 0 && p.col < size);
+        { r: r - 1, c }, { r: r + 1, c },
+        { r, c: c - 1 }, { r, c: c + 1 }
+    ].filter(p => p.r >= 0 && p.r < size && p.c >= 0 && p.c < size);
 }
 
-function findGroup(board: BoardState, startRow: number, startCol: number): { stones: { row: number, col: number }[], liberties: number } {
-    const color = board[startRow][startCol];
+function findGroup(board: BoardState, startR: number, startC: number): { stones: { r: number, c: number }[], liberties: number } {
+    const color = board[startR][startC];
     if (color === null) return { stones: [], liberties: 0 };
 
     const size = board.length;
-    const stones: { row: number, col: number }[] = [];
+    const stones: { r: number, c: number }[] = [];
     const libertySet = new Set<string>();
     const visited = new Set<string>();
-    const stack = [{ row: startRow, col: startCol }];
-    visited.add(`${startRow},${startCol}`);
+    const stack = [{ r: startR, c: startC }];
+    visited.add(`${startR},${startC}`);
 
     while (stack.length > 0) {
-        const { row, col } = stack.pop()!;
-        stones.push({ row, col });
+        const { r, c } = stack.pop()!;
+        stones.push({ r, c });
 
-        getNeighbors(row, col, size).forEach(n => {
-            const neighborColor = board[n.row][n.col];
-            const key = `${n.row},${n.col}`;
+        getNeighbors(r, c, size).forEach(n => {
+            const neighborColor = board[n.r][n.c];
+            const key = `${n.r},${n.c}`;
             if (neighborColor === null) {
                 libertySet.add(key);
             } else if (neighborColor === color && !visited.has(key)) {
@@ -54,34 +54,34 @@ export function createEmptyBoard(size: number): BoardState {
 
 export function processMove(
     board: BoardState,
-    row: number,
-    col: number,
+    r: number,
+    c: number,
     player: Player,
     history: BoardState[] = []
 ): { success: boolean; newBoard: BoardState; capturedStones: number; error?: string } {
     const size = board.length;
     
-    if (row < 0 || row >= size || col < 0 || col >= size) {
+    if (r < 0 || r >= size || c < 0 || c >= size) {
         return { success: false, newBoard: board, capturedStones: 0, error: 'out of bounds' };
     }
-    if (board[row][col] !== null) {
+    if (board[r][c] !== null) {
         return { success: false, newBoard: board, capturedStones: 0, error: 'occupied' };
     }
 
-    let newBoard = board.map(r => [...r]);
-    newBoard[row][col] = player;
+    let newBoard = board.map(row => [...row]);
+    newBoard[r][c] = player;
 
     const opponent: Player = player === 'black' ? 'white' : 'black';
     let totalCaptured = 0;
     
     // Check for captures
-    getNeighbors(row, col, size).forEach(n => {
-        if (newBoard[n.row][n.col] === opponent) {
-            const group = findGroup(newBoard, n.row, n.col);
+    getNeighbors(r, c, size).forEach(n => {
+        if (newBoard[n.r][n.c] === opponent) {
+            const group = findGroup(newBoard, n.r, n.c);
             if (group.liberties === 0) {
                 totalCaptured += group.stones.length;
                 group.stones.forEach(stone => {
-                    newBoard[stone.row][stone.col] = null;
+                    newBoard[stone.r][stone.c] = null;
                 });
             }
         }
@@ -89,16 +89,17 @@ export function processMove(
 
     // Check for suicide
     if (totalCaptured === 0) {
-        const ownGroup = findGroup(newBoard, row, col);
+        const ownGroup = findGroup(newBoard, r, c);
         if (ownGroup.liberties === 0) {
             return { success: false, newBoard: board, capturedStones: 0, error: 'suicide' };
         }
     }
 
-    // Simple Ko rule check: cannot repeat the board state from two moves ago.
-    const prevBoardState = history.length > 1 ? history[history.length - 2] : null;
-    if (prevBoardState && isBoardEqual(newBoard, prevBoardState)) {
-         return { success: false, newBoard: board, capturedStones: 0, error: 'ko' };
+    // Ko rule check: check if the new board state has appeared in the history.
+    for (const oldBoard of history) {
+      if (isBoardEqual(newBoard, oldBoard)) {
+        return { success: false, newBoard: board, capturedStones: 0, error: 'ko' };
+      }
     }
     
     return { success: true, newBoard, capturedStones: totalCaptured };
@@ -122,23 +123,23 @@ export function calculateScore(board: BoardState): { winner: Player | 'draw', bl
 
             if (visited[r][c] || stone !== null) continue;
 
-            const territory: {row: number, col: number}[] = [];
-            const queue = [{row: r, col: c}];
+            const territory: {r: number, c: number}[] = [];
+            const queue = [{r: r, c: c}];
             visited[r][c] = true;
             let touchesBlack = false;
             let touchesWhite = false;
             
             let head = 0;
             while(head < queue.length) {
-                const { row, col } = queue[head++];
-                territory.push({row, col});
+                const { r: curR, c: curC } = queue[head++];
+                territory.push({r: curR, c: curC});
 
-                const neighbors = getNeighbors(row, col, size);
+                const neighbors = getNeighbors(curR, curC, size);
                 for (const n of neighbors) {
-                    if (board[n.row][n.col] === 'black') touchesBlack = true;
-                    else if (board[n.row][n.col] === 'white') touchesWhite = true;
-                    else if (!visited[n.row][n.col]) {
-                        visited[n.row][n.col] = true;
+                    if (board[n.r][n.c] === 'black') touchesBlack = true;
+                    else if (board[n.r][n.c] === 'white') touchesWhite = true;
+                    else if (!visited[n.r][n.c]) {
+                        visited[n.r][n.c] = true;
                         queue.push(n);
                     }
                 }

@@ -69,12 +69,12 @@ function runTests() {
     console.log(testName);
     let board = createEmptyBoard(5);
     let history = [board];
-    const moves = [
-        {row:0,col:1,player:'white'}, {row:0,col:2,player:'white'},
-        {row:1,col:0,player:'black'}, {row:1,col:3,player:'black'}, {row:2,col:1,player:'black'}, {row:2,col:2,player:'black'},
+    const moves: {r: number, c: number, player: Player}[] = [
+        {r:0,c:1,player:'white'}, {r:0,c:2,player:'white'},
+        {r:1,c:0,player:'black'}, {r:1,c:3,player:'black'}, {r:2,c:1,player:'black'}, {r:2,c:2,player:'black'},
     ];
     for(const move of moves) {
-        const res = processMove(board, move.row, move.col, move.player as Player, history);
+        const res = processMove(board, move.r, move.c, move.player, history);
         board = res.newBoard;
         history.push(board);
     }
@@ -107,9 +107,9 @@ function runTests() {
     let board = createEmptyBoard(5);
     let history = [board];
 
-    const moves = [ {row:0,col:1,player:'black'}, {row:1,col:0,player:'black'}, {row:1,col:2,player:'black'}, {row:2,col:1,player:'black'} ];
+    const moves: {r: number, c: number, player: Player}[] = [ {r:0,c:1,player:'black'}, {r:1,c:0,player:'black'}, {r:1,c:2,player:'black'}, {r:2,c:1,player:'black'} ];
     for(const move of moves) {
-        const res = processMove(board, move.row, move.col, move.player as Player, history);
+        const res = processMove(board, move.r, move.c, move.player, history);
         board = res.newBoard;
         history.push(board);
     }
@@ -135,35 +135,33 @@ function runTests() {
     console.log(testName);
     let board = createEmptyBoard(5);
     let history: BoardState[] = [board];
-
-    const moves = [
-        {row:0,col:1,player:'black'}, {row:0,col:2,player:'white'},
-        {row:1,col:0,player:'black'}, {row:1,col:3,player:'white'},
-        {row:2,col:1,player:'black'}, {row:2,col:2,player:'white'},
-        {row:1,col:2,player:'black'},
-    ];
-    for(const move of moves) {
-        const res = processMove(board, move.row, move.col, move.player as Player, history);
-        board = res.newBoard;
-        history.push(board);
-    }
+    const initialBoard = createEmptyBoard(5);
+    initialBoard[0][1] = 'black';
+    initialBoard[0][2] = 'white';
+    initialBoard[1][0] = 'black';
+    initialBoard[1][3] = 'white';
+    initialBoard[2][1] = 'black';
+    initialBoard[2][2] = 'white';
     
-    // White captures black stone at (1,2) by playing at (1,1)
-    const whiteCaptures = processMove(board, 1, 1, 'white', history);
-    board = whiteCaptures.newBoard;
-    history.push(board);
+    let currentBoard = initialBoard;
+    history = [currentBoard];
+
+    // B plays at 1,2, creating the Ko situation
+    const blackCreatesKo = processMove(currentBoard, 1, 2, 'black', history);
+    currentBoard = blackCreatesKo.newBoard;
+    history.push(currentBoard);
+
+    // W captures at 1,1
+    const whiteCaptures = processMove(currentBoard, 1, 1, 'white', history);
+    currentBoard = whiteCaptures.newBoard;
+    history.push(currentBoard);
 
     console.log('Board after white captures (Ko situation created):');
-    printBoard(board);
+    printBoard(currentBoard);
     assert(whiteCaptures.capturedStones === 1, `${testName} - White should capture 1 stone.`);
         
-    // A different move is played to avoid Ko violation for the next test
-    const intermediateMove = processMove(board, 4, 4, 'black', history);
-    board = intermediateMove.newBoard;
-    history.push(board);
-
-    // Now, black attempts to recapture at (1,2) - this should be illegal due to Ko
-    const blackRecaptures = processMove(board, 1, 2, 'black', history);
+    // Now, black attempts to recapture at (1,2) immediately - this should be illegal due to Ko
+    const blackRecaptures = processMove(currentBoard, 1, 2, 'black', history);
 
     if (
         assert(!blackRecaptures.success, `${testName} - Recapture should not be successful`) &&

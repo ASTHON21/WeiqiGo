@@ -1,6 +1,6 @@
 'use client';
 
-import type { Move } from '@/types';
+import type { Move } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { History } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -31,16 +31,16 @@ export function MoveHistory({ moveHistory }: MoveHistoryProps) {
                 key={index}
                 className={cn(
                     "flex items-center gap-2 text-sm p-1.5 rounded-md",
-                    move.player === 'B' ? "text-foreground" : "text-muted-foreground"
+                    move.player === 'black' ? "text-foreground" : "text-muted-foreground"
                 )}
               >
                 <span className="font-mono text-xs w-6 text-center text-muted-foreground">{index + 1}.</span>
                 <div className={cn(
                     "w-5 h-5 rounded-full border", 
-                    move.player === 'B' ? 'bg-gray-900 border-gray-100' : 'bg-gray-100 border-gray-900'
+                    move.player === 'black' ? 'bg-gray-900 border-gray-100' : 'bg-gray-100 border-gray-900'
                 )} />
                 <span>
-                    {move.player === 'B' ? 'Black' : 'White'} to {formatCoordinate(move.col, 9)}{9 - move.row}
+                    {move.player === 'black' ? 'Black' : 'White'} to {formatCoordinate(move.c, 19)}{19 - move.r}
                 </span>
               </li>
             ))}

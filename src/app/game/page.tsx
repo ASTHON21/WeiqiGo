@@ -114,7 +114,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
     case 'PASS_TURN': {
-       const passMove: Move = { row: -1, col: -1, player: state.currentPlayer };
+       const passMove: Move = { r: -1, c: -1, player: state.currentPlayer };
        return {
          ...state,
          moveHistory: [...state.moveHistory, passMove],
@@ -198,7 +198,7 @@ export default function GamePage() {
      
      const lastMoveInHistory = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
 
-     if (lastMoveInHistory && lastMoveInHistory.row === -1 && lastMoveInHistory.col === -1) {
+     if (lastMoveInHistory && lastMoveInHistory.r === -1 && lastMoveInHistory.c === -1) {
          toast({ title: 'Game Over', description: 'Both players passed consecutively.'});
          const scoreResult = calculateScore(board);
          endGame(scoreResult.winner, 'Agreement', scoreResult);
@@ -225,24 +225,24 @@ export default function GamePage() {
     toast({ title: 'Undo Successful', description: `Reverted ${gameMode === 'pve' ? 'your last move and the AI\'s response' : '1 move'}.`});
   }
 
-  const handleMove = useCallback((row: number, col: number) => {
+  const handleMove = useCallback((r: number, c: number) => {
       if (gameStatus !== "playing" || (gameMode === 'pve' && currentPlayer === 'white')) return;
       
-      if (row === -1 && col === -1) {
+      if (r === -1 && c === -1) {
           handlePass();
           return;
       }
 
-      const result = processMove(board, row, col, currentPlayer, boardHistory);
+      const result = processMove(board, r, c, currentPlayer, boardHistory);
 
       if (result.success) {
-          const newMove: Move = { row, col, player: currentPlayer };
+          const newMove: Move = { r, c, player: currentPlayer };
           dispatch({ type: 'MAKE_MOVE', payload: { board: result.newBoard, move: newMove, capturedStones: result.capturedStones } });
       } else { 
-          let description = `An unknown error occurred at (${row}, ${col}).`;
-          if (result.error === 'ko') description = `Move at (${row}, ${col}) is not allowed due to the Ko rule.`;
-          else if (result.error === 'suicide') description = `Suicide move at (${row}, ${col}) is not allowed.`;
-          else if (result.error === 'occupied') description = `Position (${row}, ${col}) is already occupied.`;
+          let description = `An unknown error occurred at (${r}, ${c}).`;
+          if (result.error === 'ko') description = `Move at (${r}, ${c}) is not allowed due to the Ko rule.`;
+          else if (result.error === 'suicide') description = `Suicide move at (${r}, ${c}) is not allowed.`;
+          else if (result.error === 'occupied') description = `Position (${r}, ${c}) is already occupied.`;
           
           toast({ title: "Invalid Move", description, variant: "destructive" });
       }
@@ -267,9 +267,9 @@ export default function GamePage() {
           setAiGamePhase(aiResult.gamePhase);
           setAiExplanation(aiResult.explanation);
           
-          const gameResult = processMove(board, aiResult.bestMove.row, aiResult.bestMove.col, 'white', boardHistory);
+          const gameResult = processMove(board, aiResult.bestMove.r, aiResult.bestMove.c, 'white', boardHistory);
           if (gameResult.success) {
-            const aiMove: Move = { row: aiResult.bestMove.row, col: aiResult.bestMove.col, player: 'white' };
+            const aiMove: Move = { r: aiResult.bestMove.r, c: aiResult.bestMove.c, player: 'white' };
             dispatch({ type: 'MAKE_MOVE', payload: { board: gameResult.newBoard, move: aiMove, capturedStones: gameResult.capturedStones } });
           } else {
             toast({ title: "AI Error", description: "AI suggested an invalid move, passing its turn.", variant: "destructive" });
