@@ -22,7 +22,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Icons } from "@/components/icons";
 import { useToast } from "@/hooks/use-toast";
-import { getAiMove } from "@/lib/actions";
 import { AIStrategy } from "@/components/game/AIStrategy";
 import { SearchTreeVisualization } from "@/components/game/SearchTreeVisualization";
 import { AIDebugLog } from "@/components/game/AIDebugLog";
@@ -39,6 +38,7 @@ import type {
 } from "@/lib/types";
 import { processMove, calculateScore } from "@/lib/go-logic";
 import { cn } from "@/lib/utils";
+import { findBestMove } from "@/lib/ai-engine";
 
 const timeSettings: { [key: number]: number } = {
   9: 60 * 60 * 1000,
@@ -249,44 +249,111 @@ export default function GamePage() {
     }, [board, boardHistory, currentPlayer, gameStatus, handlePass, toast, gameMode]
   );
   
-    // AI Turn Logic
+  const getLocalAiMove = (
+    boardState: BoardState,
+    playerTurn: Player,
+    currentMoveHistory: Move[],
+    currentBoardSize: number,
+  ) => {
+    try {
+        const { bestMove, explanation, gamePhase } = findBestMove(
+            boardState,
+            playerTurn,
+            currentMoveHistory,
+            currentBoardSize
+        );
+        
+        if (!bestMove) {
+            return {
+                success: false,
+                error: "AI could not find a valid move.",
+                debugLog: { error: "No best move returned from `findBestMove`." }
+            };
+        }
+
+        return {
+            success: true,
+            bestMove: { r: bestMove.r, c: bestMove.c, player: playerTurn },
+            explanation,
+            gamePhase,
+            debugLog: {
+                phaseInput: {
+                    gamePhase,
+                    moveHistory: currentMoveHistory.length,
+                },
+                phaseResult: {
+                    gamePhase
+                },
+                moveInput: {
+                    boardState,
+                    playerTurn,
+                    moveHistory: currentMoveHistory,
+                    boardSize: currentBoardSize,
+                },
+                moveResult: {
+                    bestMove,
+                    explanation,
+                }
+            }
+        };
+
+    } catch (e: any) {
+        console.error('Error in getLocalAiMove:', e);
+        return { 
+            success: false, 
+            error: e.message || "An unexpected error occurred in the AI engine.",
+            debugLog: {
+                error: e.toString(),
+            }
+        };
+    }
+  }
+
+  // AI Turn Logic - 彻底改为本地调用，不再消耗 API
   useEffect(() => {
     if (gameMode === 'pve' && currentPlayer === 'white' && gameStatus === 'playing' && !isAiThinking) {
-      const handleAiTurn = async () => {
+      const handleAiTurn = () => {
         setIsAiThinking(true);
-        setAiExplanation("Thinking...");
-        setAiDebugLog(null);
+        setAiExplanation("本地 AI 正在计算...");
+        
+        // 延迟 500ms 模拟思考感，实际上计算只需 10ms
+        setTimeout(() => {
+          const aiResult = getLocalAiMove(board, 'white', moveHistory, boardSize);
 
-        const aiResult = await getAiMove(board, 'white', moveHistory, boardSize);
-
-        if (aiResult.debugLog) {
+          if (aiResult.success && aiResult.bestMove.r !== -1) {
+            setAiGamePhase(aiResult.gamePhase as any);
+            setAiExplanation(aiResult.explanation);
             setAiDebugLog(aiResult.debugLog);
-        }
 
-        if (aiResult.success && aiResult.bestMove) {
-          setAiGamePhase(aiResult.gamePhase);
-          setAiExplanation(aiResult.explanation);
-          
-          const gameResult = processMove(board, aiResult.bestMove.r, aiResult.bestMove.c, 'white', boardHistory);
-          if (gameResult.success) {
-            const aiMove: Move = { r: aiResult.bestMove.r, c: aiResult.bestMove.c, player: 'white' };
-            dispatch({ type: 'MAKE_MOVE', payload: { board: gameResult.newBoard, move: aiMove, capturedStones: gameResult.capturedStones } });
+            const gameResult = processMove(board, aiResult.bestMove.r, aiResult.bestMove.c, 'white', boardHistory);
+            if (gameResult.success) {
+              dispatch({ 
+                type: 'MAKE_MOVE', 
+                payload: { 
+                  board: gameResult.newBoard, 
+                  move: { r: aiResult.bestMove.r, c: aiResult.bestMove.c, player: 'white' }, 
+                  capturedStones: gameResult.capturedStones 
+                } 
+              });
+            } else {
+                 toast({ title: "AI Error", description: `AI chose an invalid move (${gameResult.error}). Passing.`, variant: 'destructive'});
+                 dispatch({ type: 'PASS_TURN' });
+            }
           } else {
-            toast({ title: "AI Error", description: "AI suggested an invalid move, passing its turn.", variant: "destructive" });
+            if(aiResult.error){
+                toast({ title: "AI Error", description: aiResult.error, variant: 'destructive' });
+            } else {
+                toast({ title: "AI Passes", description: aiResult.explanation });
+            }
             dispatch({ type: 'PASS_TURN' });
           }
-        } else {
-          toast({ title: "AI Error", description: aiResult.error || "The AI failed to make a move. Passing its turn.", variant: "destructive" });
-          dispatch({ type: 'PASS_TURN' });
-        }
-        
-        setIsAiThinking(false);
+          setIsAiThinking(false);
+        }, 500);
       };
 
-      const timeoutId = setTimeout(handleAiTurn, 1000);
-      return () => clearTimeout(timeoutId);
+      handleAiTurn();
     }
-  }, [currentPlayer, gameMode, gameStatus, isAiThinking, board, moveHistory, boardSize, boardHistory, toast]);
+  }, [currentPlayer, gameMode, gameStatus, isAiThinking, board, boardHistory, moveHistory, boardSize, toast]);
   
   useEffect(() => {
       if (gameStatus !== 'playing') return;

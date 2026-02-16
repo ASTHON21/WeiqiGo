@@ -3,6 +3,7 @@
 import type { BoardState, Move, Player } from '@/lib/types';
 import { findBestMove } from './ai-engine';
 
+// This function is no longer called by the client but is kept for potential future use or server-side game logic.
 export async function getAiMove(
   boardState: BoardState,
   playerTurn: Player,
