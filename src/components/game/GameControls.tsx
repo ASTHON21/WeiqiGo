@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { auth } from '@/lib/firebase';
+import { useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { LogOut, Play, RefreshCw } from 'lucide-react';
 import type { Player } from '@/types';
@@ -26,6 +26,7 @@ interface GameControlsProps {
 }
 
 export function GameControls({ onNewGame, onPass, isGameOver, currentPlayer, isAiThinking }: GameControlsProps) {
+  const auth = useAuth();
   const handleSignOut = async () => {
     await signOut(auth);
   };

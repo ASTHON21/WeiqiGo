@@ -2,9 +2,8 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { auth, googleProvider } from '@/lib/firebase';
-import { useAuth } from '@/hooks/useAuth';
-import { signInWithPopup } from 'firebase/auth';
+import { useAuth, useUser } from '@/firebase';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -22,7 +21,8 @@ function GoogleIcon() {
 
 export function LoginPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, isUserLoading: loading } = useUser();
+  const auth = useAuth();
 
   useEffect(() => {
     if (!loading && user) {
@@ -32,6 +32,7 @@ export function LoginPage() {
 
   const handleSignIn = async () => {
     try {
+      const googleProvider = new GoogleAuthProvider();
       await signInWithPopup(auth, googleProvider);
       router.push('/game');
     } catch (error) {

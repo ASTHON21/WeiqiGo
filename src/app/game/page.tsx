@@ -1,9 +1,8 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useUser } from '@/firebase';
 import { GoBoard } from '@/components/game/GoBoard';
 import { GameInfoPanel } from '@/components/game/GameInfoPanel';
 import { GameControls } from '@/components/game/GameControls';
@@ -17,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 const BOARD_SIZE = 9;
 
 export default function GamePage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, isUserLoading: authLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -48,7 +47,7 @@ export default function GamePage() {
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace('/login');
-    } else {
+    } else if (!authLoading && user) {
       startNewGame();
     }
   }, [authLoading, user, router, startNewGame]);
@@ -83,7 +82,7 @@ export default function GamePage() {
     } finally {
       setIsAiThinking(false);
     }
-  }, [toast]);
+  }, [toast, handlePassTurn]);
   
 
   const handlePlayerMove = (row: number, col: number) => {
@@ -107,7 +106,7 @@ export default function GamePage() {
     handleAiTurn(newBoard, newHistory);
   };
   
-  const handlePassTurn = () => {
+  const handlePassTurn = useCallback(() => {
     if (isGameOver || isAiThinking) return;
 
     const nextPlayer = currentPlayer === 'B' ? 'W' : 'B';
@@ -127,7 +126,7 @@ export default function GamePage() {
             handleAiTurn(board, moveHistory);
         }
     }
-  };
+  }, [isGameOver, isAiThinking, currentPlayer, lastPlayerPass, capturedStones.B, capturedStones.W, toast, handleAiTurn, board, moveHistory]);
 
 
   if (authLoading || !user) {

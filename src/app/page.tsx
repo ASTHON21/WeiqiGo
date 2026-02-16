@@ -1,12 +1,12 @@
 'use client';
 
-import { useAuth } from '@/hooks/useAuth';
+import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
 export default function HomePage() {
-  const { user, loading } = useAuth();
+  const { user, isUserLoading: loading } = useUser();
   const router = useRouter();
 
   useEffect(() => {
