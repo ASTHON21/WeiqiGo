@@ -78,10 +78,15 @@ export default {
             height: '0',
           },
         },
+        'turn-indicator-pop': {
+            '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 0 0px hsl(var(--primary) / 0.5)' },
+            '50%': { transform: 'scale(1.02)', boxShadow: '0 0 0 4px hsl(var(--primary) / 0.2)' },
+        }
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        'turn-indicator-pop': 'turn-indicator-pop 1.5s ease-in-out infinite',
       },
     },
   },

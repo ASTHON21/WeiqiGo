@@ -1,4 +1,4 @@
-import { Play, Undo2, Flag, AppWindow, type LucideProps } from 'lucide-react';
+import { Play, Undo2, Flag, AppWindow, type LucideProps, History, Settings, Download, Trash2, Home } from 'lucide-react';
 import type { SVGProps } from 'react';
 
 const Stone = (props: SVGProps<SVGSVGElement>) => (
@@ -32,4 +32,9 @@ export const Icons = {
   Undo: (props: LucideProps) => <Undo2 {...props} />,
   Resign: (props: LucideProps) => <Flag {...props} />,
   Logo: Logo,
+  History: (props: LucideProps) => <History {...props} />,
+  Settings: (props: LucideProps) => <Settings {...props} />,
+  Download: (props: LucideProps) => <Download {...props} />,
+  Trash2: (props: LucideProps) => <Trash2 {...props} />,
+  Home: (props: LucideProps) => <Home {...props} />,
 };

@@ -3,6 +3,11 @@ import './globals.css';
 import { FirebaseClientProvider } from '@/firebase';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
+import { SidebarProvider, Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarHeader } from '@/components/ui/sidebar';
+import { History, Settings, Play } from 'lucide-react';
+import Link from 'next/link';
+import { Icons } from '@/components/icons';
+
 
 export const metadata: Metadata = {
   title: 'Shadow Go',
@@ -23,7 +28,45 @@ export default function RootLayout({
       </head>
       <body className={cn('font-body antialiased min-h-screen bg-background')}>
         <FirebaseClientProvider>
-          {children}
+          <SidebarProvider>
+            <Sidebar>
+              <SidebarHeader>
+                <div className="flex items-center gap-2">
+                  <Icons.Logo className="w-6 h-6 text-primary" />
+                  <h1 className="text-xl font-semibold font-headline">Go Master</h1>
+                </div>
+              </SidebarHeader>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <Link href="/game" legacyBehavior passHref>
+                    <SidebarMenuButton>
+                      <Play />
+                      Play Game
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                   <Link href="/history" legacyBehavior passHref>
+                    <SidebarMenuButton>
+                      <History />
+                      Game History
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                   <Link href="/appearance" legacyBehavior passHref>
+                    <SidebarMenuButton>
+                      <Settings />
+                      Appearance
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </Sidebar>
+            <SidebarInset>
+              <main className="flex-1">{children}</main>
+            </SidebarInset>
+          </SidebarProvider>
           <Toaster />
         </FirebaseClientProvider>
       </body>
