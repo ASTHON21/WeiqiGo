@@ -1,6 +1,6 @@
 
 import { processMove, createEmptyBoard } from './go-logic';
-import type { BoardState } from './types';
+import type { BoardState, Player } from './types';
 
 // Helper to print the board to the console for visual inspection
 function printBoard(board: BoardState) {
@@ -70,11 +70,11 @@ function runTests() {
     let board = createEmptyBoard(5);
     let history = [board];
     const moves = [
-        {r:0,c:1,p:'white'}, {r:0,c:2,p:'white'},
-        {r:1,c:0,p:'black'}, {r:1,c:3,p:'black'}, {r:2,c:1,p:'black'}, {r:2,c:2,p:'black'},
+        {row:0,col:1,player:'white'}, {row:0,col:2,player:'white'},
+        {row:1,col:0,player:'black'}, {row:1,col:3,player:'black'}, {row:2,col:1,player:'black'}, {row:2,col:2,player:'black'},
     ];
     for(const move of moves) {
-        const res = processMove(board, move.r, move.c, move.p, history);
+        const res = processMove(board, move.row, move.col, move.player as Player, history);
         board = res.newBoard;
         history.push(board);
     }
@@ -107,9 +107,9 @@ function runTests() {
     let board = createEmptyBoard(5);
     let history = [board];
 
-    const moves = [ {r:0,c:1,p:'black'}, {r:1,c:0,p:'black'}, {r:1,c:2,p:'black'}, {r:2,c:1,p:'black'} ];
+    const moves = [ {row:0,col:1,player:'black'}, {row:1,col:0,player:'black'}, {row:1,col:2,player:'black'}, {row:2,col:1,player:'black'} ];
     for(const move of moves) {
-        const res = processMove(board, move.r, move.c, move.p, history);
+        const res = processMove(board, move.row, move.col, move.player as Player, history);
         board = res.newBoard;
         history.push(board);
     }
@@ -137,13 +137,13 @@ function runTests() {
     let history: BoardState[] = [board];
 
     const moves = [
-        {r:0,c:1,p:'black'}, {r:0,c:2,p:'white'},
-        {r:1,c:0,p:'black'}, {r:1,c:3,p:'white'},
-        {r:2,c:1,p:'black'}, {r:2,c:2,p:'white'},
-        {r:1,c:2,p:'black'},
+        {row:0,col:1,player:'black'}, {row:0,col:2,player:'white'},
+        {row:1,col:0,player:'black'}, {row:1,col:3,player:'white'},
+        {row:2,col:1,player:'black'}, {row:2,col:2,player:'white'},
+        {row:1,col:2,player:'black'},
     ];
     for(const move of moves) {
-        const res = processMove(board, move.r, move.c, move.p, history);
+        const res = processMove(board, move.row, move.col, move.player as Player, history);
         board = res.newBoard;
         history.push(board);
     }
@@ -157,7 +157,12 @@ function runTests() {
     printBoard(board);
     assert(whiteCaptures.capturedStones === 1, `${testName} - White should capture 1 stone.`);
         
-    // Now, black attempts to immediately recapture at (1,2)
+    // A different move is played to avoid Ko violation for the next test
+    const intermediateMove = processMove(board, 4, 4, 'black', history);
+    board = intermediateMove.newBoard;
+    history.push(board);
+
+    // Now, black attempts to recapture at (1,2) - this should be illegal due to Ko
     const blackRecaptures = processMove(board, 1, 2, 'black', history);
 
     if (

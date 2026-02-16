@@ -1,113 +1,172 @@
-/**
- * 墨影项目 - 核心围棋逻辑
- * 专注于高性能气数计算与提子逻辑，为 Alpha-Beta 搜索提供底层支持
- */
+import type { BoardState, Player, ScoreDetails } from './types';
 
-export type StoneColor = 'BLACK' | 'WHITE' | 'EMPTY';
-export type Point = { x: number; y: number };
+function getNeighbors(row: number, col: number, size: number): { row: number, col: number }[] {
+    return [
+        { row: row - 1, col }, { row: row + 1, col },
+        { row, col: col - 1 }, { row, col: col + 1 }
+    ].filter(p => p.row >= 0 && p.row < size && p.col >= 0 && p.col < size);
+}
 
-export class GoLogic {
-  private boardSize: number = 19;
+function findGroup(board: BoardState, startRow: number, startCol: number): { stones: { row: number, col: number }[], liberties: number } {
+    const color = board[startRow][startCol];
+    if (color === null) return { stones: [], liberties: 0 };
 
-  /**
-   * 判断落子是否合法
-   * @param board 当前棋盘二维数组
-   * @param x 坐标X
-   * @param y 坐标Y
-   * @param color 落子颜色
-   */
-  public isValidMove(board: StoneColor[][], x: number, y: number, color: StoneColor): boolean {
-    // 1. 检查是否在棋盘内
-    if (x < 0 || x >= this.boardSize || y < 0 || y >= this.boardSize) return false;
-    
-    // 2. 检查该点是否已有棋子
-    if (board[y][x] !== 'EMPTY') return false;
-
-    // 3. 模拟落子，检查是否为“自杀”
-    // 注意：如果是提掉对方子的自杀，是合法的（围棋规则）
-    // 这里留给后续实现“打劫 (Ko)”的判断
-    return !this.isSuicide(board, x, y, color);
-  }
-
-  /**
-   * 计算指定棋块的气数
-   * @param board 棋盘
-   * @param x 坐标
-   * @param y 坐标
-   */
-  public getLiberties(board: StoneColor[][], x: number, y: number): number {
-    const color = board[y][x];
-    if (color === 'EMPTY') return 0;
-
+    const size = board.length;
+    const stones: { row: number, col: number }[] = [];
+    const libertySet = new Set<string>();
     const visited = new Set<string>();
-    const liberties = new Set<string>();
-    const stack: Point[] = [{ x, y }];
+    const stack = [{ row: startRow, col: startCol }];
+    visited.add(`${startRow},${startCol}`);
 
     while (stack.length > 0) {
-      const curr = stack.pop()!;
-      const key = `${curr.x},${curr.y}`;
-      if (visited.has(key)) continue;
-      visited.add(key);
+        const { row, col } = stack.pop()!;
+        stones.push({ row, col });
 
-      const neighbors = this.getNeighbors(curr.x, curr.y);
-      for (const n of neighbors) {
-        if (board[n.y][n.x] === 'EMPTY') {
-          liberties.add(`${n.x},${n.y}`);
-        } else if (board[n.y][n.x] === color) {
-          stack.push(n);
-        }
-      }
+        getNeighbors(row, col, size).forEach(n => {
+            const neighborColor = board[n.row][n.col];
+            const key = `${n.row},${n.col}`;
+            if (neighborColor === null) {
+                libertySet.add(key);
+            } else if (neighborColor === color && !visited.has(key)) {
+                visited.add(key);
+                stack.push(n);
+            }
+        });
     }
-    return liberties.size;
-  }
+    return { stones, liberties: libertySet.size };
+}
 
-  /**
-   * 执行落子并返回新的棋盘状态（包含提子处理）
-   */
-  public placeStone(board: StoneColor[][], x: number, y: number, color: StoneColor): StoneColor[][] {
-    // 深拷贝棋盘，避免副作用
-    const newBoard = board.map(row => [...row]);
-    newBoard[y][x] = color;
 
-    // 检查四周敌方棋子是否被提掉
-    const opponent = color === 'BLACK' ? 'WHITE' : 'BLACK';
-    const neighbors = this.getNeighbors(x, y);
-
-    neighbors.forEach(n => {
-      if (newBoard[n.y][n.x] === opponent) {
-        if (this.getLiberties(newBoard, n.x, n.y) === 0) {
-          this.removeGroup(newBoard, n.x, n.y);
+function isBoardEqual(b1: BoardState, b2: BoardState): boolean {
+    if (!b1 || !b2 || b1.length !== b2.length) return false;
+    for (let r = 0; r < b1.length; r++) {
+        if (b1[r].length !== b2[r].length) return false;
+        for (let c = 0; c < b1[r].length; c++) {
+            if (b1[r][c] !== b2[r][c]) return false;
         }
-      }
+    }
+    return true;
+}
+
+export function createEmptyBoard(size: number): BoardState {
+    return Array.from({ length: size }, () => Array(size).fill(null));
+}
+
+export function processMove(
+    board: BoardState,
+    row: number,
+    col: number,
+    player: Player,
+    history: BoardState[] = []
+): { success: boolean; newBoard: BoardState; capturedStones: number; error?: string } {
+    const size = board.length;
+    
+    if (row < 0 || row >= size || col < 0 || col >= size) {
+        return { success: false, newBoard: board, capturedStones: 0, error: 'out of bounds' };
+    }
+    if (board[row][col] !== null) {
+        return { success: false, newBoard: board, capturedStones: 0, error: 'occupied' };
+    }
+
+    let newBoard = board.map(r => [...r]);
+    newBoard[row][col] = player;
+
+    const opponent: Player = player === 'black' ? 'white' : 'black';
+    let totalCaptured = 0;
+    
+    // Check for captures
+    getNeighbors(row, col, size).forEach(n => {
+        if (newBoard[n.row][n.col] === opponent) {
+            const group = findGroup(newBoard, n.row, n.col);
+            if (group.liberties === 0) {
+                totalCaptured += group.stones.length;
+                group.stones.forEach(stone => {
+                    newBoard[stone.row][stone.col] = null;
+                });
+            }
+        }
     });
 
-    return newBoard;
-  }
-
-  private getNeighbors(x: number, y: number): Point[] {
-    const res: Point[] = [];
-    if (x > 0) res.push({ x: x - 1, y });
-    if (x < this.boardSize - 1) res.push({ x: x + 1, y });
-    if (y > 0) res.push({ x, y: y - 1 });
-    if (y < this.boardSize - 1) res.push({ x, y: y + 1 });
-    return res;
-  }
-
-  private removeGroup(board: StoneColor[][], x: number, y: number) {
-    const color = board[y][x];
-    const stack: Point[] = [{ x, y }];
-    while (stack.length > 0) {
-      const curr = stack.pop()!;
-      if (board[curr.y][curr.x] === color) {
-        board[curr.y][curr.x] = 'EMPTY';
-        stack.push(...this.getNeighbors(curr.x, curr.y));
-      }
+    // Check for suicide
+    if (totalCaptured === 0) {
+        const ownGroup = findGroup(newBoard, row, col);
+        if (ownGroup.liberties === 0) {
+            return { success: false, newBoard: board, capturedStones: 0, error: 'suicide' };
+        }
     }
-  }
 
-  private isSuicide(board: StoneColor[][], x: number, y: number, color: StoneColor): boolean {
-    // 简易判断：如果落子后自己没气，且不能提掉对方任何子，则是自杀
-    // 实现略...（在 placeStone 中逻辑已有体现）
-    return false; 
-  }
+    // Simple Ko rule check: cannot repeat the board state from two moves ago.
+    const prevBoardState = history.length > 1 ? history[history.length - 2] : null;
+    if (prevBoardState && isBoardEqual(newBoard, prevBoardState)) {
+         return { success: false, newBoard: board, capturedStones: 0, error: 'ko' };
+    }
+    
+    return { success: true, newBoard, capturedStones: totalCaptured };
+}
+
+export function calculateScore(board: BoardState): { winner: Player | 'draw', blackScore: number, whiteScore: number, details: ScoreDetails } {
+    const size = board.length;
+    let blackStones = 0;
+    let whiteStones = 0;
+    let blackTerritory = 0;
+    let whiteTerritory = 0;
+    const komi = 6.5;
+
+    const visited = Array(size).fill(false).map(() => Array(size).fill(false));
+
+    for(let r=0; r<size; r++) {
+        for(let c=0; c<size; c++) {
+            const stone = board[r][c];
+            if (stone === 'black') blackStones++;
+            if (stone === 'white') whiteStones++;
+
+            if (visited[r][c] || stone !== null) continue;
+
+            const territory: {row: number, col: number}[] = [];
+            const queue = [{row: r, col: c}];
+            visited[r][c] = true;
+            let touchesBlack = false;
+            let touchesWhite = false;
+            
+            let head = 0;
+            while(head < queue.length) {
+                const { row, col } = queue[head++];
+                territory.push({row, col});
+
+                const neighbors = getNeighbors(row, col, size);
+                for (const n of neighbors) {
+                    if (board[n.row][n.col] === 'black') touchesBlack = true;
+                    else if (board[n.row][n.col] === 'white') touchesWhite = true;
+                    else if (!visited[n.row][n.col]) {
+                        visited[n.row][n.col] = true;
+                        queue.push(n);
+                    }
+                }
+            }
+
+            if(touchesBlack && !touchesWhite) {
+                blackTerritory += territory.length;
+            } else if (!touchesBlack && touchesWhite) {
+                whiteTerritory += territory.length;
+            }
+        }
+    }
+    
+    const blackScore = blackStones + blackTerritory;
+    const whiteScore = whiteStones + whiteTerritory + komi;
+    
+    const winner = blackScore > whiteScore ? 'black' : (whiteScore > blackScore ? 'white' : 'draw');
+    
+    return { 
+        winner, 
+        blackScore, 
+        whiteScore, 
+        details: {
+            blackStones,
+            whiteStones,
+            blackTerritory,
+            whiteTerritory,
+            komi,
+        }
+    };
 }
