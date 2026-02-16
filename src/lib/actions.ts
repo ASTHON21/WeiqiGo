@@ -1,6 +1,6 @@
 'use server';
 
-import { aiGamePhaseStrategist } from '@/ai/flows/ai-game-phase-strategist';
+import { aiGamePhaseStrategist, type AIGamePhaseStrategistInput } from '@/ai/flows/ai-game-phase-strategist';
 import { aiGoMoveSuggester, type AiGoMoveSuggesterInput } from '@/ai/flows/ai-go-move-suggester-flow';
 import type { BoardState, Move, Player } from '@/lib/types';
 
@@ -39,18 +39,20 @@ export async function getAiMove(
     const occupiedSpaces = boardState.flat().filter((cell) => cell !== null).length;
     const boardOccupationPercentage = (occupiedSpaces / (boardSize * boardSize)) * 100;
 
-    const phasePromise = aiGamePhaseStrategist({
+    const phaseInput: AIGamePhaseStrategistInput = {
       numberOfMoves,
       boardOccupationPercentage,
-    });
+    };
+    const phasePromise = aiGamePhaseStrategist(phaseInput);
     
     // 2. Get move suggestion
-    const movePromise = aiGoMoveSuggester({
+    const moveInput: AiGoMoveSuggesterInput = {
       boardState: convertedBoard,
       playerTurn: convertedPlayer,
       moveHistory: convertedHistory,
       boardSize,
-    });
+    };
+    const movePromise = aiGoMoveSuggester(moveInput);
 
     const [phaseResult, moveResult] = await Promise.all([phasePromise, movePromise]);
 
@@ -59,10 +61,22 @@ export async function getAiMove(
       gamePhase: phaseResult.gamePhase,
       bestMove: moveResult.bestMove,
       explanation: moveResult.explanation,
+      debugLog: {
+        phaseInput,
+        phaseResult,
+        moveInput,
+        moveResult
+      }
     };
   } catch (error) {
     console.error('Error in getAiMove server action:', error);
     // Let the client handle the error.
-    return { success: false, error: 'Failed to get AI move.' };
+    return { 
+      success: false, 
+      error: 'Failed to get AI move.',
+      debugLog: {
+        error: error instanceof Error ? error.message : String(error)
+      }
+    };
   }
 }

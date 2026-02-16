@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getAiMove } from "@/lib/actions";
 import { AIStrategy } from "@/components/game/AIStrategy";
 import { SearchTreeVisualization } from "@/components/game/SearchTreeVisualization";
+import { AIDebugLog } from "@/components/game/AIDebugLog";
 import type {
   Player,
   BoardState,
@@ -178,12 +179,14 @@ export default function GamePage() {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [aiGamePhase, setAiGamePhase] = useState<GamePhase>('Unknown');
   const [aiExplanation, setAiExplanation] = useState("The AI is waiting for the game to start.");
+  const [aiDebugLog, setAiDebugLog] = useState<any>(null);
 
   const handleStartGame = useCallback((options: { boardSize: number; gameMode: GameMode }) => {
     dispatch({ type: 'START_GAME', payload: options });
     setTimers({ black: timeSettings[options.boardSize], white: timeSettings[options.boardSize] });
     setAiExplanation("AI is ready. Make your first move.");
     setAiGamePhase("Fuseki");
+    setAiDebugLog(null);
   }, []);
 
   const endGame = useCallback((winner: Player | 'draw', reason: string, scores?: {blackScore: number, whiteScore: number, details?: ScoreDetails}) => {
@@ -252,8 +255,13 @@ export default function GamePage() {
       const handleAiTurn = async () => {
         setIsAiThinking(true);
         setAiExplanation("Thinking...");
+        setAiDebugLog(null);
 
         const aiResult = await getAiMove(board, 'white', moveHistory, boardSize);
+
+        if (aiResult.debugLog) {
+            setAiDebugLog(aiResult.debugLog);
+        }
 
         if (aiResult.success && aiResult.bestMove) {
           setAiGamePhase(aiResult.gamePhase);
@@ -424,6 +432,7 @@ export default function GamePage() {
               isThinking={isAiThinking} 
             />
             <SearchTreeVisualization isThinking={isAiThinking} />
+            <AIDebugLog log={aiDebugLog} />
           </>
         )}
       </div>
