@@ -1,0 +1,225 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Stores supplementary user information not handled by external authentication systems.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity. This typically corresponds to the user's ID from the external authentication system (e.g., Firebase Auth UID)."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's chosen display name."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address, if provided and public. (Optional and should not store sensitive authentication emails if an external system handles login).",
+          "format": "email"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was last updated.",
+          "format": "date-time"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "description": "Timestamp of the user's last login.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "displayName",
+        "createdAt"
+      ]
+    },
+    "Game": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Game",
+      "type": "object",
+      "description": "Represents a single Go game, including its state, players, and settings.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Game entity."
+        },
+        "playerWhiteId": {
+          "type": "string",
+          "description": "Reference to the UserProfile ID of the player playing as white. (Relationship: UserProfile 1:N Game)"
+        },
+        "playerBlackId": {
+          "type": "string",
+          "description": "Reference to the UserProfile ID of the player playing as black. This could also be an AI identifier. (Relationship: UserProfile 1:N Game)"
+        },
+        "currentTurn": {
+          "type": "string",
+          "description": "Indicates whose turn it currently is. Expected values: 'white' or 'black'."
+        },
+        "boardSize": {
+          "type": "number",
+          "description": "The size of the Go board (e.g., 9, 13, 19)."
+        },
+        "handicap": {
+          "type": "number",
+          "description": "The number of handicap stones given at the start of the game."
+        },
+        "komi": {
+          "type": "number",
+          "description": "The komi value given to the second player (black)."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the game. Expected values: 'pending', 'in-progress', 'finished', 'resigned', 'timed-out'."
+        },
+        "winnerId": {
+          "type": "string",
+          "description": "Reference to the UserProfile ID of the winner, if the game has concluded. (Relationship: UserProfile 1:N Game)"
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "Timestamp when the game officially started.",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "type": "string",
+          "description": "Timestamp when the game concluded.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "playerWhiteId",
+        "playerBlackId",
+        "currentTurn",
+        "boardSize",
+        "handicap",
+        "komi",
+        "status",
+        "startedAt"
+      ]
+    },
+    "Move": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Move",
+      "type": "object",
+      "description": "Records a single move made during a Go game, including position, player, and AI evaluation.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Move entity."
+        },
+        "gameId": {
+          "type": "string",
+          "description": "Reference to the Game entity this move belongs to. (Relationship: Game 1:N Move)"
+        },
+        "playerColor": {
+          "type": "string",
+          "description": "The color of the player who made this move. Expected values: 'white' or 'black'."
+        },
+        "coordinatesX": {
+          "type": "number",
+          "description": "The X-coordinate (column) of the stone placed on the board (0-indexed)."
+        },
+        "coordinatesY": {
+          "type": "number",
+          "description": "The Y-coordinate (row) of the stone placed on the board (0-indexed)."
+        },
+        "moveNumber": {
+          "type": "number",
+          "description": "The sequential number of this move within the game (e.g., 1 for the first move, 2 for the second, etc.)."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp when this move was made.",
+          "format": "date-time"
+        },
+        "evaluation": {
+          "type": "number",
+          "description": "AI's win rate estimate (e.g., 0.0 to 1.0) for the current game state after this move was made."
+        },
+        "capturedStoneCoordinates": {
+          "type": "array",
+          "description": "An array of string representations (e.g., 'X,Y') for the coordinates of stones captured by this move.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "gameId",
+        "playerColor",
+        "coordinatesX",
+        "coordinatesY",
+        "moveNumber",
+        "timestamp",
+        "evaluation"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/userProfiles/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores supplementary user information. The document ID `{userId}` MUST match the `id` field within the document and `request.auth.uid`. Write access is restricted to the owner, while read access for certain fields (e.g., displayName) might be public."
+        }
+      },
+      {
+        "path": "/games/{gameId}",
+        "definition": {
+          "entityName": "Game",
+          "schema": {
+            "$ref": "#/backend/entities/Game"
+          },
+          "description": "Represents a single Go game. Authorization is based on `playerWhiteId` and `playerBlackId` fields within the document, which must include `request.auth.uid` for a user to be considered a participant.",
+          "params": [
+            {
+              "name": "gameId",
+              "description": "The unique identifier for the game."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/games/{gameId}/moves/{moveId}",
+        "definition": {
+          "entityName": "Move",
+          "schema": {
+            "$ref": "#/backend/entities/Move"
+          },
+          "description": "Records individual moves within a specific game. This collection is a subcollection of `/games/{gameId}`. To ensure Authorization Independence, each 'Move' document MUST include denormalized `playerWhiteId` and `playerBlackId` fields (copied from its parent 'Game' document) for direct rule evaluation.",
+          "params": [
+            {
+              "name": "gameId",
+              "description": "The unique identifier of the parent game."
+            },
+            {
+              "name": "moveId",
+              "description": "The unique identifier for the move within the game."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed following the core principles of Authorization Independence, Structural Segregation, and consistent Access Modeling. This ensures robust security rules, simplified debugging, and efficient query patterns for the 'Shadow Go' application.\n\n1.  **User Profiles (`/userProfiles/{userId}`):**\n    *   **Authorization Independence:** Each UserProfile document is stored in a path that directly includes the user's unique ID (`userId`), making the owner immediately identifiable via `request.auth.uid == userId`. No `get()` operations are needed to determine ownership, making rules simple and atomic.\n    *   **Structural Segregation:** This collection is dedicated solely to user profile data, ensuring a consistent security posture (owner write, potentially public read for `displayName`).\n    *   **QAPs:** Users can retrieve their own profile by path (`/userProfiles/myUid`). For displaying lists of users (e.g., leaderboards or player lists), specific fields like `displayName` could be made publicly readable, allowing efficient queries on the `/userProfiles` collection without violating security principles.\n\n2.  **Games (`/games/{gameId}`):**\n    *   **Authorization Independence:** Each Game document includes `playerWhiteId` and `playerBlackId` fields. These fields explicitly define the authorized participants of the game. Security rules can directly check `request.auth.uid == resource.data.playerWhiteId || request.auth.uid == resource.data.playerBlackId` without any `get()` calls to other documents.\n    *   **Structural Segregation:** All game documents reside in this top-level collection, adhering to the same security model (players can read/write during 'in-progress', all can read 'finished' games).\n    *   **QAPs:** Players can efficiently query for their games using `where('playerWhiteId', '==', request.auth.uid)` or `where('playerBlackId', '==', request.auth.uid)`. The `status` field also enables filtering for 'in-progress' or 'finished' games, supporting efficient list operations.\n\n3.  **Moves (`/games/{gameId}/moves/{moveId}`):**\n    *   **Authorization Independence (CRITICAL Denormalization):** To ensure authorization for moves is independent of the parent `Game` document, each `Move` document **MUST** denormalize the `playerWhiteId` and `playerBlackId` from its parent `Game`. This allows security rules on `/games/{gameId}/moves/{moveId}` to directly verify `request.auth.uid` against `resource.data.playerWhiteId` or `resource.data.playerBlackId` without needing to perform a `get()` operation on the parent `/games/{gameId}` document. This also enables atomic creation of a game and its first move, if required.\n    *   **Structural Segregation:** All moves for a specific game are nested within that game's subcollection, maintaining a consistent security context for all moves (only game players can add/read moves). The `evaluation` field for AI win rate fits perfectly within this structure.\n    *   **QAPs:** Listing moves is naturally scoped to a specific `gameId`. Since the `playerWhiteId` and `playerBlackId` are denormalized into each `Move` document, the authorization check for listing can be performed efficiently on each returned document by the rules, ensuring only authorized users can read the moves within a game."
+  }
+}
