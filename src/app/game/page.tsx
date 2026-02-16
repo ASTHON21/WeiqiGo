@@ -45,6 +45,24 @@ export default function GamePage() {
     startNewGame();
   }, [startNewGame]);
 
+  const handlePassTurn = useCallback(() => {
+    if (isGameOver || isAiThinking) return;
+
+    const nextPlayer = currentPlayer === 'B' ? 'W' : 'B';
+    const playerColor = currentPlayer === 'B' ? 'Black' : 'White';
+
+    if (lastPlayerPass) {
+        setIsGameOver(true);
+        const finalWinner = capturedStones.B > capturedStones.W ? 'B' : 'W';
+        setWinner(finalWinner);
+        toast({ title: 'Game Over', description: `${playerColor} passed. ${finalWinner === 'B' ? 'Black' : 'White'} wins.` });
+    } else {
+        setLastPlayerPass(true);
+        setCurrentPlayer(nextPlayer);
+        toast({ title: 'Player Passes', description: `${playerColor} passed their turn.` });
+    }
+  }, [isGameOver, isAiThinking, currentPlayer, lastPlayerPass, capturedStones.B, capturedStones.W, toast]);
+  
   const handleAiTurn = useCallback(async (currentBoard: Board, history: Move[]) => {
     setIsAiThinking(true);
     setAiExplanation('The AI is contemplating its next move...');
@@ -63,7 +81,6 @@ export default function GamePage() {
           setAiExplanation(explanation);
           setAiGamePhase(gamePhase as GamePhase);
         } else {
-           // AI suggested an invalid move, so it passes.
            toast({ title: 'AI passes its turn.', description: "The AI couldn't find a valid move." });
            handlePassTurn();
         }
@@ -77,6 +94,11 @@ export default function GamePage() {
     }
   }, [toast, handlePassTurn]);
   
+  useEffect(() => {
+    if (currentPlayer === 'W' && !isGameOver && !isAiThinking) {
+        handleAiTurn(board, moveHistory);
+    }
+  }, [currentPlayer, isGameOver, isAiThinking, board, moveHistory, handleAiTurn]);
 
   const handlePlayerMove = (row: number, col: number) => {
     if (isGameOver || currentPlayer !== 'B' || isAiThinking) return;
@@ -95,31 +117,7 @@ export default function GamePage() {
     setCapturedStones(prev => ({ ...prev, B: prev.B + newCapturedStones }));
     setCurrentPlayer('W');
     setLastPlayerPass(false);
-    
-    handleAiTurn(newBoard, newHistory);
   };
-  
-  const handlePassTurn = useCallback(() => {
-    if (isGameOver || isAiThinking) return;
-
-    const nextPlayer = currentPlayer === 'B' ? 'W' : 'B';
-    const playerColor = currentPlayer === 'B' ? 'Black' : 'White';
-
-    if (lastPlayerPass) {
-        setIsGameOver(true);
-        // Simple territory scoring could be added here
-        const finalWinner = capturedStones.B > capturedStones.W ? 'B' : 'W';
-        setWinner(finalWinner);
-        toast({ title: 'Game Over', description: `${playerColor} passed. ${finalWinner === 'B' ? 'Black' : 'White'} wins.` });
-    } else {
-        setLastPlayerPass(true);
-        setCurrentPlayer(nextPlayer);
-        toast({ title: 'Player Passes', description: `${playerColor} passed their turn.` });
-        if (nextPlayer === 'W') {
-            handleAiTurn(board, moveHistory);
-        }
-    }
-  }, [isGameOver, isAiThinking, currentPlayer, lastPlayerPass, capturedStones.B, capturedStones.W, toast, handleAiTurn, board, moveHistory]);
 
   return (
     <main className="min-h-screen bg-background text-foreground font-body p-4 md:p-6 lg:p-8">
