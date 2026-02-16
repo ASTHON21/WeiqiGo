@@ -1,160 +1,464 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { GoBoard } from '@/components/game/GoBoard';
-import { GameInfoPanel } from '@/components/game/GameInfoPanel';
-import { GameControls } from '@/components/game/GameControls';
-import { SearchTreeVisualization } from '@/components/game/SearchTreeVisualization';
-import type { Board, Move, Player, GamePhase } from '@/types';
-import { createEmptyBoard, placeStoneAndHandleCaptures, isValidMove } from '@/lib/gameLogic';
-import { getAiMove } from '@/lib/actions';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useCallback, useReducer, useEffect } from "react";
+import { GoBoard } from "@/components/game/GoBoard";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Icons } from "@/components/icons";
+import { useToast } from "@/hooks/use-toast";
+import type {
+  Player,
+  BoardState,
+  GameStatus,
+  GameResult,
+  Move,
+  GameHistoryEntry,
+  ScoreDetails,
+} from "@/lib/types";
+import { processMove, calculateScore } from "@/lib/go-logic";
+import { cn } from "@/lib/utils";
 
-const BOARD_SIZE = 9;
+const timeSettings: { [key: number]: number } = {
+  9: 60 * 60 * 1000, // 1 hour
+  13: 2 * 60 * 60 * 1000, // 2 hours
+  19: 3 * 60 * 60 * 1000, // 3 hours
+};
 
-export default function GamePage() {
-  const router = useRouter();
-  const { toast } = useToast();
+const createEmptyBoard = (size: number): BoardState =>
+  Array(size)
+    .fill(null)
+    .map(() => Array(size).fill(null));
 
-  const [board, setBoard] = useState<Board>(createEmptyBoard(BOARD_SIZE));
-  const [currentPlayer, setCurrentPlayer] = useState<Player>('B');
-  const [moveHistory, setMoveHistory] = useState<Move[]>([]);
-  const [capturedStones, setCapturedStones] = useState({ B: 0, W: 0 });
-  const [isGameOver, setIsGameOver] = useState(false);
-  const [isAiThinking, setIsAiThinking] = useState(false);
-  const [aiGamePhase, setAiGamePhase] = useState<GamePhase>('Unknown');
-  const [aiExplanation, setAiExplanation] = useState('');
-  const [lastPlayerPass, setLastPlayerPass] = useState(false);
-  const [winner, setWinner] = useState<Player | 'Draw' | null>(null);
+// --- Game State Management with useReducer ---
 
-  const startNewGame = useCallback(() => {
-    setBoard(createEmptyBoard(BOARD_SIZE));
-    setCurrentPlayer('B');
-    setMoveHistory([]);
-    setCapturedStones({ B: 0, W: 0 });
-    setIsGameOver(false);
-    setIsAiThinking(false);
-    setAiGamePhase('Fuseki');
-    setAiExplanation('A new game begins. Place your stone.');
-    setLastPlayerPass(false);
-    setWinner(null);
-  }, []);
+interface GameState {
+  boardSize: number;
+  board: BoardState;
+  currentPlayer: Player;
+  gameStatus: GameStatus;
+  gameResult: GameResult;
+  moveHistory: Move[];
+  boardHistory: BoardState[];
+  lastMove: Move | null;
+  captures: { black: number; white: number };
+}
 
-  useEffect(() => {
-    startNewGame();
-  }, [startNewGame]);
+type GameAction =
+  | { type: 'START_GAME'; payload: { boardSize: number; } }
+  | { type: 'MAKE_MOVE'; payload: { board: BoardState; move: Move; capturedStones: number; } }
+  | { type: 'PASS_TURN' }
+  | { type: 'UNDO' }
+  | { type: 'END_GAME'; payload: { winner: Player | 'draw'; reason: string; scores?: { blackScore: number; whiteScore: number; details?: ScoreDetails; } } }
+  | { type: 'SET_GAME_STATUS'; payload: GameStatus };
 
-  const handlePassTurn = useCallback(() => {
-    if (isGameOver || isAiThinking) return;
+const getInitialState = (size: number = 19): GameState => ({
+  boardSize: size,
+  board: createEmptyBoard(size),
+  currentPlayer: 'black',
+  gameStatus: 'setup',
+  gameResult: null,
+  moveHistory: [],
+  boardHistory: [createEmptyBoard(size)],
+  lastMove: null,
+  captures: { black: 0, white: 0 },
+});
 
-    const nextPlayer = currentPlayer === 'B' ? 'W' : 'B';
-    const playerColor = currentPlayer === 'B' ? 'Black' : 'White';
-
-    if (lastPlayerPass) {
-        setIsGameOver(true);
-        const finalWinner = capturedStones.B > capturedStones.W ? 'B' : 'W';
-        setWinner(finalWinner);
-        toast({ title: 'Game Over', description: `${playerColor} passed. ${finalWinner === 'B' ? 'Black' : 'White'} wins.` });
-    } else {
-        setLastPlayerPass(true);
-        setCurrentPlayer(nextPlayer);
-        toast({ title: 'Player Passes', description: `${playerColor} passed their turn.` });
+function gameReducer(state: GameState, action: GameAction): GameState {
+  switch (action.type) {
+    case 'START_GAME': {
+      const { boardSize } = action.payload;
+      return {
+        ...getInitialState(boardSize),
+        gameStatus: 'playing',
+      };
     }
-  }, [isGameOver, isAiThinking, currentPlayer, lastPlayerPass, capturedStones.B, capturedStones.W, toast]);
-  
-  const handleAiTurn = useCallback(async (currentBoard: Board, history: Move[]) => {
-    setIsAiThinking(true);
-    setAiExplanation('The AI is contemplating its next move...');
-    try {
-      const aiResult = await getAiMove(currentBoard, 'W', history, BOARD_SIZE);
-      if (aiResult) {
-        const { bestMove, explanation, gamePhase } = aiResult;
-        
-        if (isValidMove(currentBoard, bestMove.row, bestMove.col, 'W', history)) {
-          const { newBoard, newCapturedStones } = placeStoneAndHandleCaptures(currentBoard, bestMove.row, bestMove.col, 'W');
-          setBoard(newBoard);
-          setMoveHistory(prev => [...prev, { ...bestMove, player: 'W' }]);
-          setCapturedStones(prev => ({ ...prev, W: prev.W + newCapturedStones }));
-          setCurrentPlayer('B');
-          setLastPlayerPass(false);
-          setAiExplanation(explanation);
-          setAiGamePhase(gamePhase as GamePhase);
-        } else {
-           toast({ title: 'AI passes its turn.', description: "The AI couldn't find a valid move." });
-           handlePassTurn();
+    case 'MAKE_MOVE': {
+      const { board, move, capturedStones } = action.payload;
+      return {
+        ...state,
+        board,
+        moveHistory: [...state.moveHistory, move],
+        boardHistory: [...state.boardHistory, board],
+        lastMove: move,
+        currentPlayer: state.currentPlayer === 'black' ? 'white' : 'black',
+        captures: {
+          ...state.captures,
+          [state.currentPlayer]: state.captures[state.currentPlayer] + capturedStones,
+        },
+      };
+    }
+    case 'PASS_TURN': {
+       const passMove: Move = { row: -1, col: -1, player: state.currentPlayer };
+       return {
+         ...state,
+         moveHistory: [...state.moveHistory, passMove],
+         boardHistory: [...state.boardHistory, state.board], // Board state doesn't change
+         lastMove: passMove,
+         currentPlayer: state.currentPlayer === "black" ? "white" : "black",
+       };
+    }
+    case 'UNDO': {
+      if (state.moveHistory.length < 1) return state;
+
+      const newMoveHistory = state.moveHistory.slice(0, -1);
+      const newBoardHistory = state.boardHistory.slice(0, -1);
+      const lastValidBoard = newBoardHistory[newBoardHistory.length - 1] || createEmptyBoard(state.boardSize);
+      const newLastMove = newMoveHistory[newMoveHistory.length - 1] || null;
+
+      // This is a simplified recalculation. A more accurate one would need to store captures per move.
+      // For now, we accept this limitation of the undo feature.
+      const newCaptures = { black: 0, white: 0 };
+
+      return {
+          ...state,
+          moveHistory: newMoveHistory,
+          boardHistory: newBoardHistory,
+          board: lastValidBoard,
+          lastMove: newLastMove,
+          currentPlayer: newLastMove ? (newLastMove.player === 'black' ? 'white' : 'black') : 'black',
+          captures: newCaptures, // Captures are reset on undo for simplicity
+      };
+    }
+    case 'END_GAME': {
+      return {
+        ...state,
+        gameStatus: 'finished',
+        gameResult: {
+          winner: action.payload.winner,
+          reason: action.payload.reason,
+          blackScore: action.payload.scores?.blackScore,
+          whiteScore: action.payload.scores?.whiteScore,
+          scoreDetails: action.payload.scores?.details,
         }
       }
-    } catch (error) {
-      console.error('AI move error:', error);
-      toast({ variant: 'destructive', title: 'AI Error', description: 'The AI failed to make a move.' });
-      handlePassTurn(); // AI passes on error
-    } finally {
-      setIsAiThinking(false);
     }
-  }, [toast, handlePassTurn]);
+    case 'SET_GAME_STATUS':
+      return { ...state, gameStatus: action.payload };
+
+    default:
+      return state;
+  }
+}
+
+
+export default function GamePage() {
+  const [gameState, dispatch] = useReducer(gameReducer, getInitialState());
+  const { board, boardSize, currentPlayer, gameStatus, gameResult, moveHistory, boardHistory, lastMove, captures } = gameState;
+
+  const { toast } = useToast();
+  
+  const [timers, setTimers] = useState<{ [key in Player]: number }>({
+    black: timeSettings[19],
+    white: timeSettings[19],
+  });
+
+  const handleStartGame = useCallback((options: { boardSize: number; }) => {
+    dispatch({ type: 'START_GAME', payload: options });
+    setTimers({ black: timeSettings[options.boardSize], white: timeSettings[options.boardSize] });
+  }, []);
+
+  const endGame = useCallback((winner: Player | 'draw', reason: string, scores?: {blackScore: number, whiteScore: number, details?: ScoreDetails}) => {
+    dispatch({ type: 'END_GAME', payload: { winner, reason, scores } });
+  }, []);
+  
+  const handlePass = useCallback(() => {
+     if (gameStatus !== 'playing') return;
+     
+     const lastMoveInHistory = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
+
+     if (lastMoveInHistory && lastMoveInHistory.row === -1 && lastMoveInHistory.col === -1) {
+         toast({ title: 'Game Over', description: 'Both players passed consecutively.'});
+         const scoreResult = calculateScore(board);
+         endGame(scoreResult.winner, 'Agreement', scoreResult);
+     } else {
+        toast({ title: `${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} passed.` });
+        dispatch({ type: 'PASS_TURN' });
+     }
+  }, [board, currentPlayer, gameStatus, toast, moveHistory, endGame]);
+
+  const handleResign = () => {
+    if (gameStatus !== 'playing') return;
+    const winner = currentPlayer === 'black' ? 'white' : 'black';
+    const resignee = currentPlayer;
+    
+    endGame(winner, `${resignee.charAt(0).toUpperCase() + resignee.slice(1)} resigned.`);
+  }
+
+  const handleUndo = () => {
+    if (gameStatus !== 'playing' || moveHistory.length < 1) {
+       toast({ title: 'Cannot Undo', description: 'No moves to undo.', variant: 'destructive' });
+       return;
+    }
+    dispatch({ type: 'UNDO' });
+    toast({ title: 'Undo Successful', description: `Reverted 1 move. Captures reset.`});
+  }
+
+  const handleMove = useCallback((row: number, col: number) => {
+      if (gameStatus !== "playing") return;
+      
+      if (row === -1 && col === -1) {
+          handlePass();
+          return;
+      }
+
+      const result = processMove(board, row, col, currentPlayer, boardHistory);
+
+      if (result.success) {
+          const newMove: Move = { row, col, player: currentPlayer };
+          dispatch({ type: 'MAKE_MOVE', payload: { board: result.newBoard, move: newMove, capturedStones: result.capturedStones } });
+      } else { 
+          let description = `An unknown error occurred at (${row}, ${col}).`;
+          if (result.error === 'ko') description = `Move at (${row}, ${col}) is not allowed due to the Ko rule.`;
+          else if (result.error === 'suicide') description = `Suicide move at (${row}, ${col}) is not allowed.`;
+          else if (result.error === 'occupied') description = `Position (${row}, ${col}) is already occupied.`;
+          
+          toast({ title: "Invalid Move", description, variant: "destructive" });
+      }
+    }, [board, boardHistory, currentPlayer, gameStatus, handlePass, toast]
+  );
   
   useEffect(() => {
-    if (currentPlayer === 'W' && !isGameOver && !isAiThinking) {
-        handleAiTurn(board, moveHistory);
+      if (gameStatus !== 'playing') return;
+      const interval = setInterval(() => {
+          setTimers(prev => {
+              const newTime = prev[currentPlayer] - 1000;
+              if (newTime <= 0) {
+                  endGame(currentPlayer === 'black' ? 'white' : 'black', `${currentPlayer} ran out of time.`);
+                  return { ...prev, [currentPlayer]: 0 };
+              }
+              return { ...prev, [currentPlayer]: newTime };
+          });
+      }, 1000);
+      return () => clearInterval(interval);
+  }, [currentPlayer, gameStatus, endGame]);
+
+  useEffect(() => {
+    if (gameStatus === 'finished' && gameResult) {
+      const newHistoryEntry: GameHistoryEntry = {
+          id: new Date().toISOString(),
+          date: new Date().toISOString(),
+          mode: 'local',
+          result: gameResult,
+          moveHistory: moveHistory,
+          boardSize: boardSize,
+      };
+      try {
+        const storedHistoryRaw = localStorage.getItem('goMasterHistory');
+        const history = storedHistoryRaw ? JSON.parse(storedHistoryRaw) : [];
+        const newHistory = [newHistoryEntry, ...history];
+        localStorage.setItem('goMasterHistory', JSON.stringify(newHistory));
+        toast({ title: "Game Over", description: "This game has been saved to your history." });
+      } catch (error) {
+        console.error("Failed to save game history:", error);
+        toast({ title: "Could not save game", description: "There was an error saving this game to your history.", variant: "destructive" });
+      }
     }
-  }, [currentPlayer, isGameOver, isAiThinking, board, moveHistory, handleAiTurn]);
+  }, [gameStatus, gameResult, toast, moveHistory, boardSize]);
 
-  const handlePlayerMove = (row: number, col: number) => {
-    if (isGameOver || currentPlayer !== 'B' || isAiThinking) return;
 
-    if (!isValidMove(board, row, col, 'B', moveHistory)) {
-      toast({ title: 'Invalid Move', description: 'You cannot place a stone there.', variant: 'destructive' });
-      return;
-    }
+  const formatTime = (ms: number) => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
 
-    const { newBoard, newCapturedStones } = placeStoneAndHandleCaptures(board, row, col, 'B');
-    
-    setBoard(newBoard);
-    const newMove: Move = { row, col, player: 'B' };
-    const newHistory = [...moveHistory, newMove];
-    setMoveHistory(newHistory);
-    setCapturedStones(prev => ({ ...prev, B: prev.B + newCapturedStones }));
-    setCurrentPlayer('W');
-    setLastPlayerPass(false);
+  const renderPlayerCard = (player: Player) => {
+    return (
+        <Card key={`${player}-${currentPlayer}`} className={cn(
+        "text-center transition-all duration-300",
+        gameStatus === 'playing' && currentPlayer === player && 'animate-turn-indicator-pop ring-2 ring-primary'
+        )}>
+        <CardHeader>
+            <CardTitle className="flex items-center justify-center gap-2 text-xl font-headline">
+            <Icons.Stone className={cn("w-6 h-6", player === 'black' ? 'fill-black' : 'fill-white stroke-black stroke-[2px]')}/>
+            <span>{player.charAt(0).toUpperCase() + player.slice(1)}</span>
+            </CardTitle>
+            <CardDescription>Captures: {captures[player]}</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="text-4xl font-mono font-bold tracking-wider">{formatTime(timers[player])}</div>
+        </CardContent>
+        </Card>
+    );
+  };
+  
+  if (gameStatus === "setup") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] p-4">
+        <div className="text-center">
+          <h1 className="text-6xl font-headline font-bold text-primary">Go Master</h1>
+          <p className="mt-4 text-xl text-foreground/80">
+            The ancient game of strategy.
+          </p>
+          <NewGameDialog onStartGame={handleStartGame} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-4 flex flex-col lg:flex-row gap-8 items-start justify-center">
+      <Dialog open={gameStatus === "finished"} onOpenChange={(open) => !open && dispatch({type: 'SET_GAME_STATUS', payload: 'setup'})}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl">Game Over</DialogTitle>
+            <DialogDescription>
+              {gameResult?.winner === 'draw'
+                ? `The game is a draw.`
+                : `Winner: ${gameResult?.winner?.charAt(0).toUpperCase()}${gameResult?.winner?.slice(1)}`}
+              <br />
+              Reason: {gameResult?.reason}
+            </DialogDescription>
+          </DialogHeader>
+          {gameResult?.scoreDetails ? (
+              <div className="text-sm font-mono -mt-2 space-y-3 p-4 bg-muted/50 rounded-md">
+                  <div className="grid grid-cols-2 gap-x-4">
+                    <div className="space-y-1">
+                        <h4 className="font-bold text-base mb-1">Black</h4>
+                        <p>Stones: {gameResult.scoreDetails.blackStones}</p>
+                        <p>Territory: {gameResult.scoreDetails.blackTerritory}</p>
+                        <p className="font-bold border-t border-muted-foreground/50 pt-1">Total: {gameResult.blackScore?.toFixed(1)}</p>
+                    </div>
+                     <div className="space-y-1">
+                        <h4 className="font-bold text-base mb-1">White</h4>
+                        <p>Stones: {gameResult.scoreDetails.whiteStones}</p>
+                        <p>Territory: {gameResult.scoreDetails.whiteTerritory}</p>
+                        <p>Komi: {gameResult.scoreDetails.komi.toFixed(1)}</p>
+                        <p className="font-bold border-t border-muted-foreground/50 pt-1">Total: {gameResult.whiteScore?.toFixed(1)}</p>
+                    </div>
+                  </div>
+                  <p className="text-base font-bold text-center pt-2 border-t border-muted-foreground/50">
+                    Difference: {Math.abs((gameResult.blackScore ?? 0) - (gameResult.whiteScore ?? 0)).toFixed(1)} points
+                  </p>
+              </div>
+          ) : gameResult?.blackScore !== undefined && gameResult.whiteScore !== undefined ? (
+              <div className="text-center font-mono -mt-2">
+                  <div className="text-lg font-semibold">Final Score</div>
+                  <div>Black: {gameResult.blackScore.toFixed(1)}</div>
+                  <div>White: {gameResult.whiteScore.toFixed(1)}</div>
+              </div>
+          ) : null}
+          <DialogFooter>
+            <Button onClick={() => dispatch({type: 'SET_GAME_STATUS', payload: 'setup'})}>Main Menu</Button>
+            <NewGameDialog
+              onStartGame={handleStartGame}
+              isPlayAgain={true}
+            />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      <div className="w-full lg:w-1/4 flex flex-col gap-4">
+        {renderPlayerCard('white')}
+      </div>
+
+      <div className="relative">
+        <GoBoard 
+          board={board} 
+          onMove={handleMove} 
+          disabled={gameStatus !== 'playing'}
+          lastMove={lastMove} 
+          size={boardSize}
+          currentPlayer={currentPlayer}
+        />
+      </div>
+
+      <div className="w-full lg:w-1/4 flex flex-col gap-4">
+        {renderPlayerCard('black')}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-headline text-xl">Controls</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <Button onClick={handlePass} disabled={gameStatus !== 'playing'}>
+              <Icons.Play className="mr-2 -rotate-90"/> Pass Turn
+            </Button>
+             <Button onClick={handleUndo} disabled={gameStatus !== 'playing' || moveHistory.length < 1}>
+                <Icons.Undo className="mr-2"/> Undo
+            </Button>
+            <Button variant="destructive" onClick={handleResign} disabled={gameStatus !== 'playing'}>
+              <Icons.Resign className="mr-2"/> Resign
+            </Button>
+            <Button variant="outline" onClick={() => dispatch({type: 'SET_GAME_STATUS', payload: 'setup'})}>
+              <Icons.Logo className="mr-2"/> New Game
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+
+function NewGameDialog({ 
+  onStartGame, 
+  isPlayAgain = false,
+}: { 
+  onStartGame: (options: { boardSize: number }) => void; 
+  isPlayAgain?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [boardSize, setBoardSize] = useState("19");
+
+  const handleStart = () => {
+    onStartGame({ 
+      boardSize: Number(boardSize),
+    });
+    setIsOpen(false);
   };
 
   return (
-    <main className="min-h-screen bg-background text-foreground font-body p-4 md:p-6 lg:p-8">
-      <div className="container mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 flex flex-col items-center gap-6">
-          <GoBoard
-            board={board}
-            boardSize={BOARD_SIZE}
-            onMove={handlePlayerMove}
-            disabled={currentPlayer !== 'B' || isAiThinking || isGameOver}
-            isAiThinking={isAiThinking}
-            moveHistory={moveHistory}
-            currentPlayer={currentPlayer}
-          />
-          <SearchTreeVisualization isThinking={isAiThinking} />
-          <GameControls 
-            onNewGame={startNewGame}
-            onPass={handlePassTurn}
-            isGameOver={isGameOver}
-            currentPlayer={currentPlayer}
-            isAiThinking={isAiThinking}
-          />
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <Button onClick={() => setIsOpen(true)} className={cn("mt-8", isPlayAgain && "mt-0")} size={isPlayAgain ? "default" : "lg"}>
+        {isPlayAgain ? 'Play Again' : 'Start New Game'}
+      </Button>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="font-headline text-2xl">New Game Settings</DialogTitle>
+          <DialogDescription>
+            Configure your match.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-6 py-4">
+            <div className="grid gap-2">
+                <Label>Board Size</Label>
+                <Select 
+                    value={boardSize} 
+                    onValueChange={setBoardSize}
+                >
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select a board size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="19">19x19 (Standard)</SelectItem>
+                        <SelectItem value="13">13x13 (Quick Game)</SelectItem>
+                        <SelectItem value="9">9x9 (Beginner)</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
         </div>
-        <div className="lg:col-span-1">
-          <GameInfoPanel
-            currentPlayer={currentPlayer}
-            capturedStones={capturedStones}
-            moveHistory={moveHistory}
-            aiGamePhase={aiGamePhase}
-            aiExplanation={aiExplanation}
-            isAiThinking={isAiThinking}
-            user={null}
-            isGameOver={isGameOver}
-            winner={winner}
-          />
-        </div>
-      </div>
-    </main>
+        <DialogFooter>
+          <Button onClick={handleStart}><Icons.Play className="mr-2"/> Start Game</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

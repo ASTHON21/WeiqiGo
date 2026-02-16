@@ -1,17 +1,16 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import type { Board, Move, Player } from "@/types";
+import type { BoardState, Move, Player } from "@/lib/types"; 
 import { cn } from "@/lib/utils";
-import { Icons } from "./icons";
+import { Icons } from "@/components/icons";
 
 interface GoBoardProps {
-  board: Board;
+  board: BoardState;
   onMove: (row: number, col: number) => void;
   disabled: boolean;
-  moveHistory: Move[];
-  boardSize: number;
-  isAiThinking: boolean;
+  lastMove: Move | null;
+  size: number;
   currentPlayer: Player;
 }
 
@@ -33,22 +32,18 @@ const getStarPoints = (size: number): [number, number][] => {
 };
 
 
-export function GoBoard({ board, onMove, disabled, moveHistory, boardSize, isAiThinking, currentPlayer }: GoBoardProps) {
+export function GoBoard({ board, onMove, disabled, lastMove, size, currentPlayer }: GoBoardProps) {
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
   
-  const lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
+  const starPoints = useMemo(() => getStarPoints(size), [size]);
 
-  const starPoints = useMemo(() => getStarPoints(boardSize), [boardSize]);
-
-  // The width/height of the clickable area around an intersection.
-  // This is the distance between two lines.
-  const interactiveCellSize = `${(1 / (boardSize - 1)) * 100}%`;
+  const interactiveCellSize = `${(1 / (size - 1)) * 100}%`;
 
   return (
     <div
       className="relative aspect-square w-[90vw] max-w-[80vh] rounded-lg border-8 border-[#6a4a2f] p-4 shadow-lg"
       style={{
-        backgroundColor: '#deb887', // "burlywood", a wood-like color
+        backgroundColor: '#deb887',
       }}
     >
       <div
@@ -62,8 +57,8 @@ export function GoBoard({ board, onMove, disabled, moveHistory, boardSize, isAiT
           className="pointer-events-none absolute left-0 top-0"
         >
           {/* Draw lines */}
-          {Array.from({ length: boardSize }).map((_, i) => {
-            const pos = `${(i / (boardSize - 1)) * 100}%`;
+          {Array.from({ length: size }).map((_, i) => {
+            const pos = `${(i / (size - 1)) * 100}%`;
             return (
               <g key={`grid-line-${i}`}>
                 <line
@@ -85,8 +80,8 @@ export function GoBoard({ board, onMove, disabled, moveHistory, boardSize, isAiT
           })}
           {/* Draw star points */}
           {starPoints.map(([r, c], i) => {
-            const cx = `${(c / (boardSize - 1)) * 100}%`;
-            const cy = `${(r / (boardSize - 1)) * 100}%`;
+            const cx = `${(c / (size - 1)) * 100}%`;
+            const cy = `${(r / (size - 1)) * 100}%`;
             return (
               <circle
                 key={`star-${i}`}
@@ -100,9 +95,9 @@ export function GoBoard({ board, onMove, disabled, moveHistory, boardSize, isAiT
           })}
         </svg>
 
-        {/* Interactive Layer & Stones: {boardSize*boardSize} absolutely positioned divs for each intersection */}
-        {Array.from({ length: boardSize }).map((_, row) =>
-          Array.from({ length: boardSize }).map((_, col) => {
+        {/* Interactive Layer & Stones */}
+        {Array.from({ length: size }).map((_, row) =>
+          Array.from({ length: size }).map((_, col) => {
             const cell = board[row]?.[col];
             
             return (
@@ -110,8 +105,8 @@ export function GoBoard({ board, onMove, disabled, moveHistory, boardSize, isAiT
                 key={`${row}-${col}`}
                 className="absolute flex items-center justify-center"
                 style={{
-                  top: `${(row / (boardSize - 1)) * 100}%`,
-                  left: `${(col / (boardSize - 1)) * 100}%`,
+                  top: `${(row / (size - 1)) * 100}%`,
+                  left: `${(col / (size - 1)) * 100}%`,
                   width: interactiveCellSize,
                   height: interactiveCellSize,
                   transform: 'translate(-50%, -50%)',
@@ -125,7 +120,7 @@ export function GoBoard({ board, onMove, disabled, moveHistory, boardSize, isAiT
                   <Icons.Stone
                     className={cn(
                       "absolute h-[95%] w-[95%] transition-transform duration-150 z-10",
-                      cell === "B" ? "fill-black" : "fill-white stroke-black stroke-[0.5px]",
+                      cell === "black" ? "fill-black" : "fill-white stroke-black stroke-[0.5px]",
                       lastMove?.col === col && lastMove?.row === row ? "scale-105" : "scale-100",
                     )}
                   />
@@ -140,7 +135,7 @@ export function GoBoard({ board, onMove, disabled, moveHistory, boardSize, isAiT
                   <Icons.Stone
                       className={cn(
                           "absolute h-[95%] w-[95%] opacity-50 z-10",
-                          currentPlayer === 'B' ? "fill-black" : "fill-white stroke-black stroke-[0.5px]",
+                          currentPlayer === 'black' ? "fill-black" : "fill-white stroke-black stroke-[0.5px]",
                       )}
                   />
                 )}
