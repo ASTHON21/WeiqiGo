@@ -3,11 +3,15 @@ import './globals.css';
 import { FirebaseClientProvider } from '@/firebase';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
-import { SidebarProvider, Sidebar, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarHeader, SidebarTrigger } from '@/components/ui/sidebar';
-import { History, Play } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { Menu, History, Play } from 'lucide-react';
 import Link from 'next/link';
-import { Icons } from '@/components/icons';
-
 
 export const metadata: Metadata = {
   title: 'Shadow Go',
@@ -28,42 +32,33 @@ export default function RootLayout({
       </head>
       <body className={cn('font-body antialiased min-h-screen bg-background')}>
         <FirebaseClientProvider>
-          <SidebarProvider defaultOpen={false}>
-            <Sidebar collapsible="offcanvas">
-              <SidebarHeader>
-                <div className="flex items-center gap-2">
-                  <Icons.Logo className="w-6 h-6 text-primary" />
-                  <h1 className="text-xl font-semibold font-headline">Go Master</h1>
-                </div>
-              </SidebarHeader>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <Link href="/game">
-                    <SidebarMenuButton>
-                      <Play />
-                      <span>Play Game</span>
-                    </SidebarMenuButton>
+          <div className="absolute top-4 left-4 z-50">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Open menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem asChild>
+                  <Link href="/game" className="w-full cursor-pointer">
+                    <Play />
+                    <span>Play Game</span>
                   </Link>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                   <Link href="/history">
-                    <SidebarMenuButton>
-                      <History />
-                      <span>Game History</span>
-                    </SidebarMenuButton>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/history" className="w-full cursor-pointer">
+                    <History />
+                    <span>Game History</span>
                   </Link>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </Sidebar>
-            <SidebarInset>
-              <header className="flex h-14 shrink-0 items-center px-4 sticky top-0 z-10">
-                <SidebarTrigger />
-              </header>
-              <div className="flex-1 overflow-y-auto">
-                {children}
-              </div>
-            </SidebarInset>
-          </SidebarProvider>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <main>
+            {children}
+          </main>
           <Toaster />
         </FirebaseClientProvider>
       </body>
