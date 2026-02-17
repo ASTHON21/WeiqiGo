@@ -39,6 +39,7 @@ import type {
 import { processMove, calculateScore } from "@/lib/go-logic";
 import { cn } from "@/lib/utils";
 import { findBestMove } from "@/lib/ai-engine";
+import { MoveHistory } from "@/components/game/MoveHistory";
 
 const timeSettings: { [key: number]: number } = {
   9: 60 * 60 * 1000,
@@ -124,14 +125,19 @@ function gameReducer(state: GameState, action: GameAction): GameState {
        };
     }
     case 'UNDO': {
-      if (state.moveHistory.length < 1) return state;
+      const movesToUndo = state.gameMode === 'pve' ? 2 : 1;
+      if (state.moveHistory.length < movesToUndo) {
+        return state;
+      }
 
-      const newMoveHistory = state.moveHistory.slice(0, -1);
-      const newBoardHistory = state.boardHistory.slice(0, -1);
+      const newMoveHistory = state.moveHistory.slice(0, -movesToUndo);
+      const newBoardHistory = state.boardHistory.slice(0, -movesToUndo);
       const lastValidBoard = newBoardHistory[newBoardHistory.length - 1] || createEmptyBoard(state.boardSize);
       const newLastMove = newMoveHistory[newMoveHistory.length - 1] || null;
 
-      const newCaptures = { black: 0, white: 0 }; // Simplified reset
+      // Recalculating captures is complex, so we simplify by resetting.
+      // This is a known limitation of the current undo implementation.
+      const newCaptures = { black: 0, white: 0 }; 
 
       return {
           ...state,
@@ -139,7 +145,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           boardHistory: newBoardHistory,
           board: lastValidBoard,
           lastMove: newLastMove,
-          currentPlayer: state.gameMode === 'pve' ? 'black' : (newLastMove ? (newLastMove.player === 'black' ? 'white' : 'black') : 'black'),
+          currentPlayer: state.gameMode === 'pve' 
+            ? 'black' 
+            : (newLastMove ? (newLastMove.player === 'black' ? 'white' : 'black') : 'black'),
           captures: newCaptures,
       };
     }
@@ -537,6 +545,7 @@ export default function GamePage() {
             </Button>
           </CardContent>
         </Card>
+        <MoveHistory moveHistory={moveHistory} boardSize={boardSize} />
       </div>
     </div>
   );
