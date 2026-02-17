@@ -1,3 +1,4 @@
+
 import type { BoardState, Player, Move } from './types';
 // 注意：只导入 go-logic 确实导出的内容
 import { processMove, createEmptyBoard } from './go-logic';
@@ -140,11 +141,6 @@ function calculateTerritoryValue(board: BoardState, r: number, c: number, player
     return potentialTerritory;
 }
 
-/**
- * 核心：本地 AI 逻辑引擎
- * 采用 Alpha-Beta 剪枝，完全在客户端运行，不消耗 API 配额
- */
-
 // --- 1. 简单的启发式评估函数 ---
 function evaluateBoard(board: BoardState, player: Player): number {
     const size = board.length;
@@ -271,6 +267,11 @@ export function findBestMove(
     let bestMove: Move = { r: -1, c: -1, player };
     let bestValue = -Infinity;
 
+    const moveCount = moveHistory.length;
+    let gamePhase = "Fuseki";
+    if (moveCount > boardSize * boardSize * 0.3) gamePhase = "Chuban";
+    if (moveCount > boardSize * boardSize * 0.7) gamePhase = "Yose";
+
     // 在 findBestMove 的循环中
     for (const move of possibleMoves) {
         if (move.r === -1) continue;
@@ -278,25 +279,39 @@ export function findBestMove(
         const { success, newBoard, capturedStones } = processMove(board, move.r, move.c, player, boardHistory);
         if (!success) continue;
 
-        // 1. 基础 Alpha-Beta 分数
+        // 基础搜索分
         let boardValue = alphaBeta(newBoard, [...boardHistory, newBoard], SEARCH_DEPTH - 1, -Infinity, Infinity, false, player);
 
-        // 2. 加上“形状字典”奖金
-        boardValue += getShapeBonus(board, move.r, move.c, player);
-        
-        // 3. 提子奖励 (针对 SGF 中 AI 不会提子的问题)
-        if (capturedStones > 0) boardValue += (capturedStones * 800);
+        // --- 官子强化逻辑 ---
+        if (gamePhase === "Yose") {
+            // 在官子阶段，大幅提升目数增益和提子的权重
+            const territoryGain = calculateTerritoryValue(board, move.r, move.c, player);
+            boardValue += (territoryGain * 150); // 目数价值系数
+            boardValue += (capturedStones * 1000); // 官子阶段提子往往意味着边界的彻底封死
+        } else {
+            // 布局和中盘阶段，形状加分更重要
+            boardValue += getShapeBonus(board, move.r, move.c, player);
+            // 在非官子阶段也给提子一个高奖励
+            if (capturedStones > 0) {
+              boardValue += capturedStones * 800;
+            }
+        }
+
+        // 始终保留真眼意识（第一层防护）
+        if (isTrueEye(board, move.r, move.c, player)) {
+            boardValue -= 5000; // 绝对不要填掉自己的真眼
+        }
 
         if (boardValue > bestValue) {
             bestValue = boardValue;
             bestMove = move;
         }
     }
-
-    const moveCount = moveHistory.length;
-    let gamePhase = "Fuseki";
-    if (moveCount > boardSize * boardSize * 0.3) gamePhase = "Chuban";
-    if (moveCount > boardSize * boardSize * 0.7) gamePhase = "Yose";
+    
+    // 如果没有找到任何有效落子（除了pass），就选择pass
+    if (bestValue === -Infinity) {
+      bestMove = { r: -1, c: -1, player };
+    }
 
     return {
         bestMove,
@@ -305,3 +320,5 @@ export function findBestMove(
         debugLog: { nodes: possibleMoves.length, depth: SEARCH_DEPTH }
     };
 }
+
+    
