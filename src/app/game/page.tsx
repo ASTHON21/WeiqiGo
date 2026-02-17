@@ -125,18 +125,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
        };
     }
     case 'UNDO': {
-      const movesToUndo = state.gameMode === 'pve' ? 2 : 1;
-      if (state.moveHistory.length < movesToUndo) {
-        return state;
-      }
-
-      const newMoveHistory = state.moveHistory.slice(0, -movesToUndo);
-      const newBoardHistory = state.boardHistory.slice(0, -movesToUndo);
+      if (state.moveHistory.length === 0) return state;
+      
+      const movesToUndo = state.gameMode === 'pve' && state.moveHistory.length >= 2 ? 2 : 1;
+    
+      const newMoveHistory = state.moveHistory.slice(0, state.moveHistory.length - movesToUndo);
+      const newBoardHistory = state.boardHistory.slice(0, state.boardHistory.length - movesToUndo);
+    
       const lastValidBoard = newBoardHistory[newBoardHistory.length - 1] || createEmptyBoard(state.boardSize);
-      const newLastMove = newMoveHistory[newMoveHistory.length - 1] || null;
+      const newLastMove = newMoveHistory.length > 0 ? newMoveHistory[newMoveHistory.length - 1] : null;
 
-      // Recalculating captures is complex, so we simplify by resetting.
-      // This is a known limitation of the current undo implementation.
+      // This is a simplification. A more robust implementation would recalculate captures
+      // based on the move history, but that's complex. For now, we accept this limitation.
       const newCaptures = { black: 0, white: 0 }; 
 
       return {
@@ -145,9 +145,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           boardHistory: newBoardHistory,
           board: lastValidBoard,
           lastMove: newLastMove,
-          currentPlayer: state.gameMode === 'pve' 
-            ? 'black' 
-            : (newLastMove ? (newLastMove.player === 'black' ? 'white' : 'black') : 'black'),
+          currentPlayer: newMoveHistory.length % 2 === 0 ? 'black' : 'white',
           captures: newCaptures,
       };
     }
@@ -225,12 +223,13 @@ export default function GamePage() {
   }
 
   const handleUndo = () => {
-    if (gameStatus !== 'playing' || moveHistory.length < (gameMode === 'pve' ? 2 : 1)) {
+    if (gameStatus !== 'playing' || moveHistory.length === 0) {
        toast({ title: 'Cannot Undo', description: 'No moves to undo.', variant: 'destructive' });
        return;
     }
     dispatch({ type: 'UNDO' });
-    toast({ title: 'Undo Successful', description: `Reverted ${gameMode === 'pve' ? 'your last move and the AI\'s response' : '1 move'}.`});
+    const movesUndone = gameMode === 'pve' && moveHistory.length >= 2 ? 2 : 1;
+    toast({ title: 'Undo Successful', description: `Reverted ${movesUndone} move(s).`});
   }
 
   const handleMove = useCallback((r: number, c: number) => {
@@ -262,13 +261,15 @@ export default function GamePage() {
     playerTurn: Player,
     currentMoveHistory: Move[],
     currentBoardSize: number,
+    currentBoardHistory: BoardState[]
   ) => {
     try {
         const { bestMove, explanation, gamePhase } = findBestMove(
             boardState,
             playerTurn,
             currentMoveHistory,
-            currentBoardSize
+            currentBoardSize,
+            currentBoardHistory
         );
         
         if (!bestMove) {
@@ -326,7 +327,7 @@ export default function GamePage() {
         
         // 延迟 500ms 模拟思考感，实际上计算只需 10ms
         setTimeout(() => {
-          const aiResult = getLocalAiMove(board, 'white', moveHistory, boardSize);
+          const aiResult = getLocalAiMove(board, 'white', moveHistory, boardSize, boardHistory);
 
           if (aiResult.success && aiResult.bestMove.r !== -1) {
             setAiGamePhase(aiResult.gamePhase as any);

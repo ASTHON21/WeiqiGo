@@ -8,14 +8,16 @@ export async function getAiMove(
   boardState: BoardState,
   playerTurn: Player,
   moveHistory: Move[],
-  boardSize: number
+  boardSize: number,
+  boardHistory: BoardState[]
 ) {
     try {
         const { bestMove, explanation, gamePhase } = findBestMove(
             boardState,
             playerTurn,
             moveHistory,
-            boardSize
+            boardSize,
+            boardHistory
         );
         
         if (!bestMove) {
