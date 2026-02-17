@@ -7,15 +7,13 @@ function toSGFCoord(n: number): string {
 
 function toSGFCoords(r: number, c: number, boardSize: number): string {
     if(r < 0 || c < 0) return '';
-    // SGF coordinates have 'a' at the top-left, but our board has (0,0) at top-left
-    // SGF y-axis is inverted from our array row index.
     return `${toSGFCoord(c)}${toSGFCoord(r)}`;
 }
 
 
 export function exportToSGF(game: GameHistoryEntry): string {
   const boardSize = game.boardSize;
-  const komi = game.result?.scoreDetails?.komi ?? 6.5;
+  const komi = game.result?.scoreDetails?.komi ?? 7.5;
   const result = game.result;
 
   let resultString = '0';
@@ -37,7 +35,6 @@ export function exportToSGF(game: GameHistoryEntry): string {
   
   game.moveHistory.forEach((move: Move) => {
     const player = move.player === 'black' ? 'B' : 'W';
-    // For pass moves, coords are empty
     const coords = (move.r === -1 && move.c === -1) ? '' : toSGFCoords(move.r, move.c, boardSize);
     sgf += `;${player}[${coords}]`;
   });

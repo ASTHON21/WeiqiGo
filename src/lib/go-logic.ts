@@ -1,6 +1,6 @@
 import type { BoardState, Player, ScoreDetails } from './types';
 
-function getNeighbors(r: number, c: number, size: number): { r: number, c: number }[] {
+function getNeighbors(r: number, c: number, size: number): { r: number, c: number } [] {
     return [
         { r: r - 1, c }, { r: r + 1, c },
         { r, c: c - 1 }, { r, c: c + 1 }
@@ -111,7 +111,7 @@ export function calculateScore(board: BoardState): { winner: Player | 'draw', bl
     let whiteStones = 0;
     let blackTerritory = 0;
     let whiteTerritory = 0;
-    const komi = 6.5;
+    const komi = 7.5;
 
     const visited = Array(size).fill(false).map(() => Array(size).fill(false));
 
