@@ -1,6 +1,7 @@
 
 import type { BoardState, Player, Move, GamePhase } from './types';
 import { processMove } from './go-logic';
+import { findMoveFromDictionary } from './Go-dictionary';
 
 /**
  * 真眼识别逻辑：
@@ -333,70 +334,88 @@ export function findBestMove(
   boardSize: number,
   boardHistory: BoardState[]
 ) {
-  const startTime = Date.now();
+    // 1. 优先查字典 (模拟高手直觉) - 只在开局阶段使用
+    if (moveHistory.length < 20) {
+        const josekiMove = findMoveFromDictionary(board, player, boardSize);
+        if (josekiMove) {
+            // 验证定式建议的合法性，防止因复杂局面导致定式失效
+            const result = processMove(board, josekiMove.r, josekiMove.c, player, boardHistory);
+            if (result.success) {
+                return {
+                    bestMove: josekiMove,
+                    explanation: "匹配到定式库建议：执行经典应对方案。",
+                    gamePhase: "Fuseki" as GamePhase // 明确类型
+                };
+            }
+        }
+    }
 
-  const moveCount = moveHistory.length;
-  let gamePhase: GamePhase = 'Fuseki';
-  if (moveCount > (boardSize * boardSize) * 0.7) {
-    gamePhase = 'Yose';
-  } else if (moveCount > (boardSize * boardSize) * 0.25) {
-    gamePhase = 'Chuban';
-  }
+    // 2. 如果字典没匹配到，执行 Alpha-Beta 搜索
+    const startTime = Date.now();
 
-  const possibleMoves = getPossibleMoves(board, boardSize);
-  possibleMoves.push({ r: -1, c: -1, player }); // Add Pass move
+    const moveCount = moveHistory.length;
+    let gamePhase: GamePhase = 'Fuseki';
+    if (moveCount > (boardSize * boardSize) * 0.7) {
+        gamePhase = 'Yose';
+    } else if (moveCount > (boardSize * boardSize) * 0.25) {
+        gamePhase = 'Chuban';
+    }
 
-  if (possibleMoves.length === 0) {
+    const possibleMoves = getPossibleMoves(board, boardSize);
+    possibleMoves.push({ r: -1, c: -1, player }); // Add Pass move
+
+    if (possibleMoves.length === 1 && possibleMoves[0].r === -1) { // Only pass is possible
+        return {
+        bestMove: { r: -1, c: -1, player },
+        explanation: 'No valid moves found, passing.',
+        gamePhase,
+        };
+    }
+
+    let bestValue = -Infinity;
+    let bestMove: Move = { r: -1, c: -1, player }; // Default to passing
+    const opponent: Player = player === 'black' ? 'white' : 'black';
+
+    for (const move of possibleMoves) {
+        let boardValue: number;
+
+        if (move.r === -1 && move.c === -1) {
+        // Evaluate pass move
+        // A pass move's value is the evaluation of the board from the opponent's perspective (negated).
+        boardValue = -alphaBeta(board, boardHistory, SEARCH_DEPTH - 1, -Infinity, Infinity, true, opponent);
+        } else {
+        // Evaluate stone placement
+        const { success, newBoard, capturedStones } = processMove(board, move.r, move.c, player, boardHistory);
+        if (!success) continue;
+
+        boardValue = alphaBeta(newBoard, [...boardHistory, newBoard], SEARCH_DEPTH - 1, -Infinity, Infinity, false, opponent);
+        
+        // Add bonuses
+        boardValue += getShapeBonus(board, move.r, move.c, player);
+        boardValue += getAdvancedPositionWeight(move.r, move.c, boardSize, moveHistory.length, board);
+        
+        if (capturedStones > 0) {
+            boardValue += (capturedStones * 800);
+        }
+        }
+
+        if (boardValue > bestValue) {
+        bestValue = boardValue;
+        bestMove = { ...move, player };
+        }
+    }
+
+    const endTime = Date.now();
+    console.log(`AI move found in ${endTime - startTime}ms. Best move: (${bestMove.r}, ${bestMove.c}) with score ${bestValue}`);
+
+    let explanation = `Considering the ${gamePhase} phase, this seems like a promising move.`;
+    if (bestMove.r === -1) {
+        explanation = 'No move seems better than passing right now.';
+    }
+
     return {
-      bestMove: { r: -1, c: -1, player },
-      explanation: 'No valid moves found, passing.',
-      gamePhase,
+        bestMove,
+        explanation,
+        gamePhase,
     };
-  }
-
-  let bestValue = -Infinity;
-  let bestMove: Move = { r: -1, c: -1, player }; // Default to passing
-  const opponent: Player = player === 'black' ? 'white' : 'black';
-
-  for (const move of possibleMoves) {
-    let boardValue: number;
-
-    if (move.r === -1) {
-      // Evaluate pass move
-      boardValue = alphaBeta(board, boardHistory, SEARCH_DEPTH - 1, -Infinity, Infinity, false, opponent);
-    } else {
-      // Evaluate stone placement
-      const { success, newBoard, capturedStones } = processMove(board, move.r, move.c, player, boardHistory);
-      if (!success) continue;
-
-      boardValue = alphaBeta(newBoard, [...boardHistory, newBoard], SEARCH_DEPTH - 1, -Infinity, Infinity, false, opponent);
-      
-      boardValue += getShapeBonus(board, move.r, move.c, player);
-      
-      boardValue += getAdvancedPositionWeight(move.r, move.c, boardSize, moveHistory.length, board);
-      
-      if (capturedStones > 0) {
-          boardValue += (capturedStones * 800);
-      }
-    }
-
-    if (boardValue > bestValue) {
-      bestValue = boardValue;
-      bestMove = { ...move, player };
-    }
-  }
-
-  const endTime = Date.now();
-  console.log(`AI move found in ${endTime - startTime}ms. Best move: (${bestMove.r}, ${bestMove.c}) with score ${bestValue}`);
-
-  let explanation = `Considering the ${gamePhase} phase, this seems like a promising move.`;
-  if (bestMove.r === -1) {
-    explanation = 'No move seems better than passing right now.';
-  }
-
-  return {
-    bestMove,
-    explanation,
-    gamePhase,
-  };
 }
