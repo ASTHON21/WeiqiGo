@@ -1,0 +1,1582 @@
+{
+  "61d6dbb8630e688871f3a71fd875aca2": {
+    "hash": "61d6dbb8630e688871f3a71fd875aca2",
+    "nextMove": "dp",
+    "source": "balloon-ai.sgf"
+  },
+  "6e453845d766451af3b8f1b84d930218": {
+    "hash": "6e453845d766451af3b8f1b84d930218",
+    "nextMove": "dd",
+    "source": "balloon-ai.sgf"
+  },
+  "6dd2a2cd9682f0900177780dd80a005d": {
+    "hash": "6dd2a2cd9682f0900177780dd80a005d",
+    "nextMove": "pd",
+    "source": "balloon-ai.sgf"
+  },
+  "cc4226fd4e91d99c4c305c50bf9083a3": {
+    "hash": "cc4226fd4e91d99c4c305c50bf9083a3",
+    "nextMove": "pp",
+    "source": "balloon-ai.sgf"
+  },
+  "44ac1b0237381f89f6ebda60b75a384e": {
+    "hash": "44ac1b0237381f89f6ebda60b75a384e",
+    "nextMove": "pc",
+    "source": "balloon-ai.sgf"
+  },
+  "d18cc4094766ef50140910b806b6ad57": {
+    "hash": "d18cc4094766ef50140910b806b6ad57",
+    "nextMove": "qp",
+    "source": "balloon-ai.sgf"
+  },
+  "1b4f56e4a8b0ec89e0fdadc14fdce5d2": {
+    "hash": "1b4f56e4a8b0ec89e0fdadc14fdce5d2",
+    "nextMove": "dq",
+    "source": "balloon-ai.sgf"
+  },
+  "5d724b5878b5aa216d3e34ec5f411f20": {
+    "hash": "5d724b5878b5aa216d3e34ec5f411f20",
+    "nextMove": "cd",
+    "source": "balloon-ai.sgf"
+  },
+  "79dcf53e4bdcadac4d750066c9892b34": {
+    "hash": "79dcf53e4bdcadac4d750066c9892b34",
+    "nextMove": "pq",
+    "source": "balloon-ai.sgf"
+  },
+  "b17ba74ac92d90076b0aa3cd4f0d8b63": {
+    "hash": "b17ba74ac92d90076b0aa3cd4f0d8b63",
+    "nextMove": "dc",
+    "source": "balloon-ai.sgf"
+  },
+  "74f0d2a1b47e16effd503ac086e1dabf": {
+    "hash": "74f0d2a1b47e16effd503ac086e1dabf",
+    "nextMove": "cp",
+    "source": "balloon-ai.sgf"
+  },
+  "04b5057656e2b34e259cee070cf8b4ee": {
+    "hash": "04b5057656e2b34e259cee070cf8b4ee",
+    "nextMove": "qd",
+    "source": "balloon-ai.sgf"
+  },
+  "9336051156d87e4f3b08de8537b58186": {
+    "hash": "9336051156d87e4f3b08de8537b58186",
+    "nextMove": "dd",
+    "source": "balloon-ai.sgf"
+  },
+  "4df7db5468503a2946dda3e8f9c531d6": {
+    "hash": "4df7db5468503a2946dda3e8f9c531d6",
+    "nextMove": "pd",
+    "source": "balloon-ai.sgf"
+  },
+  "5f7ec9608b62812f5c4c2bcdb76e2fee": {
+    "hash": "5f7ec9608b62812f5c4c2bcdb76e2fee",
+    "nextMove": "pp",
+    "source": "balloon-ai.sgf"
+  },
+  "18cdd57db498f3a6eb3204127810a4a4": {
+    "hash": "18cdd57db498f3a6eb3204127810a4a4",
+    "nextMove": "dp",
+    "source": "balloon-ai.sgf"
+  },
+  "1411ec3ca10179367defbb072820b913": {
+    "hash": "1411ec3ca10179367defbb072820b913",
+    "nextMove": "dp",
+    "source": "balloon-ai.sgf"
+  },
+  "7b26171321ff6f7ee22e39bab3901e7f": {
+    "hash": "7b26171321ff6f7ee22e39bab3901e7f",
+    "nextMove": "pd",
+    "source": "balloon-ai.sgf"
+  },
+  "ce83537f28c0e4e6fb4540a5220d78ba": {
+    "hash": "ce83537f28c0e4e6fb4540a5220d78ba",
+    "nextMove": "dd",
+    "source": "balloon-ai.sgf"
+  },
+  "04d3a3652f090e0f97030a5aeee5826b": {
+    "hash": "04d3a3652f090e0f97030a5aeee5826b",
+    "nextMove": "pp",
+    "source": "balloon-ai.sgf"
+  },
+  "10e11d79a618544a624c5f2e31d4a498": {
+    "hash": "10e11d79a618544a624c5f2e31d4a498",
+    "nextMove": "fq",
+    "source": "balloon-ai.sgf"
+  },
+  "fb60b3498f56df7f2480df2c5f8e54e8": {
+    "hash": "fb60b3498f56df7f2480df2c5f8e54e8",
+    "nextMove": "cf",
+    "source": "balloon-ai.sgf"
+  },
+  "7134d3ad56666bf3ff9642a95ca2321e": {
+    "hash": "7134d3ad56666bf3ff9642a95ca2321e",
+    "nextMove": "nc",
+    "source": "balloon-ai.sgf"
+  },
+  "9268b9c6ef3f598ad1b1f0e942e0fe58": {
+    "hash": "9268b9c6ef3f598ad1b1f0e942e0fe58",
+    "nextMove": "qn",
+    "source": "balloon-ai.sgf"
+  },
+  "a98bb36a5b99d38ade039d8ee15c6afe": {
+    "hash": "a98bb36a5b99d38ade039d8ee15c6afe",
+    "nextMove": "fc",
+    "source": "balloon-ai.sgf"
+  },
+  "77c8b494f95c304478d8588e974029a8": {
+    "hash": "77c8b494f95c304478d8588e974029a8",
+    "nextMove": "nq",
+    "source": "balloon-ai.sgf"
+  },
+  "28e9dbc8d5a9be4e409771ec02cd5bf5": {
+    "hash": "28e9dbc8d5a9be4e409771ec02cd5bf5",
+    "nextMove": "qf",
+    "source": "balloon-ai.sgf"
+  },
+  "913e41d4e587f10e2d155f0e7249353a": {
+    "hash": "913e41d4e587f10e2d155f0e7249353a",
+    "nextMove": "cn",
+    "source": "balloon-ai.sgf"
+  },
+  "735aec5e5d00592550c13dad0608c7fb": {
+    "hash": "735aec5e5d00592550c13dad0608c7fb",
+    "nextMove": "cn",
+    "source": "balloon-ai.sgf"
+  },
+  "5364f3c01b35d019f7776a91b60d2144": {
+    "hash": "5364f3c01b35d019f7776a91b60d2144",
+    "nextMove": "fc",
+    "source": "balloon-ai.sgf"
+  },
+  "e2f8edc690052bd0eb28992deb51a108": {
+    "hash": "e2f8edc690052bd0eb28992deb51a108",
+    "nextMove": "qf",
+    "source": "balloon-ai.sgf"
+  },
+  "8b26ec38c8dd97491fe46444c5fcaf1f": {
+    "hash": "8b26ec38c8dd97491fe46444c5fcaf1f",
+    "nextMove": "nq",
+    "source": "balloon-ai.sgf"
+  },
+  "1d5c616aa6d17318d96763727c1f4830": {
+    "hash": "1d5c616aa6d17318d96763727c1f4830",
+    "nextMove": "cf",
+    "source": "balloon-ai.sgf"
+  },
+  "3d7bcd5cbf66a9227bfe2c86770012b1": {
+    "hash": "3d7bcd5cbf66a9227bfe2c86770012b1",
+    "nextMove": "qn",
+    "source": "balloon-ai.sgf"
+  },
+  "7a7f7257e25582b5ae013fb92846b907": {
+    "hash": "7a7f7257e25582b5ae013fb92846b907",
+    "nextMove": "nc",
+    "source": "balloon-ai.sgf"
+  },
+  "cc830aa301b3efdf2592c819c89bf5d2": {
+    "hash": "cc830aa301b3efdf2592c819c89bf5d2",
+    "nextMove": "fq",
+    "source": "balloon-ai.sgf"
+  },
+  "160b9da69df6793cb7990bf35ff28253": {
+    "hash": "160b9da69df6793cb7990bf35ff28253",
+    "nextMove": "qh",
+    "source": "balloon-ai.sgf"
+  },
+  "1e642e63ae82331f94daf27e13f1d736": {
+    "hash": "1e642e63ae82331f94daf27e13f1d736",
+    "nextMove": "lq",
+    "source": "balloon-ai.sgf"
+  },
+  "6866eb5dcfd7c82f182b582d3b317fe1": {
+    "hash": "6866eb5dcfd7c82f182b582d3b317fe1",
+    "nextMove": "cl",
+    "source": "balloon-ai.sgf"
+  },
+  "6607be867fcdb5987627784acb402d4e": {
+    "hash": "6607be867fcdb5987627784acb402d4e",
+    "nextMove": "hc",
+    "source": "balloon-ai.sgf"
+  },
+  "32c28d916d3927d42449ca7b549d39e4": {
+    "hash": "32c28d916d3927d42449ca7b549d39e4",
+    "nextMove": "ql",
+    "source": "balloon-ai.sgf"
+  },
+  "71f7a7344fc2119682850a1730eac38f": {
+    "hash": "71f7a7344fc2119682850a1730eac38f",
+    "nextMove": "ch",
+    "source": "balloon-ai.sgf"
+  },
+  "e2392e62b35e38744f2726a99affc7db": {
+    "hash": "e2392e62b35e38744f2726a99affc7db",
+    "nextMove": "hq",
+    "source": "balloon-ai.sgf"
+  },
+  "a48f3e72c8d7eac075db2afff3446fc7": {
+    "hash": "a48f3e72c8d7eac075db2afff3446fc7",
+    "nextMove": "lc",
+    "source": "balloon-ai.sgf"
+  },
+  "ca0758fa4ddfbfbf260e46c301e19246": {
+    "hash": "ca0758fa4ddfbfbf260e46c301e19246",
+    "nextMove": "qn",
+    "source": "balloon-ai.sgf"
+  },
+  "9612c33e77bb70e7b5e25a5e0f88e7aa": {
+    "hash": "9612c33e77bb70e7b5e25a5e0f88e7aa",
+    "nextMove": "fq",
+    "source": "balloon-ai.sgf"
+  },
+  "40656699c395600a64afe538c362a393": {
+    "hash": "40656699c395600a64afe538c362a393",
+    "nextMove": "cf",
+    "source": "balloon-ai.sgf"
+  },
+  "42f9e2335db864a1108080d1da1e84e1": {
+    "hash": "42f9e2335db864a1108080d1da1e84e1",
+    "nextMove": "nc",
+    "source": "balloon-ai.sgf"
+  },
+  "9ef8046006b0d7d02d01a6dcf40b303d": {
+    "hash": "9ef8046006b0d7d02d01a6dcf40b303d",
+    "nextMove": "qf",
+    "source": "balloon-ai.sgf"
+  },
+  "e0f7321375c5e6f8f78eb345a58753db": {
+    "hash": "e0f7321375c5e6f8f78eb345a58753db",
+    "nextMove": "cn",
+    "source": "balloon-ai.sgf"
+  },
+  "d6ab21021d609511df4c2f936d3ae9e2": {
+    "hash": "d6ab21021d609511df4c2f936d3ae9e2",
+    "nextMove": "nq",
+    "source": "balloon-ai.sgf"
+  },
+  "b95eedf296ef1e32493c4a79c5a0e8e4": {
+    "hash": "b95eedf296ef1e32493c4a79c5a0e8e4",
+    "nextMove": "fc",
+    "source": "balloon-ai.sgf"
+  },
+  "a2350a70eaad0f70cd98716d147145f5": {
+    "hash": "a2350a70eaad0f70cd98716d147145f5",
+    "nextMove": "qo",
+    "source": "balloon-ai.sgf"
+  },
+  "05a8669e9bd735bb0b24ed314974f8da": {
+    "hash": "05a8669e9bd735bb0b24ed314974f8da",
+    "nextMove": "eq",
+    "source": "balloon-ai.sgf"
+  },
+  "b1153b50832e1579932c2f1d383400fa": {
+    "hash": "b1153b50832e1579932c2f1d383400fa",
+    "nextMove": "ce",
+    "source": "balloon-ai.sgf"
+  },
+  "26d33c6793659719cb0620d786a0e588": {
+    "hash": "26d33c6793659719cb0620d786a0e588",
+    "nextMove": "oc",
+    "source": "balloon-ai.sgf"
+  },
+  "7a94dd5b922b98a0f0e7860d02b34a0f": {
+    "hash": "7a94dd5b922b98a0f0e7860d02b34a0f",
+    "nextMove": "qe",
+    "source": "balloon-ai.sgf"
+  },
+  "4db7a86ea572378680fa9517dc9b2c82": {
+    "hash": "4db7a86ea572378680fa9517dc9b2c82",
+    "nextMove": "co",
+    "source": "balloon-ai.sgf"
+  },
+  "be36753ce66749e184539bb38c9e06cb": {
+    "hash": "be36753ce66749e184539bb38c9e06cb",
+    "nextMove": "oq",
+    "source": "balloon-ai.sgf"
+  },
+  "332ec0557f2a72ec8f480262efed4d5e": {
+    "hash": "332ec0557f2a72ec8f480262efed4d5e",
+    "nextMove": "ec",
+    "source": "balloon-ai.sgf"
+  },
+  "273d2bdd5f96d845890765cd0555c298": {
+    "hash": "273d2bdd5f96d845890765cd0555c298",
+    "nextMove": "pn",
+    "source": "balloon-ai.sgf"
+  },
+  "b9336d3062f0fd81dc3f9a4e48b9b13d": {
+    "hash": "b9336d3062f0fd81dc3f9a4e48b9b13d",
+    "nextMove": "fp",
+    "source": "balloon-ai.sgf"
+  },
+  "ddf4bd781868ad4c22968eaf3dc0a662": {
+    "hash": "ddf4bd781868ad4c22968eaf3dc0a662",
+    "nextMove": "df",
+    "source": "balloon-ai.sgf"
+  },
+  "ec68e5bc0d922aa08481e2d3b400b5fd": {
+    "hash": "ec68e5bc0d922aa08481e2d3b400b5fd",
+    "nextMove": "nd",
+    "source": "balloon-ai.sgf"
+  },
+  "d11933f9753c5034b59ea4af26548c63": {
+    "hash": "d11933f9753c5034b59ea4af26548c63",
+    "nextMove": "pf",
+    "source": "balloon-ai.sgf"
+  },
+  "a4064a1a1226309d66e0ebf60e671ba2": {
+    "hash": "a4064a1a1226309d66e0ebf60e671ba2",
+    "nextMove": "dn",
+    "source": "balloon-ai.sgf"
+  },
+  "8afc2a1e027377ce3ec6b9d54212ca10": {
+    "hash": "8afc2a1e027377ce3ec6b9d54212ca10",
+    "nextMove": "np",
+    "source": "balloon-ai.sgf"
+  },
+  "e7b3f63f726fca39d14cbccae26d1614": {
+    "hash": "e7b3f63f726fca39d14cbccae26d1614",
+    "nextMove": "fd",
+    "source": "balloon-ai.sgf"
+  },
+  "ffc62b1fe2fbe4dfb1c710f1e024430d": {
+    "hash": "ffc62b1fe2fbe4dfb1c710f1e024430d",
+    "nextMove": "np",
+    "source": "balloon-ai.sgf"
+  },
+  "505e69bcc56d0a8d1bf7da58c89d4b4e": {
+    "hash": "505e69bcc56d0a8d1bf7da58c89d4b4e",
+    "nextMove": "dn",
+    "source": "balloon-ai.sgf"
+  },
+  "484351e7119b01527fec724bfc68d11d": {
+    "hash": "484351e7119b01527fec724bfc68d11d",
+    "nextMove": "fd",
+    "source": "balloon-ai.sgf"
+  },
+  "bac4c4b0c37d2f878381077cb6d470a4": {
+    "hash": "bac4c4b0c37d2f878381077cb6d470a4",
+    "nextMove": "pf",
+    "source": "balloon-ai.sgf"
+  },
+  "f761fd22747d44056a65b970a8368468": {
+    "hash": "f761fd22747d44056a65b970a8368468",
+    "nextMove": "nd",
+    "source": "balloon-ai.sgf"
+  },
+  "0b013e0c292c79dfdc57ccd38afaf728": {
+    "hash": "0b013e0c292c79dfdc57ccd38afaf728",
+    "nextMove": "fp",
+    "source": "balloon-ai.sgf"
+  },
+  "e623d3e5df8422ce34737168b6d4c441": {
+    "hash": "e623d3e5df8422ce34737168b6d4c441",
+    "nextMove": "pn",
+    "source": "balloon-ai.sgf"
+  },
+  "a7524b230d4d582d6681821717f390a9": {
+    "hash": "a7524b230d4d582d6681821717f390a9",
+    "nextMove": "df",
+    "source": "balloon-ai.sgf"
+  },
+  "3648f03b5f6f7aae37597d12c53ab001": {
+    "hash": "3648f03b5f6f7aae37597d12c53ab001",
+    "nextMove": "pk",
+    "source": "balloon-ai.sgf"
+  },
+  "1629ad6a60ce9e8e2c350dfde9c5e11b": {
+    "hash": "1629ad6a60ce9e8e2c350dfde9c5e11b",
+    "nextMove": "ip",
+    "source": "balloon-ai.sgf"
+  },
+  "334f1237de3b17967c3b831585ebc519": {
+    "hash": "334f1237de3b17967c3b831585ebc519",
+    "nextMove": "di",
+    "source": "balloon-ai.sgf"
+  },
+  "8db411f2fd443229806afdc9523ec7fb": {
+    "hash": "8db411f2fd443229806afdc9523ec7fb",
+    "nextMove": "kd",
+    "source": "balloon-ai.sgf"
+  },
+  "d43f4c6ca0b438b57e295baa78012bfa": {
+    "hash": "d43f4c6ca0b438b57e295baa78012bfa",
+    "nextMove": "pi",
+    "source": "balloon-ai.sgf"
+  },
+  "eedb4930ef353a10b125add4f345f88a": {
+    "hash": "eedb4930ef353a10b125add4f345f88a",
+    "nextMove": "dk",
+    "source": "balloon-ai.sgf"
+  },
+  "ca122e92157d22efd7a77f503860e77f": {
+    "hash": "ca122e92157d22efd7a77f503860e77f",
+    "nextMove": "kp",
+    "source": "balloon-ai.sgf"
+  },
+  "fd8be4aee554757c7b9a9ed6520eab10": {
+    "hash": "fd8be4aee554757c7b9a9ed6520eab10",
+    "nextMove": "id",
+    "source": "balloon-ai.sgf"
+  },
+  "b6279405dac8ae050fbeebdeadee7851": {
+    "hash": "b6279405dac8ae050fbeebdeadee7851",
+    "nextMove": "qj",
+    "source": "balloon-ai.sgf"
+  },
+  "5ff346f6006e3a1992c80684966d399d": {
+    "hash": "5ff346f6006e3a1992c80684966d399d",
+    "nextMove": "jq",
+    "source": "balloon-ai.sgf"
+  },
+  "728ebd97266b4ba4bfe2ed03410942ee": {
+    "hash": "728ebd97266b4ba4bfe2ed03410942ee",
+    "nextMove": "cj",
+    "source": "balloon-ai.sgf"
+  },
+  "a118e6e4df8bc6dd83d59693a9e383bb": {
+    "hash": "a118e6e4df8bc6dd83d59693a9e383bb",
+    "nextMove": "jc",
+    "source": "balloon-ai.sgf"
+  },
+  "d06f2928a7cd2abfad6a3e81d1f896a7": {
+    "hash": "d06f2928a7cd2abfad6a3e81d1f896a7",
+    "nextMove": "qj",
+    "source": "balloon-ai.sgf"
+  },
+  "c2a5cbe122ab8f2a11b098ba3b5eeac1": {
+    "hash": "c2a5cbe122ab8f2a11b098ba3b5eeac1",
+    "nextMove": "cj",
+    "source": "balloon-ai.sgf"
+  },
+  "6acbb9b70f2fc64bfee6dd9a21d84703": {
+    "hash": "6acbb9b70f2fc64bfee6dd9a21d84703",
+    "nextMove": "jq",
+    "source": "balloon-ai.sgf"
+  },
+  "8d34554b867f33cb24d798544a2cf22e": {
+    "hash": "8d34554b867f33cb24d798544a2cf22e",
+    "nextMove": "jc",
+    "source": "balloon-ai.sgf"
+  },
+  "80357a53dad8ab29a235d8032b84b616": {
+    "hash": "80357a53dad8ab29a235d8032b84b616",
+    "nextMove": "eq",
+    "source": "balloon-ai.sgf"
+  },
+  "6d0084a67788f2da559eca0a68c14940": {
+    "hash": "6d0084a67788f2da559eca0a68c14940",
+    "nextMove": "ce",
+    "source": "balloon-ai.sgf"
+  },
+  "e1d33098c52340103d8fa3aa078ef263": {
+    "hash": "e1d33098c52340103d8fa3aa078ef263",
+    "nextMove": "oc",
+    "source": "balloon-ai.sgf"
+  },
+  "fa7709deed4e52b5189df72657d89a45": {
+    "hash": "fa7709deed4e52b5189df72657d89a45",
+    "nextMove": "qo",
+    "source": "balloon-ai.sgf"
+  },
+  "33fedb7c067c4f2625d6147e2cc3e538": {
+    "hash": "33fedb7c067c4f2625d6147e2cc3e538",
+    "nextMove": "ec",
+    "source": "balloon-ai.sgf"
+  },
+  "45c19704158bc2b34f9caa10db0af542": {
+    "hash": "45c19704158bc2b34f9caa10db0af542",
+    "nextMove": "oq",
+    "source": "balloon-ai.sgf"
+  },
+  "01f71f295dd2b155f3c8b33866c19e77": {
+    "hash": "01f71f295dd2b155f3c8b33866c19e77",
+    "nextMove": "qe",
+    "source": "balloon-ai.sgf"
+  },
+  "624ef27f8dfdc4d97598da14fbb82d74": {
+    "hash": "624ef27f8dfdc4d97598da14fbb82d74",
+    "nextMove": "co",
+    "source": "balloon-ai.sgf"
+  },
+  "32391b1544675de5ba70a15ad443d42b": {
+    "hash": "32391b1544675de5ba70a15ad443d42b",
+    "nextMove": "fp",
+    "source": "balloon-ai.sgf"
+  },
+  "e9a0832c194ab38e7d83d2d980a1fa3f": {
+    "hash": "e9a0832c194ab38e7d83d2d980a1fa3f",
+    "nextMove": "df",
+    "source": "balloon-ai.sgf"
+  },
+  "4a7a888ba24a6f8deecb8b1266584f20": {
+    "hash": "4a7a888ba24a6f8deecb8b1266584f20",
+    "nextMove": "nd",
+    "source": "balloon-ai.sgf"
+  },
+  "d3e9a1a2a44815dea7fc649e59700e2e": {
+    "hash": "d3e9a1a2a44815dea7fc649e59700e2e",
+    "nextMove": "pn",
+    "source": "balloon-ai.sgf"
+  },
+  "abab716cea435934de5563737df46a12": {
+    "hash": "abab716cea435934de5563737df46a12",
+    "nextMove": "fd",
+    "source": "balloon-ai.sgf"
+  },
+  "31f9a612efe3e3811922d2f56c68ff0a": {
+    "hash": "31f9a612efe3e3811922d2f56c68ff0a",
+    "nextMove": "np",
+    "source": "balloon-ai.sgf"
+  },
+  "3557500afa9401014eb8fa6183fa616c": {
+    "hash": "3557500afa9401014eb8fa6183fa616c",
+    "nextMove": "pf",
+    "source": "balloon-ai.sgf"
+  },
+  "09a7769d6d80850c03a989c68016f876": {
+    "hash": "09a7769d6d80850c03a989c68016f876",
+    "nextMove": "dn",
+    "source": "balloon-ai.sgf"
+  },
+  "852a0bb0a3fb101e8198f6541c008949": {
+    "hash": "852a0bb0a3fb101e8198f6541c008949",
+    "nextMove": "jq",
+    "source": "balloon-ai.sgf"
+  },
+  "68afcc76ad9e58eaaee83fa02b529645": {
+    "hash": "68afcc76ad9e58eaaee83fa02b529645",
+    "nextMove": "cj",
+    "source": "balloon-ai.sgf"
+  },
+  "758e9c30cc09205a3b9f0334ade51a8f": {
+    "hash": "758e9c30cc09205a3b9f0334ade51a8f",
+    "nextMove": "jc",
+    "source": "balloon-ai.sgf"
+  },
+  "3ed86755aed496beefaaae2910f17bad": {
+    "hash": "3ed86755aed496beefaaae2910f17bad",
+    "nextMove": "qj",
+    "source": "balloon-ai.sgf"
+  },
+  "f14319a258a9b292bdee8a467f723b53": {
+    "hash": "f14319a258a9b292bdee8a467f723b53",
+    "nextMove": "jc",
+    "source": "balloon-ai.sgf"
+  },
+  "88595a73ff174f95a0097d92fbbe8f1e": {
+    "hash": "88595a73ff174f95a0097d92fbbe8f1e",
+    "nextMove": "jq",
+    "source": "balloon-ai.sgf"
+  },
+  "5320790a017fcb7139775cd34804827f": {
+    "hash": "5320790a017fcb7139775cd34804827f",
+    "nextMove": "qj",
+    "source": "balloon-ai.sgf"
+  },
+  "8002ea8f51a2b898f8cc718e8d4bd3ef": {
+    "hash": "8002ea8f51a2b898f8cc718e8d4bd3ef",
+    "nextMove": "cj",
+    "source": "balloon-ai.sgf"
+  },
+  "cd36b8074630d88b7faa9e67e10a1d78": {
+    "hash": "cd36b8074630d88b7faa9e67e10a1d78",
+    "nextMove": "lq",
+    "source": "balloon-ai.sgf"
+  },
+  "4b1635361b7f3024f1962b9f65c0a52f": {
+    "hash": "4b1635361b7f3024f1962b9f65c0a52f",
+    "nextMove": "cl",
+    "source": "balloon-ai.sgf"
+  },
+  "70dff1a723fcaa2a4b0f3af06bc8a879": {
+    "hash": "70dff1a723fcaa2a4b0f3af06bc8a879",
+    "nextMove": "hc",
+    "source": "balloon-ai.sgf"
+  },
+  "2f85d9e927550e661ed1f2108efd7146": {
+    "hash": "2f85d9e927550e661ed1f2108efd7146",
+    "nextMove": "qh",
+    "source": "balloon-ai.sgf"
+  },
+  "65f197148804adb3b94023c59e0ce73e": {
+    "hash": "65f197148804adb3b94023c59e0ce73e",
+    "nextMove": "lc",
+    "source": "balloon-ai.sgf"
+  },
+  "86d9a69b20f1f9a17ac78e94909661d2": {
+    "hash": "86d9a69b20f1f9a17ac78e94909661d2",
+    "nextMove": "hq",
+    "source": "balloon-ai.sgf"
+  },
+  "249a44abdd33a8688b41ac0e32dafcb8": {
+    "hash": "249a44abdd33a8688b41ac0e32dafcb8",
+    "nextMove": "ql",
+    "source": "balloon-ai.sgf"
+  },
+  "7762ed3bd814d0d2b72d8fadac485237": {
+    "hash": "7762ed3bd814d0d2b72d8fadac485237",
+    "nextMove": "ch",
+    "source": "balloon-ai.sgf"
+  },
+  "1abd0e52c9ca01e5be2590ad473b4f07": {
+    "hash": "1abd0e52c9ca01e5be2590ad473b4f07",
+    "nextMove": "hq",
+    "source": "balloon-ai.sgf"
+  },
+  "7a01018fed3c177d2d04df48ab2f290b": {
+    "hash": "7a01018fed3c177d2d04df48ab2f290b",
+    "nextMove": "ch",
+    "source": "balloon-ai.sgf"
+  },
+  "5369722566c53abb50ffa13bf112d869": {
+    "hash": "5369722566c53abb50ffa13bf112d869",
+    "nextMove": "lc",
+    "source": "balloon-ai.sgf"
+  },
+  "7bbd1c0b3b119309b45878e40e93aa03": {
+    "hash": "7bbd1c0b3b119309b45878e40e93aa03",
+    "nextMove": "ql",
+    "source": "balloon-ai.sgf"
+  },
+  "2caa690fe7c6f9d65ac52d2eed91f7b8": {
+    "hash": "2caa690fe7c6f9d65ac52d2eed91f7b8",
+    "nextMove": "hc",
+    "source": "balloon-ai.sgf"
+  },
+  "ea0e74f663c5b64cdddac2f092abdd10": {
+    "hash": "ea0e74f663c5b64cdddac2f092abdd10",
+    "nextMove": "lq",
+    "source": "balloon-ai.sgf"
+  },
+  "94f19f48656f8a8e353808cc3d5cecda": {
+    "hash": "94f19f48656f8a8e353808cc3d5cecda",
+    "nextMove": "qh",
+    "source": "balloon-ai.sgf"
+  },
+  "6390b6be2a362dcd7f9567d9d0646f20": {
+    "hash": "6390b6be2a362dcd7f9567d9d0646f20",
+    "nextMove": "cl",
+    "source": "balloon-ai.sgf"
+  },
+  "628bad05f58d3df544edefd48f6e4256": {
+    "hash": "628bad05f58d3df544edefd48f6e4256",
+    "nextMove": "fm",
+    "source": "balloon-ai.sgf"
+  },
+  "212e5fedb5c65789c208b6898a3fc406": {
+    "hash": "212e5fedb5c65789c208b6898a3fc406",
+    "nextMove": "gf",
+    "source": "balloon-ai.sgf"
+  },
+  "b7aab1db738080b2d06a010acdf24947": {
+    "hash": "b7aab1db738080b2d06a010acdf24947",
+    "nextMove": "ng",
+    "source": "balloon-ai.sgf"
+  },
+  "adfe137b29f80bdc2ad004c3a5c8c5d4": {
+    "hash": "adfe137b29f80bdc2ad004c3a5c8c5d4",
+    "nextMove": "mn",
+    "source": "balloon-ai.sgf"
+  },
+  "deb5618c828569f33639ea650f361b9d": {
+    "hash": "deb5618c828569f33639ea650f361b9d",
+    "nextMove": "fg",
+    "source": "balloon-ai.sgf"
+  },
+  "430c63a7e5ab460a70ab82b97898291b": {
+    "hash": "430c63a7e5ab460a70ab82b97898291b",
+    "nextMove": "nm",
+    "source": "balloon-ai.sgf"
+  },
+  "851ec2716f05e359f23f99ad8f6cc41c": {
+    "hash": "851ec2716f05e359f23f99ad8f6cc41c",
+    "nextMove": "mf",
+    "source": "balloon-ai.sgf"
+  },
+  "a61f343f71c63a7e7faae643347041f6": {
+    "hash": "a61f343f71c63a7e7faae643347041f6",
+    "nextMove": "gn",
+    "source": "balloon-ai.sgf"
+  },
+  "6fc2445720fe5ed6378b7e19bfc6f16f": {
+    "hash": "6fc2445720fe5ed6378b7e19bfc6f16f",
+    "nextMove": "nr",
+    "source": "balloon-ai.sgf"
+  },
+  "f5bbb30584596b86758cdf2821b2f381": {
+    "hash": "f5bbb30584596b86758cdf2821b2f381",
+    "nextMove": "bn",
+    "source": "balloon-ai.sgf"
+  },
+  "b6cfc14bd71d2e558e36fcc1595c5e83": {
+    "hash": "b6cfc14bd71d2e558e36fcc1595c5e83",
+    "nextMove": "fb",
+    "source": "balloon-ai.sgf"
+  },
+  "5cd45cfc06c09b3362ba9bb6f3e14cbe": {
+    "hash": "5cd45cfc06c09b3362ba9bb6f3e14cbe",
+    "nextMove": "rf",
+    "source": "balloon-ai.sgf"
+  },
+  "b5b6978f17ccb813ccdfa29f22b40ad6": {
+    "hash": "b5b6978f17ccb813ccdfa29f22b40ad6",
+    "nextMove": "nb",
+    "source": "balloon-ai.sgf"
+  },
+  "73414d519156350c6fdf66ca04c1c4b8": {
+    "hash": "73414d519156350c6fdf66ca04c1c4b8",
+    "nextMove": "fr",
+    "source": "balloon-ai.sgf"
+  },
+  "1377108829f5e08c8e3e4cc4cd8195d6": {
+    "hash": "1377108829f5e08c8e3e4cc4cd8195d6",
+    "nextMove": "rn",
+    "source": "balloon-ai.sgf"
+  },
+  "c5db77a10740f29e2895ebcd6ebf628e": {
+    "hash": "c5db77a10740f29e2895ebcd6ebf628e",
+    "nextMove": "bf",
+    "source": "balloon-ai.sgf"
+  },
+  "9a5c32419bdb7dd4a082f26417bd8b54": {
+    "hash": "9a5c32419bdb7dd4a082f26417bd8b54",
+    "nextMove": "dm",
+    "source": "balloon-ai.sgf"
+  },
+  "65944d65884a96ec2966965e1aceffca": {
+    "hash": "65944d65884a96ec2966965e1aceffca",
+    "nextMove": "gd",
+    "source": "balloon-ai.sgf"
+  },
+  "8bf6ce643d6e31eb40d0a56720dc954b": {
+    "hash": "8bf6ce643d6e31eb40d0a56720dc954b",
+    "nextMove": "pg",
+    "source": "balloon-ai.sgf"
+  },
+  "7268218e9fbfbea755dc42c2fd57b469": {
+    "hash": "7268218e9fbfbea755dc42c2fd57b469",
+    "nextMove": "mp",
+    "source": "balloon-ai.sgf"
+  },
+  "d51997580457835122d3a31c6c819baa": {
+    "hash": "d51997580457835122d3a31c6c819baa",
+    "nextMove": "dg",
+    "source": "balloon-ai.sgf"
+  },
+  "6ea7c139859546775e2b1dd05d9413f8": {
+    "hash": "6ea7c139859546775e2b1dd05d9413f8",
+    "nextMove": "pm",
+    "source": "balloon-ai.sgf"
+  },
+  "449526f855fbcd08826d6a3b0f979c52": {
+    "hash": "449526f855fbcd08826d6a3b0f979c52",
+    "nextMove": "md",
+    "source": "balloon-ai.sgf"
+  },
+  "2b6c9d8f310252637a5a12e009e549ee": {
+    "hash": "2b6c9d8f310252637a5a12e009e549ee",
+    "nextMove": "gp",
+    "source": "balloon-ai.sgf"
+  },
+  "5e02d068ec4f85d8978ae4aeede9c7c5": {
+    "hash": "5e02d068ec4f85d8978ae4aeede9c7c5",
+    "nextMove": "pp",
+    "source": "pro-games.sgf"
+  },
+  "ba64942a243ab86ef8bbada5877a091e": {
+    "hash": "ba64942a243ab86ef8bbada5877a091e",
+    "nextMove": "dp",
+    "source": "pro-games.sgf"
+  },
+  "759309ecd97db026ad15ad2e0e504e26": {
+    "hash": "759309ecd97db026ad15ad2e0e504e26",
+    "nextMove": "dd",
+    "source": "pro-games.sgf"
+  },
+  "624d82924638812b15441cb6e2369f1a": {
+    "hash": "624d82924638812b15441cb6e2369f1a",
+    "nextMove": "pd",
+    "source": "pro-games.sgf"
+  },
+  "99d0c4420ad19460a616aea06ad60f0a": {
+    "hash": "99d0c4420ad19460a616aea06ad60f0a",
+    "nextMove": "pd",
+    "source": "pro-games.sgf"
+  },
+  "637148044c3eb671346d407196e0c6d1": {
+    "hash": "637148044c3eb671346d407196e0c6d1",
+    "nextMove": "dp",
+    "source": "pro-games.sgf"
+  },
+  "b150a288c6c400b2e9932331588f619d": {
+    "hash": "b150a288c6c400b2e9932331588f619d",
+    "nextMove": "pp",
+    "source": "pro-games.sgf"
+  },
+  "9e35fe2b2581eb0e66b9fc2ebd5ea5ab": {
+    "hash": "9e35fe2b2581eb0e66b9fc2ebd5ea5ab",
+    "nextMove": "dd",
+    "source": "pro-games.sgf"
+  },
+  "310f8bbe50af45c3e30cd6367a2ee3a5": {
+    "hash": "310f8bbe50af45c3e30cd6367a2ee3a5",
+    "nextMove": "cc",
+    "source": "pro-games.sgf"
+  },
+  "4f557eb2ecf193410a0a9a6d78803af4": {
+    "hash": "4f557eb2ecf193410a0a9a6d78803af4",
+    "nextMove": "qc",
+    "source": "pro-games.sgf"
+  },
+  "c2debe7369f3e66211275c1a7dd8a8a9": {
+    "hash": "c2debe7369f3e66211275c1a7dd8a8a9",
+    "nextMove": "qq",
+    "source": "pro-games.sgf"
+  },
+  "3a7c140b4171218979178e888e83c0b1": {
+    "hash": "3a7c140b4171218979178e888e83c0b1",
+    "nextMove": "cq",
+    "source": "pro-games.sgf"
+  },
+  "97a633feee7bd317f0cd0affd28c5bdd": {
+    "hash": "97a633feee7bd317f0cd0affd28c5bdd",
+    "nextMove": "cq",
+    "source": "pro-games.sgf"
+  },
+  "4bcf081fe51a8a67e4bdd178818d0535": {
+    "hash": "4bcf081fe51a8a67e4bdd178818d0535",
+    "nextMove": "qc",
+    "source": "pro-games.sgf"
+  },
+  "7b5edfe26562346570b97a1420809f53": {
+    "hash": "7b5edfe26562346570b97a1420809f53",
+    "nextMove": "cc",
+    "source": "pro-games.sgf"
+  },
+  "00a2b85ad603627d563de7da60def51c": {
+    "hash": "00a2b85ad603627d563de7da60def51c",
+    "nextMove": "qq",
+    "source": "pro-games.sgf"
+  },
+  "c4cdf51e769e3a4a84fcfa7a9d8b511c": {
+    "hash": "c4cdf51e769e3a4a84fcfa7a9d8b511c",
+    "nextMove": "cp",
+    "source": "pro-games.sgf"
+  },
+  "29936f10ebdbe4c9d98cd5adb08816d3": {
+    "hash": "29936f10ebdbe4c9d98cd5adb08816d3",
+    "nextMove": "dc",
+    "source": "pro-games.sgf"
+  },
+  "1cf1e9904b0a07d2b6d26d5e9f5ba4bd": {
+    "hash": "1cf1e9904b0a07d2b6d26d5e9f5ba4bd",
+    "nextMove": "qd",
+    "source": "pro-games.sgf"
+  },
+  "7b4187bf6970ea9bf21e8546c3f2f19e": {
+    "hash": "7b4187bf6970ea9bf21e8546c3f2f19e",
+    "nextMove": "pq",
+    "source": "pro-games.sgf"
+  },
+  "c5817919d0e8ccfef08cc28531769f6a": {
+    "hash": "c5817919d0e8ccfef08cc28531769f6a",
+    "nextMove": "cd",
+    "source": "pro-games.sgf"
+  },
+  "c852c359447179e23969e399bc6ee256": {
+    "hash": "c852c359447179e23969e399bc6ee256",
+    "nextMove": "qp",
+    "source": "pro-games.sgf"
+  },
+  "7427c209a34ae80b6357839ce830d42e": {
+    "hash": "7427c209a34ae80b6357839ce830d42e",
+    "nextMove": "pc",
+    "source": "pro-games.sgf"
+  },
+  "c30262e73ec3a8cbc3e3b32ed6c7933e": {
+    "hash": "c30262e73ec3a8cbc3e3b32ed6c7933e",
+    "nextMove": "dq",
+    "source": "pro-games.sgf"
+  },
+  "a79cafb04ee93d9bb83d1c690b597d59": {
+    "hash": "a79cafb04ee93d9bb83d1c690b597d59",
+    "nextMove": "nc",
+    "source": "pro-games.sgf"
+  },
+  "457393eec461a648f66df85c1d872c62": {
+    "hash": "457393eec461a648f66df85c1d872c62",
+    "nextMove": "qn",
+    "source": "pro-games.sgf"
+  },
+  "68ca1541e745882f5b2307849f86d61c": {
+    "hash": "68ca1541e745882f5b2307849f86d61c",
+    "nextMove": "fq",
+    "source": "pro-games.sgf"
+  },
+  "10d4ddda977fa92a09f806f9c9c034e4": {
+    "hash": "10d4ddda977fa92a09f806f9c9c034e4",
+    "nextMove": "cf",
+    "source": "pro-games.sgf"
+  },
+  "edcb49ba28435da1f6b055783a1d7b32": {
+    "hash": "edcb49ba28435da1f6b055783a1d7b32",
+    "nextMove": "nq",
+    "source": "pro-games.sgf"
+  },
+  "803afdf1570829713a9abea38d503a05": {
+    "hash": "803afdf1570829713a9abea38d503a05",
+    "nextMove": "fc",
+    "source": "pro-games.sgf"
+  },
+  "3006c74f8a9b9227f237ae6a3ad6a7c1": {
+    "hash": "3006c74f8a9b9227f237ae6a3ad6a7c1",
+    "nextMove": "cn",
+    "source": "pro-games.sgf"
+  },
+  "4327fda79e6607f06b55d1c9ac2f120a": {
+    "hash": "4327fda79e6607f06b55d1c9ac2f120a",
+    "nextMove": "qf",
+    "source": "pro-games.sgf"
+  },
+  "790dd877fb920ec678c9a0c124e14972": {
+    "hash": "790dd877fb920ec678c9a0c124e14972",
+    "nextMove": "fp",
+    "source": "pro-games.sgf"
+  },
+  "6832aab8f0cd383a6ab9e5c1946c082e": {
+    "hash": "6832aab8f0cd383a6ab9e5c1946c082e",
+    "nextMove": "df",
+    "source": "pro-games.sgf"
+  },
+  "18677403c489826b49382ecf6e5e87fc": {
+    "hash": "18677403c489826b49382ecf6e5e87fc",
+    "nextMove": "nd",
+    "source": "pro-games.sgf"
+  },
+  "835f5e22ba5f8b73fdc2ab730f3ae55d": {
+    "hash": "835f5e22ba5f8b73fdc2ab730f3ae55d",
+    "nextMove": "pn",
+    "source": "pro-games.sgf"
+  },
+  "c9d479cd5104bd5dae5c37d9b7e2cb69": {
+    "hash": "c9d479cd5104bd5dae5c37d9b7e2cb69",
+    "nextMove": "fd",
+    "source": "pro-games.sgf"
+  },
+  "e2f5b97dfd9adbd677b6c5b66462dea5": {
+    "hash": "e2f5b97dfd9adbd677b6c5b66462dea5",
+    "nextMove": "np",
+    "source": "pro-games.sgf"
+  },
+  "26a460f629c3f6007ab209924d56e837": {
+    "hash": "26a460f629c3f6007ab209924d56e837",
+    "nextMove": "pf",
+    "source": "pro-games.sgf"
+  },
+  "307f8a5fbc97d22ecfe9ff869b2df880": {
+    "hash": "307f8a5fbc97d22ecfe9ff869b2df880",
+    "nextMove": "dn",
+    "source": "pro-games.sgf"
+  },
+  "8d8d62a2d018f9b8cdefba1313eb014a": {
+    "hash": "8d8d62a2d018f9b8cdefba1313eb014a",
+    "nextMove": "qq",
+    "source": "pro-games.sgf"
+  },
+  "e4595c1c0310f9aa52a6d92f5ff352c9": {
+    "hash": "e4595c1c0310f9aa52a6d92f5ff352c9",
+    "nextMove": "cq",
+    "source": "pro-games.sgf"
+  },
+  "59c94ebacd4cdfcaf51154473586b59a": {
+    "hash": "59c94ebacd4cdfcaf51154473586b59a",
+    "nextMove": "cc",
+    "source": "pro-games.sgf"
+  },
+  "35ba7ae0d93f636c594800ea066ebbfa": {
+    "hash": "35ba7ae0d93f636c594800ea066ebbfa",
+    "nextMove": "qc",
+    "source": "pro-games.sgf"
+  },
+  "3deb89159a15f256497874422a54d8c8": {
+    "hash": "3deb89159a15f256497874422a54d8c8",
+    "nextMove": "qc",
+    "source": "pro-games.sgf"
+  },
+  "fcdc301439613a939b666fc91e24e7d1": {
+    "hash": "fcdc301439613a939b666fc91e24e7d1",
+    "nextMove": "cq",
+    "source": "pro-games.sgf"
+  },
+  "0c8e541cfd8a46edb035740b42ecd68e": {
+    "hash": "0c8e541cfd8a46edb035740b42ecd68e",
+    "nextMove": "qq",
+    "source": "pro-games.sgf"
+  },
+  "9297dba73797ade93de4d189e846dc75": {
+    "hash": "9297dba73797ade93de4d189e846dc75",
+    "nextMove": "cc",
+    "source": "pro-games.sgf"
+  },
+  "68695ceced3c833675bf3092ed99ee87": {
+    "hash": "68695ceced3c833675bf3092ed99ee87",
+    "nextMove": "pq",
+    "source": "pro-games.sgf"
+  },
+  "603c562db201d08782a94125e178e28b": {
+    "hash": "603c562db201d08782a94125e178e28b",
+    "nextMove": "cp",
+    "source": "pro-games.sgf"
+  },
+  "f82349e6f4d35be75da055d41fe3e7d6": {
+    "hash": "f82349e6f4d35be75da055d41fe3e7d6",
+    "nextMove": "dc",
+    "source": "pro-games.sgf"
+  },
+  "578eee24dd217abccea07a5b412b87f7": {
+    "hash": "578eee24dd217abccea07a5b412b87f7",
+    "nextMove": "qd",
+    "source": "pro-games.sgf"
+  },
+  "23ecb9a2ebe8942a40c3defe5f3fe53e": {
+    "hash": "23ecb9a2ebe8942a40c3defe5f3fe53e",
+    "nextMove": "pc",
+    "source": "pro-games.sgf"
+  },
+  "5e7290bd13a34240c22ea31404a44852": {
+    "hash": "5e7290bd13a34240c22ea31404a44852",
+    "nextMove": "dq",
+    "source": "pro-games.sgf"
+  },
+  "f69d6cd080dcfb745297ce170b6c4bf3": {
+    "hash": "f69d6cd080dcfb745297ce170b6c4bf3",
+    "nextMove": "qp",
+    "source": "pro-games.sgf"
+  },
+  "4241d732ca8a81ab98831a6610551336": {
+    "hash": "4241d732ca8a81ab98831a6610551336",
+    "nextMove": "cd",
+    "source": "pro-games.sgf"
+  },
+  "613e2e17f60d4a9d94b78171f93f0daa": {
+    "hash": "613e2e17f60d4a9d94b78171f93f0daa",
+    "nextMove": "qp",
+    "source": "pro-games.sgf"
+  },
+  "b4e90aa4c60353578b51407a63a0a1ad": {
+    "hash": "b4e90aa4c60353578b51407a63a0a1ad",
+    "nextMove": "dq",
+    "source": "pro-games.sgf"
+  },
+  "1c6ce59cc56efe77a24a4c3cc0b7696f": {
+    "hash": "1c6ce59cc56efe77a24a4c3cc0b7696f",
+    "nextMove": "cd",
+    "source": "pro-games.sgf"
+  },
+  "37d8cf2dd98c364537eb9626e39cf946": {
+    "hash": "37d8cf2dd98c364537eb9626e39cf946",
+    "nextMove": "pc",
+    "source": "pro-games.sgf"
+  },
+  "9e3e713292f9841c0fc3e89e188e98bf": {
+    "hash": "9e3e713292f9841c0fc3e89e188e98bf",
+    "nextMove": "qd",
+    "source": "pro-games.sgf"
+  },
+  "bba026095769ca67f9d8cc0850a26e63": {
+    "hash": "bba026095769ca67f9d8cc0850a26e63",
+    "nextMove": "cp",
+    "source": "pro-games.sgf"
+  },
+  "7e76059c4e1dbcdfb8b59101dae57e78": {
+    "hash": "7e76059c4e1dbcdfb8b59101dae57e78",
+    "nextMove": "pq",
+    "source": "pro-games.sgf"
+  },
+  "404721a1f11972e656e838309f8d086b": {
+    "hash": "404721a1f11972e656e838309f8d086b",
+    "nextMove": "dc",
+    "source": "pro-games.sgf"
+  },
+  "2c86b9a5f458ee46bf8a9d38b62e342c": {
+    "hash": "2c86b9a5f458ee46bf8a9d38b62e342c",
+    "nextMove": "qn",
+    "source": "pro-games.sgf"
+  },
+  "a734a2c3dce06124ae81b929bcaecdca": {
+    "hash": "a734a2c3dce06124ae81b929bcaecdca",
+    "nextMove": "fq",
+    "source": "pro-games.sgf"
+  },
+  "729077970e5a7fb9cd5db7ab6f0f1d4a": {
+    "hash": "729077970e5a7fb9cd5db7ab6f0f1d4a",
+    "nextMove": "cf",
+    "source": "pro-games.sgf"
+  },
+  "ddee013e0f9da02b1c54c4ac18517120": {
+    "hash": "ddee013e0f9da02b1c54c4ac18517120",
+    "nextMove": "nc",
+    "source": "pro-games.sgf"
+  },
+  "3624e2c952a6c1cd42007ef58148bb45": {
+    "hash": "3624e2c952a6c1cd42007ef58148bb45",
+    "nextMove": "qf",
+    "source": "pro-games.sgf"
+  },
+  "848c21f64763c3b69435360b49ef7d35": {
+    "hash": "848c21f64763c3b69435360b49ef7d35",
+    "nextMove": "cn",
+    "source": "pro-games.sgf"
+  },
+  "68740f117bcbfbf20f9c9eb93834c916": {
+    "hash": "68740f117bcbfbf20f9c9eb93834c916",
+    "nextMove": "nq",
+    "source": "pro-games.sgf"
+  },
+  "145588bcc9263160b03ac86200ff1f18": {
+    "hash": "145588bcc9263160b03ac86200ff1f18",
+    "nextMove": "fc",
+    "source": "pro-games.sgf"
+  },
+  "9e8a4ab0b675c9d8459d2ca7eb498d18": {
+    "hash": "9e8a4ab0b675c9d8459d2ca7eb498d18",
+    "nextMove": "qo",
+    "source": "pro-games.sgf"
+  },
+  "369daaf4ae80161015f1b5cb30e62afa": {
+    "hash": "369daaf4ae80161015f1b5cb30e62afa",
+    "nextMove": "eq",
+    "source": "pro-games.sgf"
+  },
+  "4236c3e7138e6c2fccdb101ef7b47ebe": {
+    "hash": "4236c3e7138e6c2fccdb101ef7b47ebe",
+    "nextMove": "ce",
+    "source": "pro-games.sgf"
+  },
+  "072a51f2c7dbbd8471e6c49d7817cc7e": {
+    "hash": "072a51f2c7dbbd8471e6c49d7817cc7e",
+    "nextMove": "oc",
+    "source": "pro-games.sgf"
+  },
+  "850369421864c79f2e33017ef702bdb6": {
+    "hash": "850369421864c79f2e33017ef702bdb6",
+    "nextMove": "qe",
+    "source": "pro-games.sgf"
+  },
+  "15425545847ac5139bb738e636c97b6f": {
+    "hash": "15425545847ac5139bb738e636c97b6f",
+    "nextMove": "co",
+    "source": "pro-games.sgf"
+  },
+  "639a5f5edf7edf1b605b465f2909ce31": {
+    "hash": "639a5f5edf7edf1b605b465f2909ce31",
+    "nextMove": "oq",
+    "source": "pro-games.sgf"
+  },
+  "5d6a3d12dea018f6aef66bbe41f7a4bc": {
+    "hash": "5d6a3d12dea018f6aef66bbe41f7a4bc",
+    "nextMove": "ec",
+    "source": "pro-games.sgf"
+  },
+  "2d97e880a6575568588f870b2b2f9435": {
+    "hash": "2d97e880a6575568588f870b2b2f9435",
+    "nextMove": "po",
+    "source": "pro-games.sgf"
+  },
+  "340f802a7013ac7546da5f9c50708ea3": {
+    "hash": "340f802a7013ac7546da5f9c50708ea3",
+    "nextMove": "ep",
+    "source": "pro-games.sgf"
+  },
+  "c28044d056d966ad2ecc5df02166efa3": {
+    "hash": "c28044d056d966ad2ecc5df02166efa3",
+    "nextMove": "de",
+    "source": "pro-games.sgf"
+  },
+  "41272e3675b2273c4d2836c638ee2294": {
+    "hash": "41272e3675b2273c4d2836c638ee2294",
+    "nextMove": "od",
+    "source": "pro-games.sgf"
+  },
+  "0152cfc84fdb04a36c9fe4556839afc9": {
+    "hash": "0152cfc84fdb04a36c9fe4556839afc9",
+    "nextMove": "pe",
+    "source": "pro-games.sgf"
+  },
+  "65f39b2307a5a4508338ef48424642fd": {
+    "hash": "65f39b2307a5a4508338ef48424642fd",
+    "nextMove": "do",
+    "source": "pro-games.sgf"
+  },
+  "0eaa310bcbcbe4a8665b15ece5991197": {
+    "hash": "0eaa310bcbcbe4a8665b15ece5991197",
+    "nextMove": "op",
+    "source": "pro-games.sgf"
+  },
+  "1d1c7fd93e73f4dfebd8a3783117ba82": {
+    "hash": "1d1c7fd93e73f4dfebd8a3783117ba82",
+    "nextMove": "ed",
+    "source": "pro-games.sgf"
+  },
+  "1418429107bf3a6320e6bbd0c8d386ec": {
+    "hash": "1418429107bf3a6320e6bbd0c8d386ec",
+    "nextMove": "rn",
+    "source": "pro-games.sgf"
+  },
+  "3a14217741a0d20446fc57bbdd94611d": {
+    "hash": "3a14217741a0d20446fc57bbdd94611d",
+    "nextMove": "fr",
+    "source": "pro-games.sgf"
+  },
+  "bb846e6469d64a17e5d23bae64d6b834": {
+    "hash": "bb846e6469d64a17e5d23bae64d6b834",
+    "nextMove": "bf",
+    "source": "pro-games.sgf"
+  },
+  "66af6e8d161cb2ff7e018dcb8dd02d43": {
+    "hash": "66af6e8d161cb2ff7e018dcb8dd02d43",
+    "nextMove": "nb",
+    "source": "pro-games.sgf"
+  },
+  "c78c11b0d7b234f21d6871f628c779e6": {
+    "hash": "c78c11b0d7b234f21d6871f628c779e6",
+    "nextMove": "rf",
+    "source": "pro-games.sgf"
+  },
+  "e65dd2f1c2ada2ddb202a912172d815e": {
+    "hash": "e65dd2f1c2ada2ddb202a912172d815e",
+    "nextMove": "bn",
+    "source": "pro-games.sgf"
+  },
+  "b2d68f0bad61c10203943b6bb83d3af9": {
+    "hash": "b2d68f0bad61c10203943b6bb83d3af9",
+    "nextMove": "nr",
+    "source": "pro-games.sgf"
+  },
+  "d63daf33e3004e362f5a2e3467a1ec67": {
+    "hash": "d63daf33e3004e362f5a2e3467a1ec67",
+    "nextMove": "fb",
+    "source": "pro-games.sgf"
+  },
+  "0423ab536958e671929a5c7fdbbeede3": {
+    "hash": "0423ab536958e671929a5c7fdbbeede3",
+    "nextMove": "qr",
+    "source": "pro-games.sgf"
+  },
+  "c5c14ee6a560823e00e211024d5198c7": {
+    "hash": "c5c14ee6a560823e00e211024d5198c7",
+    "nextMove": "bq",
+    "source": "pro-games.sgf"
+  },
+  "247c41b4ba4ae6125098bdcd7712e897": {
+    "hash": "247c41b4ba4ae6125098bdcd7712e897",
+    "nextMove": "cb",
+    "source": "pro-games.sgf"
+  },
+  "6717cd5d2dde235a79633d6b7c8bc2ce": {
+    "hash": "6717cd5d2dde235a79633d6b7c8bc2ce",
+    "nextMove": "rc",
+    "source": "pro-games.sgf"
+  },
+  "15ae7ce88eab46bd531e6fe29c416720": {
+    "hash": "15ae7ce88eab46bd531e6fe29c416720",
+    "nextMove": "qb",
+    "source": "pro-games.sgf"
+  },
+  "bb2c75e7ddad3f69eb4b4a655031f534": {
+    "hash": "bb2c75e7ddad3f69eb4b4a655031f534",
+    "nextMove": "cr",
+    "source": "pro-games.sgf"
+  },
+  "98f8a21877f01b01bae88100e03fcb56": {
+    "hash": "98f8a21877f01b01bae88100e03fcb56",
+    "nextMove": "rq",
+    "source": "pro-games.sgf"
+  },
+  "17975220decd219dec639de0cfff9015": {
+    "hash": "17975220decd219dec639de0cfff9015",
+    "nextMove": "bc",
+    "source": "pro-games.sgf"
+  },
+  "7cc8f1941900ce49d390b3a3fc2de752": {
+    "hash": "7cc8f1941900ce49d390b3a3fc2de752",
+    "nextMove": "rr",
+    "source": "pro-games.sgf"
+  },
+  "f3578a2d15f619336a6bbfd080fc6122": {
+    "hash": "f3578a2d15f619336a6bbfd080fc6122",
+    "nextMove": "br",
+    "source": "pro-games.sgf"
+  },
+  "d6beabf793dd69dbef9fe1e4f27effa6": {
+    "hash": "d6beabf793dd69dbef9fe1e4f27effa6",
+    "nextMove": "bb",
+    "source": "pro-games.sgf"
+  },
+  "377a8ece66e1ca952b4e8e63c046d254": {
+    "hash": "377a8ece66e1ca952b4e8e63c046d254",
+    "nextMove": "rb",
+    "source": "pro-games.sgf"
+  },
+  "0fc577f498a054cccd14f8a8eec66115": {
+    "hash": "0fc577f498a054cccd14f8a8eec66115",
+    "nextMove": "rb",
+    "source": "pro-games.sgf"
+  },
+  "f57e9d52e83548a762631b7ab6bd2b1d": {
+    "hash": "f57e9d52e83548a762631b7ab6bd2b1d",
+    "nextMove": "br",
+    "source": "pro-games.sgf"
+  },
+  "43e3add17c85eff0cb5e07ab14a2897e": {
+    "hash": "43e3add17c85eff0cb5e07ab14a2897e",
+    "nextMove": "rr",
+    "source": "pro-games.sgf"
+  },
+  "1201a36c74c2bf91d9c887084b799ebc": {
+    "hash": "1201a36c74c2bf91d9c887084b799ebc",
+    "nextMove": "bb",
+    "source": "pro-games.sgf"
+  },
+  "e80ddb301cfee507c7ebb6624d10caf8": {
+    "hash": "e80ddb301cfee507c7ebb6624d10caf8",
+    "nextMove": "rm",
+    "source": "pro-games.sgf"
+  },
+  "3581db87fbcf759293c88b6f3152b080": {
+    "hash": "3581db87fbcf759293c88b6f3152b080",
+    "nextMove": "gr",
+    "source": "pro-games.sgf"
+  },
+  "b64534a96833203211e7612a6b4116d6": {
+    "hash": "b64534a96833203211e7612a6b4116d6",
+    "nextMove": "bg",
+    "source": "pro-games.sgf"
+  },
+  "e50d1da5341840d2c598e2a4aeda7f69": {
+    "hash": "e50d1da5341840d2c598e2a4aeda7f69",
+    "nextMove": "mb",
+    "source": "pro-games.sgf"
+  },
+  "e88ddf990e405d12c4b1b489a97100c9": {
+    "hash": "e88ddf990e405d12c4b1b489a97100c9",
+    "nextMove": "rg",
+    "source": "pro-games.sgf"
+  },
+  "a53ce3b651ed42cfd0df672de0f3d3ee": {
+    "hash": "a53ce3b651ed42cfd0df672de0f3d3ee",
+    "nextMove": "bm",
+    "source": "pro-games.sgf"
+  },
+  "ce217e61bd2d292438f0a97332a74b25": {
+    "hash": "ce217e61bd2d292438f0a97332a74b25",
+    "nextMove": "mr",
+    "source": "pro-games.sgf"
+  },
+  "d4cc16006500049351589eb8d358c182": {
+    "hash": "d4cc16006500049351589eb8d358c182",
+    "nextMove": "gb",
+    "source": "pro-games.sgf"
+  },
+  "233591f885e04d7b027c0a6a7a4ff39c": {
+    "hash": "233591f885e04d7b027c0a6a7a4ff39c",
+    "nextMove": "pr",
+    "source": "pro-games.sgf"
+  },
+  "f17a5c2f9d586117ba25cb973358c553": {
+    "hash": "f17a5c2f9d586117ba25cb973358c553",
+    "nextMove": "bp",
+    "source": "pro-games.sgf"
+  },
+  "06bc21703ca8ba2fd22818d1faba1af0": {
+    "hash": "06bc21703ca8ba2fd22818d1faba1af0",
+    "nextMove": "db",
+    "source": "pro-games.sgf"
+  },
+  "986c24204a31c0fcb4b343a8f90dd1e6": {
+    "hash": "986c24204a31c0fcb4b343a8f90dd1e6",
+    "nextMove": "rd",
+    "source": "pro-games.sgf"
+  },
+  "1d8a84819e56bcf6da3bf57d6c0e6513": {
+    "hash": "1d8a84819e56bcf6da3bf57d6c0e6513",
+    "nextMove": "pb",
+    "source": "pro-games.sgf"
+  },
+  "84464bb2e7a6977a9ead4550efcb14f1": {
+    "hash": "84464bb2e7a6977a9ead4550efcb14f1",
+    "nextMove": "dr",
+    "source": "pro-games.sgf"
+  },
+  "9dd203b849802236d0c758f69437b2b4": {
+    "hash": "9dd203b849802236d0c758f69437b2b4",
+    "nextMove": "rp",
+    "source": "pro-games.sgf"
+  },
+  "5ef1609fe260cb9188fde4077740d659": {
+    "hash": "5ef1609fe260cb9188fde4077740d659",
+    "nextMove": "bd",
+    "source": "pro-games.sgf"
+  },
+  "8f30c86145f9bef7a2c8ef3510e8c565": {
+    "hash": "8f30c86145f9bef7a2c8ef3510e8c565",
+    "nextMove": "or",
+    "source": "pro-games.sgf"
+  },
+  "5b9c4ba3f9691eee22c83fe32bd000b1": {
+    "hash": "5b9c4ba3f9691eee22c83fe32bd000b1",
+    "nextMove": "bo",
+    "source": "pro-games.sgf"
+  },
+  "80da1cddac18492471ce9bcf7b62500a": {
+    "hash": "80da1cddac18492471ce9bcf7b62500a",
+    "nextMove": "eb",
+    "source": "pro-games.sgf"
+  },
+  "436f9ffd9e6bead025dae9659b621fe0": {
+    "hash": "436f9ffd9e6bead025dae9659b621fe0",
+    "nextMove": "re",
+    "source": "pro-games.sgf"
+  },
+  "982ebc50413c70f7e17a0bd1ee927772": {
+    "hash": "982ebc50413c70f7e17a0bd1ee927772",
+    "nextMove": "ob",
+    "source": "pro-games.sgf"
+  },
+  "c146a5ae2fb08c9d70ebcc7fb1c957b6": {
+    "hash": "c146a5ae2fb08c9d70ebcc7fb1c957b6",
+    "nextMove": "er",
+    "source": "pro-games.sgf"
+  },
+  "c9fde7025c3a1732ecb5119d393d3484": {
+    "hash": "c9fde7025c3a1732ecb5119d393d3484",
+    "nextMove": "ro",
+    "source": "pro-games.sgf"
+  },
+  "b997589dd5c8c5b77c5f6ae8a4641482": {
+    "hash": "b997589dd5c8c5b77c5f6ae8a4641482",
+    "nextMove": "be",
+    "source": "pro-games.sgf"
+  },
+  "ec5d0675601be29e79709aedaf69af46": {
+    "hash": "ec5d0675601be29e79709aedaf69af46",
+    "nextMove": "pn",
+    "source": "pro-games.sgf"
+  },
+  "5a16debf96ab59a2391ca6b40101f779": {
+    "hash": "5a16debf96ab59a2391ca6b40101f779",
+    "nextMove": "fp",
+    "source": "pro-games.sgf"
+  },
+  "a00a16dde71881b536f445fd2dc22234": {
+    "hash": "a00a16dde71881b536f445fd2dc22234",
+    "nextMove": "df",
+    "source": "pro-games.sgf"
+  },
+  "f62447acd909571cd88b3cf0551de059": {
+    "hash": "f62447acd909571cd88b3cf0551de059",
+    "nextMove": "nd",
+    "source": "pro-games.sgf"
+  },
+  "db257a4fe9fcc8bf4e588e45ab99598e": {
+    "hash": "db257a4fe9fcc8bf4e588e45ab99598e",
+    "nextMove": "pf",
+    "source": "pro-games.sgf"
+  },
+  "59f8698cae919ddd42a0d752e807678c": {
+    "hash": "59f8698cae919ddd42a0d752e807678c",
+    "nextMove": "dn",
+    "source": "pro-games.sgf"
+  },
+  "1fc9302cf8bc5bee29e3ca3aae7b4f4c": {
+    "hash": "1fc9302cf8bc5bee29e3ca3aae7b4f4c",
+    "nextMove": "np",
+    "source": "pro-games.sgf"
+  },
+  "2e1f2442dcf3c65a27584c3e75984f36": {
+    "hash": "2e1f2442dcf3c65a27584c3e75984f36",
+    "nextMove": "fd",
+    "source": "pro-games.sgf"
+  },
+  "74e2314d104609bcecf16d25c0c0b7c9": {
+    "hash": "74e2314d104609bcecf16d25c0c0b7c9",
+    "nextMove": "qm",
+    "source": "pro-games.sgf"
+  },
+  "4eb160648c904abc7d42c1ecc4f5ce09": {
+    "hash": "4eb160648c904abc7d42c1ecc4f5ce09",
+    "nextMove": "gq",
+    "source": "pro-games.sgf"
+  },
+  "7d327eca9cc13814400e1bc5ced73d62": {
+    "hash": "7d327eca9cc13814400e1bc5ced73d62",
+    "nextMove": "cg",
+    "source": "pro-games.sgf"
+  },
+  "55b97cbd5212bee41c61b36a3e2d2a6c": {
+    "hash": "55b97cbd5212bee41c61b36a3e2d2a6c",
+    "nextMove": "mc",
+    "source": "pro-games.sgf"
+  },
+  "c370c97fdbc6cc02fe2a1d08cc14a775": {
+    "hash": "c370c97fdbc6cc02fe2a1d08cc14a775",
+    "nextMove": "qg",
+    "source": "pro-games.sgf"
+  },
+  "7a65dc789ad1ce0d943180066eb15f94": {
+    "hash": "7a65dc789ad1ce0d943180066eb15f94",
+    "nextMove": "cm",
+    "source": "pro-games.sgf"
+  },
+  "bfd50388a5948ee202a610fc734f8379": {
+    "hash": "bfd50388a5948ee202a610fc734f8379",
+    "nextMove": "mq",
+    "source": "pro-games.sgf"
+  },
+  "76abce7b5e99bffc08ddb35450b98a91": {
+    "hash": "76abce7b5e99bffc08ddb35450b98a91",
+    "nextMove": "gc",
+    "source": "pro-games.sgf"
+  },
+  "07d946dd16dab29b85ff505a0b273386": {
+    "hash": "07d946dd16dab29b85ff505a0b273386",
+    "nextMove": "qs",
+    "source": "pro-games.sgf"
+  },
+  "bd2f7843f24dc0415889b34c95b34aa3": {
+    "hash": "bd2f7843f24dc0415889b34c95b34aa3",
+    "nextMove": "aq",
+    "source": "pro-games.sgf"
+  },
+  "89443c2f06284437dd30838ad5ce0bb0": {
+    "hash": "89443c2f06284437dd30838ad5ce0bb0",
+    "nextMove": "ca",
+    "source": "pro-games.sgf"
+  },
+  "c1f891f555830d8d3f69ba18bda9efbc": {
+    "hash": "c1f891f555830d8d3f69ba18bda9efbc",
+    "nextMove": "sc",
+    "source": "pro-games.sgf"
+  },
+  "d8d97b1fdb09e6e48f7f0b7c1ae28811": {
+    "hash": "d8d97b1fdb09e6e48f7f0b7c1ae28811",
+    "nextMove": "qa",
+    "source": "pro-games.sgf"
+  },
+  "afaacf1c2795f964b7e198a058d801d8": {
+    "hash": "afaacf1c2795f964b7e198a058d801d8",
+    "nextMove": "cs",
+    "source": "pro-games.sgf"
+  },
+  "3043ccc396e080577308e13ecdad3b7e": {
+    "hash": "3043ccc396e080577308e13ecdad3b7e",
+    "nextMove": "sq",
+    "source": "pro-games.sgf"
+  },
+  "2ba93d768b51b31fb9cff530e0b2ea5a": {
+    "hash": "2ba93d768b51b31fb9cff530e0b2ea5a",
+    "nextMove": "ac",
+    "source": "pro-games.sgf"
+  }
+}
