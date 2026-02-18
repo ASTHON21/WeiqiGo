@@ -1,27 +1,19 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
-import { fileURLToPath } from 'url';
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 
-// --- 修复 ESM 下的 __dirname 问题 ---
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// 配置路径 (确保这些文件夹已手动创建)
+// 配置路径
 const REPO_PATH = path.join(__dirname, 'data/sgf-repo');
 const OUTPUT_PATH = path.join(__dirname, 'data/sgf-database.json');
 
-interface SgfEntry {
-    hash: string;       // 路径哈希
-    nextMove: string;   // SGF坐标 (如 'pd')
-    source: string;     // 来源文件名
-}
+const charToNum = (c) => c.charCodeAt(0) - 97;
+const numToChar = (n) => String.fromCharCode(n + 97);
 
-const charToNum = (c: string) => c.charCodeAt(0) - 97;
-const numToChar = (n: number) => String.fromCharCode(n + 97);
-
-function getTransformations(coords: {r: number, c: number}[], size: number) {
-    const transforms: {r: number, c: number}[][] = Array.from({ length: 8 }, () => []);
+/**
+ * 生成 8 种对称变换的坐标
+ */
+function getTransformations(coords, size) {
+    const transforms = Array.from({ length: 8 }, () => []);
     for (const {r, c} of coords) {
         transforms[0].push({ r, c });                         // 原始
         transforms[1].push({ r: c, c: size - 1 - r });       // 旋转90
@@ -35,8 +27,11 @@ function getTransformations(coords: {r: number, c: number}[], size: number) {
     return transforms;
 }
 
-function parseSgf(content: string, maxMoves: number = 20) {
-    const moves: {r: number, c: number, color: string}[] = [];
+/**
+ * 解析 SGF 内容
+ */
+function parseSgf(content, maxMoves = 20) {
+    const moves = [];
     const moveRegex = /;([BW])\[([a-z]{2})\]/g;
     let match;
     let count = 0;
@@ -54,11 +49,13 @@ function parseSgf(content: string, maxMoves: number = 20) {
     return { moves, size };
 }
 
+/**
+ * 同步函数：生成 MD5 路径数据库
+ */
 function sync() {
     console.log("🚀 开始同步 SGF 仓库...");
-    const database: Record<string, SgfEntry> = {};
+    const database = {};
     
-    // 如果没有 data/sgf-repo 文件夹，自动创建一个
     if (!fs.existsSync(REPO_PATH)) {
         console.log("📁 正在创建仓库目录...");
         fs.mkdirSync(REPO_PATH, { recursive: true });
@@ -74,37 +71,42 @@ function sync() {
     }
 
     files.forEach(file => {
-        const content = fs.readFileSync(path.join(REPO_PATH, file), 'utf-8');
-        const { moves, size } = parseSgf(content);
+        try {
+            const content = fs.readFileSync(path.join(REPO_PATH, file), 'utf-8');
+            const { moves, size } = parseSgf(content);
 
-        if (moves.length < 2) return;
+            if (moves.length < 2) return;
 
-        for (let i = 1; i < moves.length; i++) {
-            const history = moves.slice(0, i);
-            const nextMoveOrigin = moves[i];
+            // 提取前 20 手路径并生成 8 个对称变体
+            for (let i = 1; i < moves.length && i <= 20; i++) {
+                const history = moves.slice(0, i);
+                const nextMoveOrigin = moves[i];
 
-            const transformedHistories = getTransformations(history, size);
-            const transformedNextMoves = getTransformations([nextMoveOrigin], size);
+                const transformedHistories = getTransformations(history, size);
+                const transformedNextMoves = getTransformations([nextMoveOrigin], size);
 
-            transformedHistories.forEach((h, index) => {
-                const pathStr = h.map(m => `${m.r},${m.c}`).join('|');
-                const hash = crypto.createHash('md5').update(pathStr).digest('hex');
-                const nextM = transformedNextMoves[index][0];
-                const nextSgf = numToChar(nextM.c) + numToChar(nextM.r);
+                transformedHistories.forEach((h, index) => {
+                    const pathStr = h.map(m => `${m.r},${m.c}`).join('|');
+                    const hash = crypto.createHash('md5').update(pathStr).digest('hex');
+                    const nextM = transformedNextMoves[index][0];
+                    const nextSgf = numToChar(nextM.c) + numToChar(nextM.r);
 
-                if (!database[hash]) {
-                    database[hash] = {
-                        hash: hash,
-                        nextMove: nextSgf,
-                        source: file
-                    };
-                }
-            });
+                    if (!database[hash]) {
+                        database[hash] = {
+                            hash: hash,
+                            nextMove: nextSgf,
+                            source: file
+                        };
+                    }
+                });
+            }
+        } catch (err) {
+            console.error(`❌ 解析文件 ${file} 失败:`, err.message);
         }
     });
 
     fs.writeFileSync(OUTPUT_PATH, JSON.stringify(database, null, 2));
-    console.log(`✅ 同步完成！生成了 ${Object.keys(database).length} 条路径。`);
+    console.log(`✅ 同步完成！生成了 ${Object.keys(database).length} 条模式匹配路径。`);
 }
 
 sync();
