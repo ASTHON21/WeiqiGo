@@ -1,173 +1,116 @@
-import type { BoardState, Player, ScoreDetails } from './types';
+import { BoardState, Player, Stone, ScoreDetails } from './types';
 
-function getNeighbors(r: number, c: number, size: number): { r: number, c: number } [] {
-    return [
-        { r: r - 1, c }, { r: r + 1, c },
-        { r, c: c - 1 }, { r, c: c + 1 }
-    ].filter(p => p.r >= 0 && p.r < size && p.c >= 0 && p.c < size);
-}
+/**
+ * 规则层 (GoLogic)
+ * 职责：物理引擎与坐标转换。
+ */
+export const GoLogic = {
+    // 基础规则引擎
+    processMove: (board: BoardState, r: number, c: number, player: Player, boardHistory: BoardState[]) => {
+        const size = board.length;
+        if (board[r][c] !== null) return { success: false, error: 'occupied' };
 
-function findGroup(board: BoardState, startR: number, startC: number): { stones: { r: number, c: number }[], liberties: number } {
-    const color = board[startR][startC];
-    if (color === null) return { stones: [], liberties: 0 };
+        let newBoard = board.map(row => [...row]);
+        newBoard[r][c] = player;
 
-    const size = board.length;
-    const stones: { r: number, c: number }[] = [];
-    const libertySet = new Set<string>();
-    const visited = new Set<string>();
-    const stack = [{ r: startR, c: startC }];
-    visited.add(`${startR},${startC}`);
+        // 提子逻辑
+        const opponent = player === 'black' ? 'white' : 'black';
+        let capturedCount = 0;
+        const neighbors = [[r-1, c], [r+1, c], [r, c-1], [r, c+1]];
 
-    while (stack.length > 0) {
-        const { r, c } = stack.pop()!;
-        stones.push({ r, c });
-
-        getNeighbors(r, c, size).forEach(n => {
-            const neighborColor = board[n.r][n.c];
-            const key = `${n.r},${n.c}`;
-            if (neighborColor === null) {
-                libertySet.add(key);
-            } else if (neighborColor === color && !visited.has(key)) {
-                visited.add(key);
-                stack.push(n);
+        for (const [nr, nc] of neighbors) {
+            if (nr >= 0 && nr < size && nc >= 0 && nc < size && newBoard[nr][nc] === opponent) {
+                if (GoLogic.calculateLiberties(newBoard, nr, nc) === 0) {
+                    const group = GoLogic.getGroup(newBoard, nr, nc);
+                    group.forEach(([gr, gc]) => {
+                        newBoard[gr][gc] = null;
+                        capturedCount++;
+                    });
+                }
             }
+        }
+
+        // 自杀检查
+        if (GoLogic.calculateLiberties(newBoard, r, c) === 0) {
+            return { success: false, error: 'suicide' };
+        }
+
+        // 打劫检查 (简单历史对比)
+        const boardStr = JSON.stringify(newBoard);
+        if (boardHistory.some(h => JSON.stringify(h) === boardStr)) {
+            return { success: false, error: 'ko' };
+        }
+
+        return { success: true, newBoard, capturedStones: capturedCount };
+    },
+
+    calculateLiberties: (board: BoardState, r: number, c: number): number => {
+        const size = board.length;
+        const player = board[r][c];
+        const group = GoLogic.getGroup(board, r, c);
+        const liberties = new Set<string>();
+
+        group.forEach(([gr, gc]) => {
+            [[gr-1, gc], [gr+1, gc], [gr, gc-1], [gr, gc+1]].forEach(([nr, nc]) => {
+                if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === null) {
+                    liberties.add(`${nr},${nc}`);
+                }
+            });
         });
-    }
-    return { stones, liberties: libertySet.size };
-}
+        return liberties.size;
+    },
 
+    getGroup: (board: BoardState, r: number, c: number): [number, number][] => {
+        const size = board.length;
+        const player = board[r][c];
+        const group: [number, number][] = [];
+        const queue: [number, number][] = [[r, c]];
+        const visited = new Set<string>([`${r},${c}`]);
 
-function isBoardEqual(b1: BoardState, b2: BoardState): boolean {
-    if (!b1 || !b2 || b1.length !== b2.length) return false;
-    for (let r = 0; r < b1.length; r++) {
-        if (b1[r].length !== b2[r].length) return false;
-        for (let c = 0; c < b1[r].length; c++) {
-            if (b1[r][c] !== b2[r][c]) return false;
+        while (queue.length > 0) {
+            const [currR, currC] = queue.shift()!;
+            group.push([currR, currC]);
+            [[currR-1, currC], [currR+1, currC], [currR, currC-1], [currR, currC+1]].forEach(([nr, nc]) => {
+                if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === player && !visited.has(`${nr},${nc}`)) {
+                    visited.add(`${nr},${nc}`);
+                    queue.push([nr, nc]);
+                }
+            });
         }
-    }
-    return true;
-}
+        return group;
+    },
 
-export function createEmptyBoard(size: number): BoardState {
-    return Array.from({ length: size }, () => Array(size).fill(null));
-}
+    // 坐标转换
+    sgfToCoord: (sgf: string) => ({
+        r: sgf.charCodeAt(1) - 97,
+        c: sgf.charCodeAt(0) - 97
+    }),
 
-export function processMove(
-    board: BoardState,
-    r: number,
-    c: number,
-    player: Player,
-    history: BoardState[] = []
-): { success: boolean; newBoard: BoardState; capturedStones: number; error?: string } {
-    const size = board.length;
-    
-    if (r < 0 || r >= size || c < 0 || c >= size) {
-        return { success: false, newBoard: board, capturedStones: 0, error: 'out of bounds' };
-    }
-    if (board[r][c] !== null) {
-        return { success: false, newBoard: board, capturedStones: 0, error: 'occupied' };
-    }
+    coordToSgf: (r: number, c: number) => 
+        String.fromCharCode(c + 97) + String.fromCharCode(r + 97)
+};
 
-    let newBoard = board.map(row => [...row]);
-    newBoard[r][c] = player;
-
-    const opponent: Player = player === 'black' ? 'white' : 'black';
-    let totalCaptured = 0;
-    
-    // Check for captures
-    getNeighbors(r, c, size).forEach(n => {
-        if (newBoard[n.r][n.c] === opponent) {
-            const group = findGroup(newBoard, n.r, n.c);
-            if (group.liberties === 0) {
-                totalCaptured += group.stones.length;
-                group.stones.forEach(stone => {
-                    newBoard[stone.r][stone.c] = null;
-                });
-            }
-        }
-    });
-
-    // Check for suicide
-    if (totalCaptured === 0) {
-        const ownGroup = findGroup(newBoard, r, c);
-        if (ownGroup.liberties === 0) {
-            return { success: false, newBoard: board, capturedStones: 0, error: 'suicide' };
-        }
-    }
-
-    // Ko rule check: check if the new board state has appeared in the history.
-    for (const oldBoard of history) {
-      if (isBoardEqual(newBoard, oldBoard)) {
-        return { success: false, newBoard: board, capturedStones: 0, error: 'ko' };
-      }
-    }
-    
-    return { success: true, newBoard, capturedStones: totalCaptured };
-}
-
-export function calculateScore(board: BoardState): { winner: Player | 'draw', blackScore: number, whiteScore: number, details: ScoreDetails } {
+export const calculateScore = (board: BoardState): { winner: Player | 'draw'; blackScore: number; whiteScore: number; details: ScoreDetails } => {
+    // 简化版中国规则结算
     const size = board.length;
     let blackStones = 0;
     let whiteStones = 0;
-    let blackTerritory = 0;
-    let whiteTerritory = 0;
+    board.forEach(row => row.forEach(s => {
+        if (s === 'black') blackStones++;
+        if (s === 'white') whiteStones++;
+    }));
+    
     const komi = 7.5;
+    const blackScore = blackStones; 
+    const whiteScore = whiteStones + komi;
 
-    const visited = Array(size).fill(false).map(() => Array(size).fill(false));
-
-    for(let r=0; r<size; r++) {
-        for(let c=0; c<size; c++) {
-            const stone = board[r][c];
-            if (stone === 'black') blackStones++;
-            if (stone === 'white') whiteStones++;
-
-            if (visited[r][c] || stone !== null) continue;
-
-            const territory: {r: number, c: number}[] = [];
-            const queue = [{r: r, c: c}];
-            visited[r][c] = true;
-            let touchesBlack = false;
-            let touchesWhite = false;
-            
-            let head = 0;
-            while(head < queue.length) {
-                const { r: curR, c: curC } = queue[head++];
-                territory.push({r: curR, c: curC});
-
-                const neighbors = getNeighbors(curR, curC, size);
-                for (const n of neighbors) {
-                    if (board[n.r][n.c] === 'black') touchesBlack = true;
-                    else if (board[n.r][n.c] === 'white') touchesWhite = true;
-                    else if (!visited[n.r][n.c]) {
-                        visited[n.r][n.c] = true;
-                        queue.push(n);
-                    }
-                }
-            }
-
-            if(touchesBlack && !touchesWhite) {
-                blackTerritory += territory.length;
-            } else if (!touchesBlack && touchesWhite) {
-                whiteTerritory += territory.length;
-            }
-        }
-    }
-    
-    const blackScore = blackStones + blackTerritory;
-    const whiteScore = whiteStones + whiteTerritory + komi;
-    
-    const winner = blackScore > whiteScore ? 'black' : (whiteScore > blackScore ? 'white' : 'draw');
-    
-    return { 
-        winner, 
-        blackScore, 
-        whiteScore, 
-        details: {
-            blackStones,
-            whiteStones,
-            blackTerritory,
-            whiteTerritory,
-            komi,
-        }
+    return {
+        winner: blackScore > whiteScore ? 'black' : 'white',
+        blackScore,
+        whiteScore,
+        details: { blackStones, whiteStones, blackTerritory: 0, whiteTerritory: 0, komi }
     };
-}
+};
+
+export const processMove = GoLogic.processMove;
+export const createEmptyBoard = (size: number): BoardState => Array(size).fill(null).map(() => Array(size).fill(null));
