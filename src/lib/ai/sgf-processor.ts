@@ -1,4 +1,4 @@
-// src/lib/ai/sgf-processor.ts
+'use client';
 
 import { Move } from '../types';
 
@@ -30,7 +30,6 @@ export const SgfProcessor = {
     /**
      * 生成当前对局路径的唯一哈希键
      * 保持与 sync-sgf.js 相同的格式: "r,c|r,c|..."
-     * 用于在 dictionary/index.ts 中查询数据库
      */
     generatePathKey(history: Move[]): string {
         return history.map(m => `${m.r},${m.c}`).join('|');
