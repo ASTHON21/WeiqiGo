@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { GameHistoryEntry } from '@/lib/types';
 import { format } from 'date-fns';
-import { Download, Trash2, ShieldQuestion } from 'lucide-react';
+import { Download, Trash2, ShieldQuestion, Cloud } from 'lucide-react';
 import { exportToSGF } from '@/lib/sgf';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -22,29 +22,32 @@ import {
 } from "@/components/ui/alert-dialog"
 import { cn } from '@/lib/utils';
 import { Icons } from '@/components/icons';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
 
 
 export default function HistoryPage() {
-  const [history, setHistory] = useState<GameHistoryEntry[]>([]);
+  const [localHistory, setLocalHistory] = useState<GameHistoryEntry[]>([]);
   const { toast } = useToast();
+  const db = useFirestore();
 
+  // Load from LocalStorage (Dormant fallback)
   useEffect(() => {
     try {
         const storedHistory = localStorage.getItem('goMasterHistory');
         if (storedHistory) {
-        setHistory(JSON.parse(storedHistory));
+          setLocalHistory(JSON.parse(storedHistory));
         }
     } catch (error) {
-        console.error("Failed to parse game history from localStorage:", error);
-        toast({
-            title: "Error loading history",
-            description: "Could not load game history. It might be corrupted.",
-            variant: "destructive",
-        });
-        // Clear corrupted data
-        localStorage.removeItem('goMasterHistory');
+        console.error("Failed to parse localStorage history:", error);
     }
-  }, [toast]);
+  }, []);
+
+  // REAL USE: Load from Firestore (Live Cloud Sync!)
+  const gamesQuery = useMemoFirebase(() => query(collection(db, "games"), orderBy("date", "desc")), [db]);
+  const { data: cloudHistory, isLoading: isCloudLoading } = useCollection<GameHistoryEntry>(gamesQuery);
+
+  const displayHistory = cloudHistory || localHistory;
 
   const handleExport = (game: GameHistoryEntry) => {
     try {
@@ -58,27 +61,16 @@ export default function HistoryPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast({
-        title: 'Export Successful',
-        description: `Game has been exported to SGF format.`,
-      });
+      toast({ title: 'Export Successful', description: `Game exported to SGF.` });
     } catch (error) {
-      console.error("Failed to export SGF:", error);
-      toast({
-        title: 'Export Failed',
-        description: 'There was an error creating the SGF file.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Export Failed', description: 'Error creating SGF.', variant: 'destructive' });
     }
   };
   
   const handleClearHistory = () => {
     localStorage.removeItem('goMasterHistory');
-    setHistory([]);
-    toast({
-      title: 'History Cleared',
-      description: 'Your game history has been successfully cleared.',
-    });
+    setLocalHistory([]);
+    toast({ title: 'Local History Cleared', description: 'Your browser history was cleared. Note: Cloud records remain intact.' });
   }
 
   const renderWinnerBadge = (game: GameHistoryEntry) => {
@@ -99,23 +91,24 @@ export default function HistoryPage() {
     <div className="container mx-auto max-w-4xl p-4 md:p-6 space-y-6">
        <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold font-headline">Game History</h1>
+          <h1 className="text-3xl font-bold font-headline flex items-center gap-2">
+            Game History
+            {cloudHistory && <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20"><Cloud className="w-3 h-3 mr-1"/> Cloud Synced</Badge>}
+          </h1>
           <p className="text-muted-foreground">
             A record of your past games.
           </p>
         </div>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button variant="destructive" size="sm" disabled={history.length === 0}>
-              <Trash2 className="mr-2 h-4 w-4" /> Clear History
+            <Button variant="destructive" size="sm" disabled={displayHistory.length === 0}>
+              <Trash2 className="mr-2 h-4 w-4" /> Clear Local History
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete all {history.length} of your saved games.
-              </AlertDialogDescription>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>This clears your local browser cache only.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -125,9 +118,13 @@ export default function HistoryPage() {
         </AlertDialog>
       </div>
 
-      {history.length > 0 ? (
+      {isCloudLoading ? (
+        <div className="flex justify-center p-12">
+          <Icons.Logo className="animate-spin h-8 w-8 text-accent" />
+        </div>
+      ) : displayHistory.length > 0 ? (
         <div className="grid gap-4">
-            {history.map((game) => (
+            {displayHistory.map((game) => (
                 <Card key={game.id}>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <div className="flex items-center gap-4">
@@ -151,8 +148,7 @@ export default function HistoryPage() {
                     </CardContent>
                     <CardFooter className="flex justify-end bg-muted/50 py-3 px-6">
                         <Button variant="outline" size="sm" onClick={() => handleExport(game)}>
-                            <Download className="mr-2 h-4 w-4" />
-                            Export SGF
+                            <Download className="mr-2 h-4 w-4" /> Export SGF
                         </Button>
                     </CardFooter>
                 </Card>

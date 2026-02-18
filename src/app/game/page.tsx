@@ -40,6 +40,8 @@ import { processMove, calculateScore } from "@/lib/go-logic";
 import { cn } from "@/lib/utils";
 import { findBestMove } from "@/lib/ai-engine";
 import { MoveHistory } from "@/components/game/MoveHistory";
+import { useFirestore, addDocumentNonBlocking } from "@/firebase";
+import { collection } from "firebase/firestore";
 
 const timeSettings: { [key: number]: number } = {
   9: 60 * 60 * 1000,
@@ -135,8 +137,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const lastValidBoard = newBoardHistory[newBoardHistory.length - 1] || createEmptyBoard(state.boardSize);
       const newLastMove = newMoveHistory.length > 0 ? newMoveHistory[newMoveHistory.length - 1] : null;
 
-      // This is a simplification. A more robust implementation would recalculate captures
-      // based on the move history, but that's complex. For now, we accept this limitation.
       const newCaptures = { black: 0, white: 0 }; 
 
       return {
@@ -174,7 +174,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 export default function GamePage() {
   const [gameState, dispatch] = useReducer(gameReducer, getInitialState());
   const { board, boardSize, currentPlayer, gameStatus, gameResult, moveHistory, boardHistory, lastMove, captures, gameMode } = gameState;
-
+  const db = useFirestore();
   const { toast } = useToast();
   
   const [timers, setTimers] = useState<{ [key in Player]: number }>({
@@ -286,23 +286,10 @@ export default function GamePage() {
             explanation,
             gamePhase,
             debugLog: {
-                phaseInput: {
-                    gamePhase,
-                    moveHistory: currentMoveHistory.length,
-                },
-                phaseResult: {
-                    gamePhase
-                },
-                moveInput: {
-                    boardState,
-                    playerTurn,
-                    moveHistory: currentMoveHistory,
-                    boardSize: currentBoardSize,
-                },
-                moveResult: {
-                    bestMove,
-                    explanation,
-                }
+                phaseInput: { gamePhase, moveHistory: currentMoveHistory.length },
+                phaseResult: { gamePhase },
+                moveInput: { boardState, playerTurn, moveHistory: currentMoveHistory, boardSize: currentBoardSize },
+                moveResult: { bestMove, explanation }
             }
         };
 
@@ -311,21 +298,17 @@ export default function GamePage() {
         return { 
             success: false, 
             error: e.message || "An unexpected error occurred in the AI engine.",
-            debugLog: {
-                error: e.toString(),
-            }
+            debugLog: { error: e.toString() }
         };
     }
   }
 
-  // AI Turn Logic - 彻底改为本地调用，不再消耗 API
   useEffect(() => {
     if (gameMode === 'pve' && currentPlayer === 'white' && gameStatus === 'playing' && !isAiThinking) {
       const handleAiTurn = () => {
         setIsAiThinking(true);
-        setAiExplanation("本地 AI 正在计算...");
+        setAiExplanation("AI is calculating...");
         
-        // 延迟 500ms 模拟思考感，实际上计算只需 10ms
         setTimeout(() => {
           const aiResult = getLocalAiMove(board, 'white', moveHistory, boardSize, boardHistory);
 
@@ -345,15 +328,12 @@ export default function GamePage() {
                 } 
               });
             } else {
-                 toast({ title: "AI Error", description: `AI chose an invalid move (${gameResult.error}). Passing.`, variant: 'destructive'});
+                 toast({ title: "AI Error", description: `AI chose an invalid move. Passing.`, variant: 'destructive'});
                  dispatch({ type: 'PASS_TURN' });
             }
           } else {
-            if(aiResult.error){
-                toast({ title: "AI Error", description: aiResult.error, variant: 'destructive' });
-            } else {
-                toast({ title: "AI Passes", description: aiResult.explanation });
-            }
+            if(aiResult.error) toast({ title: "AI Error", description: aiResult.error, variant: 'destructive' });
+            else toast({ title: "AI Passes", description: aiResult.explanation });
             dispatch({ type: 'PASS_TURN' });
           }
           setIsAiThinking(false);
@@ -379,6 +359,7 @@ export default function GamePage() {
       return () => clearInterval(interval);
   }, [currentPlayer, gameStatus, endGame]);
 
+  // Handle Game Saving to LocalStorage and Firestore
   useEffect(() => {
     if (gameStatus === 'finished' && gameResult) {
       const newHistoryEntry: GameHistoryEntry = {
@@ -389,18 +370,31 @@ export default function GamePage() {
           moveHistory: moveHistory,
           boardSize: boardSize,
       };
+
+      // 1. Save to LocalStorage (as before)
       try {
         const storedHistoryRaw = localStorage.getItem('goMasterHistory');
         const history = storedHistoryRaw ? JSON.parse(storedHistoryRaw) : [];
-        const newHistory = [newHistoryEntry, ...history];
-        localStorage.setItem('goMasterHistory', JSON.stringify(newHistory));
-        toast({ title: "Game Over", description: "This game has been saved to your history." });
+        localStorage.setItem('goMasterHistory', JSON.stringify([newHistoryEntry, ...history]));
       } catch (error) {
-        console.error("Failed to save game history:", error);
-        toast({ title: "Could not save game", description: "There was an error saving this game to your history.", variant: "destructive" });
+        console.error("Failed to save to localStorage:", error);
+      }
+
+      // 2. Save to Firestore (New functionality using Firebase files!)
+      try {
+        addDocumentNonBlocking(collection(db, "games"), {
+          ...newHistoryEntry,
+          playerWhiteId: gameMode === 'pve' ? 'ai-shadow' : 'local-player',
+          playerBlackId: 'local-player',
+          status: 'finished',
+          createdAt: new Date().toISOString(),
+        });
+        toast({ title: "Cloud Sync", description: "Game saved to your profile." });
+      } catch (error) {
+        console.error("Failed to save to Firestore:", error);
       }
     }
-  }, [gameStatus, gameResult, toast, moveHistory, boardSize, gameMode]);
+  }, [gameStatus, gameResult, toast, moveHistory, boardSize, gameMode, db]);
 
 
   const formatTime = (ms: number) => {
@@ -481,12 +475,6 @@ export default function GamePage() {
                     Difference: {Math.abs((gameResult.blackScore ?? 0) - (gameResult.whiteScore ?? 0)).toFixed(1)} points
                   </p>
               </div>
-          ) : gameResult?.blackScore !== undefined && gameResult.whiteScore !== undefined ? (
-              <div className="text-center font-mono -mt-2">
-                  <div className="text-lg font-semibold">Final Score</div>
-                  <div>Black: {gameResult.blackScore.toFixed(1)}</div>
-                  <div>White: {gameResult.whiteScore.toFixed(1)}</div>
-              </div>
           ) : null}
           <DialogFooter>
             <Button onClick={() => dispatch({type: 'SET_GAME_STATUS', payload: 'setup'})}>Main Menu</Button>
@@ -565,10 +553,7 @@ function NewGameDialog({
   const [gameMode, setGameMode] = useState<GameMode>("pve");
 
   const handleStart = () => {
-    onStartGame({ 
-      boardSize: Number(boardSize),
-      gameMode: gameMode,
-    });
+    onStartGame({ boardSize: Number(boardSize), gameMode: gameMode });
     setIsOpen(false);
   };
 
@@ -580,20 +565,13 @@ function NewGameDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl">New Game Settings</DialogTitle>
-          <DialogDescription>
-            Configure your match.
-          </DialogDescription>
+          <DialogDescription>Configure your match.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 py-4">
             <div className="grid gap-2">
                 <Label>Game Mode</Label>
-                <Select 
-                    value={gameMode} 
-                    onValueChange={(value) => setGameMode(value as GameMode)}
-                >
-                    <SelectTrigger>
-                        <SelectValue placeholder="Select a game mode" />
-                    </SelectTrigger>
+                <Select value={gameMode} onValueChange={(value) => setGameMode(value as GameMode)}>
+                    <SelectTrigger><SelectValue placeholder="Select a game mode" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="pve">Player vs. AI</SelectItem>
                         <SelectItem value="pvp">Player vs. Player</SelectItem>
@@ -602,13 +580,8 @@ function NewGameDialog({
             </div>
             <div className="grid gap-2">
                 <Label>Board Size</Label>
-                <Select 
-                    value={boardSize} 
-                    onValueChange={setBoardSize}
-                >
-                    <SelectTrigger>
-                        <SelectValue placeholder="Select a board size" />
-                    </SelectTrigger>
+                <Select value={boardSize} onValueChange={setBoardSize}>
+                    <SelectTrigger><SelectValue placeholder="Select a board size" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="19">19x19 (Standard)</SelectItem>
                         <SelectItem value="13">13x13 (Quick Game)</SelectItem>
