@@ -2,6 +2,7 @@
 
 import sgfDatabase from './data/sgf-database.json';
 import { Move } from '../../types';
+import { SgfProcessor } from '../sgf-processor';
 import crypto from 'crypto';
 
 /**
@@ -14,21 +15,19 @@ export function findSgfMatch(history: Move[], size: number) {
     if (history.length === 0 || history.length > 20) return null;
 
     try {
-        // 1. 将当前路径转化为哈希键
-        // 格式必须与 sync-sgf.js 保持一致： "r,c|r,c|..."
-        const pathStr = history.map(m => `${m.r},${m.c}`).join('|');
+        // 1. 使用翻译官生成哈希键
+        const pathStr = SgfProcessor.generatePathKey(history);
         const currentHash = crypto.createHash('md5').update(pathStr).digest('hex');
 
-        // 2. 查表
+        // 2. 在生成的数据库中进行 O(1) 检索
         const match = (sgfDatabase as Record<string, any>)[currentHash];
 
         if (match) {
-            // SGF 坐标转换 (a=0, b=1...)
-            // match.nextMove 格式为 "cr"，其中第一个字符是列(c)，第二个是行(r)
-            // 例如 "pd" -> c='p'(15), r='d'(3)
+            // 3. 使用翻译官将 SGF 坐标转换为应用坐标
+            const coords = SgfProcessor.fromSgf(match.nextMove);
             return {
-                r: match.nextMove.charCodeAt(1) - 97,
-                c: match.nextMove.charCodeAt(0) - 97,
+                r: coords.r,
+                c: coords.c,
                 explanation: `匹配到棋谱《${match.source}》中的经典走法`
             };
         }
