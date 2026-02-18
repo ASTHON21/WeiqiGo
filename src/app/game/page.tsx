@@ -54,8 +54,6 @@ const createEmptyBoard = (size: number): BoardState =>
     .fill(null)
     .map(() => Array(size).fill(null));
 
-// --- Game State Management with useReducer ---
-
 interface GameState {
   boardSize: number;
   board: BoardState;
@@ -128,17 +126,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
     case 'UNDO': {
       if (state.moveHistory.length === 0) return state;
-      
       const movesToUndo = state.gameMode === 'pve' && state.moveHistory.length >= 2 ? 2 : 1;
-    
       const newMoveHistory = state.moveHistory.slice(0, state.moveHistory.length - movesToUndo);
       const newBoardHistory = state.boardHistory.slice(0, state.boardHistory.length - movesToUndo);
-    
       const lastValidBoard = newBoardHistory[newBoardHistory.length - 1] || createEmptyBoard(state.boardSize);
       const newLastMove = newMoveHistory.length > 0 ? newMoveHistory[newMoveHistory.length - 1] : null;
-
-      const newCaptures = { black: 0, white: 0 }; 
-
       return {
           ...state,
           moveHistory: newMoveHistory,
@@ -146,7 +138,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           board: lastValidBoard,
           lastMove: newLastMove,
           currentPlayer: newMoveHistory.length % 2 === 0 ? 'black' : 'white',
-          captures: newCaptures,
+          captures: { black: 0, white: 0 }, 
       };
     }
     case 'END_GAME': {
@@ -164,12 +156,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
     case 'SET_GAME_STATUS':
       return { ...state, gameStatus: action.payload };
-
     default:
       return state;
   }
 }
-
 
 export default function GamePage() {
   const [gameState, dispatch] = useReducer(gameReducer, getInitialState());
@@ -201,9 +191,7 @@ export default function GamePage() {
   
   const handlePass = useCallback(() => {
      if (gameStatus !== 'playing') return;
-     
      const lastMoveInHistory = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
-
      if (lastMoveInHistory && lastMoveInHistory.r === -1 && lastMoveInHistory.c === -1) {
          toast({ title: 'Game Over', description: 'Both players passed consecutively.'});
          const scoreResult = calculateScore(board);
@@ -217,9 +205,7 @@ export default function GamePage() {
   const handleResign = () => {
     if (gameStatus !== 'playing') return;
     const winner = currentPlayer === 'black' ? 'white' : 'black';
-    const resignee = currentPlayer;
-    
-    endGame(winner, `${resignee.charAt(0).toUpperCase() + resignee.slice(1)} resigned.`);
+    endGame(winner, `${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} resigned.`);
   }
 
   const handleUndo = () => {
@@ -234,75 +220,15 @@ export default function GamePage() {
 
   const handleMove = useCallback((r: number, c: number) => {
       if (gameStatus !== "playing" || (gameMode === 'pve' && currentPlayer === 'white')) return;
-      
-      if (r === -1 && c === -1) {
-          handlePass();
-          return;
-      }
-
       const result = processMove(board, r, c, currentPlayer, boardHistory);
-
       if (result.success) {
-          const newMove: Move = { r, c, player: currentPlayer };
-          dispatch({ type: 'MAKE_MOVE', payload: { board: result.newBoard, move: newMove, capturedStones: result.capturedStones } });
+          dispatch({ type: 'MAKE_MOVE', payload: { board: result.newBoard, move: { r, c, player: currentPlayer }, capturedStones: result.capturedStones } });
       } else { 
-          let description = `An unknown error occurred at (${r}, ${c}).`;
-          if (result.error === 'ko') description = `Move at (${r}, ${c}) is not allowed due to the Ko rule.`;
-          else if (result.error === 'suicide') description = `Suicide move at (${r}, ${c}) is not allowed.`;
-          else if (result.error === 'occupied') description = `Position (${r}, ${c}) is already occupied.`;
-          
-          toast({ title: "Invalid Move", description, variant: "destructive" });
+          toast({ title: "Invalid Move", description: result.error || "Illegal move", variant: "destructive" });
       }
-    }, [board, boardHistory, currentPlayer, gameStatus, handlePass, toast, gameMode]
+    }, [board, boardHistory, currentPlayer, gameStatus, toast, gameMode]
   );
   
-  const getLocalAiMove = (
-    boardState: BoardState,
-    playerTurn: Player,
-    currentMoveHistory: Move[],
-    currentBoardSize: number,
-    currentBoardHistory: BoardState[]
-  ) => {
-    try {
-        const { bestMove, explanation, gamePhase } = findBestMove(
-            boardState,
-            playerTurn,
-            currentMoveHistory,
-            currentBoardSize,
-            currentBoardHistory
-        );
-        
-        if (!bestMove) {
-            return {
-                success: false,
-                error: "AI could not find a valid move.",
-                debugLog: { error: "No best move returned from `findBestMove`." }
-            };
-        }
-
-        return {
-            success: true,
-            bestMove: { r: bestMove.r, c: bestMove.c, player: playerTurn },
-            explanation,
-            gamePhase,
-            debugLog: {
-                phaseInput: { gamePhase, moveHistory: currentMoveHistory.length },
-                phaseResult: { gamePhase },
-                moveInput: { boardState, playerTurn, moveHistory: currentMoveHistory, boardSize: currentBoardSize },
-                moveResult: { bestMove, explanation }
-            }
-        };
-
-    } catch (e: any) {
-        console.error('Error in getLocalAiMove:', e);
-        return { 
-            success: false, 
-            error: e.message || "An unexpected error occurred in the AI engine.",
-            debugLog: { error: e.toString() }
-        };
-    }
-  }
-
   useEffect(() => {
     if (gameMode === 'pve' && currentPlayer === 'white' && gameStatus === 'playing' && !isAiThinking) {
       const handleAiTurn = () => {
@@ -310,9 +236,9 @@ export default function GamePage() {
         setAiExplanation("AI is calculating...");
         
         setTimeout(() => {
-          const aiResult = getLocalAiMove(board, 'white', moveHistory, boardSize, boardHistory);
+          const aiResult = findBestMove(board, 'white', moveHistory, boardSize, boardHistory);
 
-          if (aiResult.success && aiResult.bestMove.r !== -1) {
+          if (aiResult.bestMove && aiResult.bestMove.r !== -1) {
             setAiGamePhase(aiResult.gamePhase as any);
             setAiExplanation(aiResult.explanation);
             setAiDebugLog(aiResult.debugLog);
@@ -332,14 +258,14 @@ export default function GamePage() {
                  dispatch({ type: 'PASS_TURN' });
             }
           } else {
-            if(aiResult.error) toast({ title: "AI Error", description: aiResult.error, variant: 'destructive' });
-            else toast({ title: "AI Passes", description: aiResult.explanation });
+            setAiExplanation(aiResult.explanation);
+            setAiDebugLog(aiResult.debugLog);
+            toast({ title: "AI Passes", description: aiResult.explanation });
             dispatch({ type: 'PASS_TURN' });
           }
           setIsAiThinking(false);
         }, 500);
       };
-
       handleAiTurn();
     }
   }, [currentPlayer, gameMode, gameStatus, isAiThinking, board, boardHistory, moveHistory, boardSize, toast]);
@@ -359,7 +285,6 @@ export default function GamePage() {
       return () => clearInterval(interval);
   }, [currentPlayer, gameStatus, endGame]);
 
-  // Handle Game Saving to LocalStorage and Firestore
   useEffect(() => {
     if (gameStatus === 'finished' && gameResult) {
       const newHistoryEntry: GameHistoryEntry = {
@@ -371,16 +296,6 @@ export default function GamePage() {
           boardSize: boardSize,
       };
 
-      // 1. Save to LocalStorage (as before)
-      try {
-        const storedHistoryRaw = localStorage.getItem('goMasterHistory');
-        const history = storedHistoryRaw ? JSON.parse(storedHistoryRaw) : [];
-        localStorage.setItem('goMasterHistory', JSON.stringify([newHistoryEntry, ...history]));
-      } catch (error) {
-        console.error("Failed to save to localStorage:", error);
-      }
-
-      // 2. Save to Firestore (New functionality using Firebase files!)
       try {
         addDocumentNonBlocking(collection(db, "games"), {
           ...newHistoryEntry,
@@ -395,7 +310,6 @@ export default function GamePage() {
       }
     }
   }, [gameStatus, gameResult, toast, moveHistory, boardSize, gameMode, db]);
-
 
   const formatTime = (ms: number) => {
     const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -471,17 +385,11 @@ export default function GamePage() {
                         <p className="font-bold border-t border-muted-foreground/50 pt-1">Total: {gameResult.whiteScore?.toFixed(1)}</p>
                     </div>
                   </div>
-                  <p className="text-base font-bold text-center pt-2 border-t border-muted-foreground/50">
-                    Difference: {Math.abs((gameResult.blackScore ?? 0) - (gameResult.whiteScore ?? 0)).toFixed(1)} points
-                  </p>
               </div>
           ) : null}
           <DialogFooter>
             <Button onClick={() => dispatch({type: 'SET_GAME_STATUS', payload: 'setup'})}>Main Menu</Button>
-            <NewGameDialog
-              onStartGame={handleStartGame}
-              isPlayAgain={true}
-            />
+            <NewGameDialog onStartGame={handleStartGame} isPlayAgain={true} />
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -540,23 +448,14 @@ export default function GamePage() {
   );
 }
 
-
-function NewGameDialog({ 
-  onStartGame, 
-  isPlayAgain = false,
-}: { 
-  onStartGame: (options: { boardSize: number, gameMode: GameMode }) => void; 
-  isPlayAgain?: boolean;
-}) {
+function NewGameDialog({ onStartGame, isPlayAgain = false }: { onStartGame: (options: { boardSize: number, gameMode: GameMode }) => void; isPlayAgain?: boolean; }) {
   const [isOpen, setIsOpen] = useState(false);
   const [boardSize, setBoardSize] = useState("9");
   const [gameMode, setGameMode] = useState<GameMode>("pve");
-
   const handleStart = () => {
     onStartGame({ boardSize: Number(boardSize), gameMode: gameMode });
     setIsOpen(false);
   };
-
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <Button onClick={() => setIsOpen(true)} className={cn("mt-8", isPlayAgain && "mt-0")} size={isPlayAgain ? "default" : "lg"}>

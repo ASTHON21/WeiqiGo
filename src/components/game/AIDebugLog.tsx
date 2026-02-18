@@ -21,8 +21,8 @@ export function AIDebugLog({ log, className }: AIDebugLogProps) {
     return null;
   }
 
-  const hasPhaseData = log.phaseInput && log.phaseResult;
-  const hasMoveData = log.moveInput && log.moveResult;
+  const instinctStatus = log.instinct?.status || "Skipped";
+  const hasRationalData = !!log.rational;
 
   return (
     <Card className={cn(className)}>
@@ -33,43 +33,40 @@ export function AIDebugLog({ log, className }: AIDebugLogProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <Accordion type="single" collapsible className="w-full" defaultValue={log.error ? "error" : undefined}>
-          {hasPhaseData && (
-            <AccordionItem value="phase-strategist">
-              <AccordionTrigger>Game Phase Strategist</AccordionTrigger>
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="instinct-layer">
+            <AccordionTrigger>Instinct Layer (SGF Match)</AccordionTrigger>
+            <AccordionContent>
+                <div className="space-y-2">
+                  <p className="text-sm">Status: <span className={cn("font-bold", instinctStatus === "Hit" ? "text-green-500" : "text-muted-foreground")}>{instinctStatus}</span></p>
+                  {log.instinct?.match && (
+                    <ScrollArea className="h-24 rounded-md border bg-muted/50 p-2">
+                        <pre className="text-xs">{JSON.stringify(log.instinct.match, null, 2)}</pre>
+                    </ScrollArea>
+                  )}
+                </div>
+            </AccordionContent>
+          </AccordionItem>
+          {hasRationalData && (
+            <AccordionItem value="rational-layer">
+              <AccordionTrigger>Rational Layer (Alpha-Beta)</AccordionTrigger>
               <AccordionContent>
-                  <h4 className="font-semibold text-sm mb-1">Input</h4>
-                  <ScrollArea className="h-32 rounded-md border bg-muted/50 p-2">
-                      <pre className="text-xs">{JSON.stringify(log.phaseInput, null, 2)}</pre>
-                  </ScrollArea>
-                  <h4 className="font-semibold text-sm mt-3 mb-1">Output</h4>
-                  <ScrollArea className="h-24 rounded-md border bg-muted/50 p-2">
-                      <pre className="text-xs">{JSON.stringify(log.phaseResult, null, 2)}</pre>
-                  </ScrollArea>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2 border rounded-md bg-muted/30">
+                        <p className="text-muted-foreground">Nodes Checked</p>
+                        <p className="font-bold">{log.rational.nodesEvaluated}</p>
+                      </div>
+                      <div className="p-2 border rounded-md bg-muted/30">
+                        <p className="text-muted-foreground">Eval Score</p>
+                        <p className="font-bold">{log.rational.bestValue.toFixed(1)}</p>
+                      </div>
+                    </div>
+                    <ScrollArea className="h-32 rounded-md border bg-muted/50 p-2">
+                        <pre className="text-xs">{JSON.stringify(log.rational, null, 2)}</pre>
+                    </ScrollArea>
+                  </div>
               </AccordionContent>
-            </AccordionItem>
-          )}
-          {hasMoveData && (
-            <AccordionItem value="move-suggester">
-              <AccordionTrigger>Move Suggester</AccordionTrigger>
-              <AccordionContent>
-                  <h4 className="font-semibold text-sm mb-1">Input</h4>
-                  <ScrollArea className="h-48 rounded-md border bg-muted/50 p-2">
-                      <pre className="text-xs">{JSON.stringify(log.moveInput, null, 2)}</pre>
-                  </ScrollArea>
-                  <h4 className="font-semibold text-sm mt-3 mb-1">Output</h4>
-                  <ScrollArea className="h-32 rounded-md border bg-muted/50 p-2">
-                      <pre className="text-xs">{JSON.stringify(log.moveResult, null, 2)}</pre>
-                  </ScrollArea>
-              </AccordionContent>
-            </AccordionItem>
-          )}
-          {log.error && (
-            <AccordionItem value="error">
-                <AccordionTrigger className="text-destructive">Error</AccordionTrigger>
-                <AccordionContent>
-                    <pre className="text-xs text-destructive">{JSON.stringify(log.error, null, 2)}</pre>
-                </AccordionContent>
             </AccordionItem>
           )}
         </Accordion>
