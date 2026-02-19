@@ -38,10 +38,10 @@ import type {
 } from "@/lib/types";
 import { processMove, calculateScore } from "@/lib/go-logic";
 import { cn } from "@/lib/utils";
-import { findBestMove } from "@/lib/ai-engine";
 import { MoveHistory } from "@/components/game/MoveHistory";
 import { useFirestore, addDocumentNonBlocking } from "@/firebase";
 import { collection } from "firebase/firestore";
+import { getAiMoveAction } from "@/app/actions/ai";
 
 const timeSettings: { [key: number]: number } = {
   9: 60 * 60 * 1000,
@@ -67,14 +67,6 @@ interface GameState {
   gameMode: GameMode;
 }
 
-type GameAction =
-  | { type: 'START_GAME'; payload: { boardSize: number; gameMode: GameMode; } }
-  | { type: 'MAKE_MOVE'; payload: { board: BoardState; move: Move; capturedStones: number; } }
-  | { type: 'PASS_TURN' }
-  | { type: 'UNDO' }
-  | { type: 'END_GAME'; payload: { winner: Player | 'draw'; reason: string; scores?: { blackScore: number; whiteScore: number; details?: ScoreDetails; } } }
-  | { type: 'SET_GAME_STATUS'; payload: GameStatus };
-
 const getInitialState = (size: number = 19): GameState => ({
   boardSize: size,
   board: createEmptyBoard(size),
@@ -87,6 +79,14 @@ const getInitialState = (size: number = 19): GameState => ({
   captures: { black: 0, white: 0 },
   gameMode: 'pve',
 });
+
+type GameAction =
+  | { type: 'START_GAME'; payload: { boardSize: number; gameMode: GameMode; } }
+  | { type: 'MAKE_MOVE'; payload: { board: BoardState; move: Move; capturedStones: number; } }
+  | { type: 'PASS_TURN' }
+  | { type: 'UNDO' }
+  | { type: 'END_GAME'; payload: { winner: Player | 'draw'; reason: string; scores?: { blackScore: number; whiteScore: number; details?: ScoreDetails; } } }
+  | { type: 'SET_GAME_STATUS'; payload: GameStatus };
 
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -231,12 +231,13 @@ export default function GamePage() {
   
   useEffect(() => {
     if (gameMode === 'pve' && currentPlayer === 'white' && gameStatus === 'playing' && !isAiThinking) {
-      const handleAiTurn = () => {
+      const handleAiTurn = async () => {
         setIsAiThinking(true);
         setAiExplanation("AI is calculating...");
         
-        setTimeout(() => {
-          const aiResult = findBestMove(board, 'white', moveHistory, boardSize, boardHistory);
+        try {
+          // Asynchronously request AI move from the server
+          const aiResult = await getAiMoveAction(board, 'white', moveHistory, boardSize, boardHistory);
 
           if (aiResult.bestMove && aiResult.bestMove.r !== -1) {
             setAiGamePhase(aiResult.gamePhase as any);
@@ -258,13 +259,18 @@ export default function GamePage() {
                  dispatch({ type: 'PASS_TURN' });
             }
           } else {
-            setAiExplanation(aiResult.explanation);
+            setAiExplanation(aiResult.explanation || "AI decided to pass.");
             setAiDebugLog(aiResult.debugLog);
             toast({ title: "AI Passes", description: aiResult.explanation });
             dispatch({ type: 'PASS_TURN' });
           }
+        } catch (error) {
+          console.error("AI Turn Error:", error);
+          toast({ title: "AI Server Error", description: "Communication with AI server failed.", variant: "destructive" });
+          dispatch({ type: 'PASS_TURN' });
+        } finally {
           setIsAiThinking(false);
-        }, 500);
+        }
       };
       handleAiTurn();
     }

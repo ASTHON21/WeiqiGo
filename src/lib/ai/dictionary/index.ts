@@ -1,45 +1,43 @@
-'use client';
-
 import { DictionaryManager } from './manager';
 import { SgfProcessor } from '../sgf-processor';
 import { Move } from '../../types';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 /**
- * 核心查表函数（本能层）
- * 职责：基于哈希值的瞬间模式匹配。
+ * Core lookup function (Instinct Layer)
+ * Responsibility: Instant pattern matching based on MD5 hashes.
  */
 export function findSgfMatch(history: Move[], size: number): { r: number; c: number; explanation: string } | null {
-    // 字典目前主要涵盖开局阶段（前 20 手）
+    // Dictionary currently covers the opening phase (first 20 moves)
     if (!history || history.length === 0 || history.length > 20) return null;
 
     try {
-        // 1. 获取数据库 (通过单例管理器)
+        // 1. Get database via singleton manager
         const database = DictionaryManager.loadDatabase();
 
-        // 2. 使用 SgfProcessor 生成标准化的路径字符串
+        // 2. Generate standardized path key
         const pathStr = SgfProcessor.generatePathKey(history);
 
-        // 3. 计算 MD5 哈希值
+        // 3. Calculate MD5 hash
         const currentHash = crypto.createHash('md5').update(pathStr).digest('hex');
 
-        // 4. 在数据库中进行 O(1) 检索
+        // 4. O(1) retrieval
         const match = database[currentHash];
 
         if (match) {
-            // 5. 匹配成功：将 SGF 字母坐标转回数字坐标
+            // 5. Success: convert SGF coordinates back to numeric
             const nextMoveCoord = SgfProcessor.fromSgf(match.nextMove);
             
             return {
                 r: nextMoveCoord.r,
                 c: nextMoveCoord.c,
-                explanation: `匹配到棋谱《${match.source}》中的后续走法。`
+                explanation: `Matched opening sequence from "${match.source}".`
             };
         }
     } catch (error) {
-        console.warn('[SGF Dictionary] 匹配过程出错:', error);
+        console.warn('[SGF Dictionary] Error during matching:', error);
     }
 
-    // 未命中字典
+    // No match found
     return null;
 }

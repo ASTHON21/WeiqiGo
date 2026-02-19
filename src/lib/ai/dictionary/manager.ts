@@ -1,12 +1,9 @@
-'use client';
-// 注意：由于此模块使用了 fs 等 Node.js 原生模块，它应在服务端或支持 Node.js 的环境中运行。
-// 在 Next.js 中，这通常意味着它会被 Server Actions 或 API Routes 调用。
-
+import 'server-only';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-// 兼容 ESM 的路径获取方式
+// Compatibility for ESM path resolution
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -17,16 +14,19 @@ export interface SgfDatabaseEntry {
 }
 
 /**
- * DictionaryManager - 数据库/文件读取管理
- * 职责：处理底层的 JSON 读取、内存缓存管理。
+ * DictionaryManager - Handles low-level JSON reading and memory caching.
+ * Marked as 'server-only' because it uses Node.js 'fs' and 'path' modules.
  */
 export class DictionaryManager {
     private static database: Record<string, SgfDatabaseEntry> | null = null;
-    private static readonly DB_PATH = path.join(__dirname, 'data', 'sgf-database.json');
+    
+    /**
+     * Use process.cwd() for reliable path resolution in Next.js environments
+     */
+    private static readonly DB_PATH = path.join(process.cwd(), 'src/lib/ai/dictionary/data/sgf-database.json');
 
     /**
-     * 初始化加载数据库
-     * 采用单例模式，确保数据只会被加载到内存中一次
+     * Initializes and loads the database using the Singleton pattern.
      */
     public static loadDatabase(): Record<string, SgfDatabaseEntry> {
         if (this.database) return this.database;
@@ -35,13 +35,13 @@ export class DictionaryManager {
             if (fs.existsSync(this.DB_PATH)) {
                 const rawData = fs.readFileSync(this.DB_PATH, 'utf-8');
                 this.database = JSON.parse(rawData);
-                console.log(`[Dictionary] 成功加载数据库，包含 ${Object.keys(this.database!).length} 条路径。`);
+                console.log(`[Dictionary] Successfully loaded database with ${Object.keys(this.database!).length} entries.`);
             } else {
-                console.warn(`[Dictionary] 警告：数据库文件未找到 ${this.DB_PATH}，请运行同步脚本。`);
+                console.warn(`[Dictionary] Warning: Database file not found at ${this.DB_PATH}. Please run the sync script.`);
                 this.database = {};
             }
         } catch (error) {
-            console.error("[Dictionary] 加载数据库失败:", error);
+            console.error("[Dictionary] Failed to load database:", error);
             this.database = {};
         }
 
@@ -49,7 +49,7 @@ export class DictionaryManager {
     }
 
     /**
-     * 获取数据库状态信息
+     * Get database statistics.
      */
     public static getStats() {
         const db = this.loadDatabase();
@@ -61,7 +61,7 @@ export class DictionaryManager {
     }
 
     /**
-     * 动态添加临时定式（内存级别）
+     * Dynamically add temporary entries (in-memory only).
      */
     public static addTemporaryEntry(hash: string, nextMove: string, source: string) {
         const db = this.loadDatabase();
