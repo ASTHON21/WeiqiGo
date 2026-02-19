@@ -1,22 +1,29 @@
-import { BoardState, Player, Stone, ScoreDetails } from './types';
+// src/lib/go-logic.ts
+
+import { BoardState, Player, ScoreDetails } from './types';
+import { SgfProcessor } from './ai/sgf-processor';
 
 /**
  * 规则层 (GoLogic)
- * 职责：物理引擎与坐标转换。
+ * 职责：处理围棋物理规则、提子、打劫判断及终局点目。
  */
 export const GoLogic = {
-    // 基础规则引擎
+    /**
+     * 执行落子逻辑
+     */
     processMove: (board: BoardState, r: number, c: number, player: Player, boardHistory: BoardState[]) => {
         const size = board.length;
+        
+        // 1. 基础校验
         if (board[r][c] !== null) return { success: false, error: 'occupied' };
 
         let newBoard = board.map(row => [...row]);
         newBoard[r][c] = player;
 
-        // 提子逻辑
+        // 2. 提子逻辑
         const opponent = player === 'black' ? 'white' : 'black';
         let capturedCount = 0;
-        const neighbors = [[r-1, c], [r+1, c], [r, c-1], [r, c+1]];
+        const neighbors = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]];
 
         for (const [nr, nc] of neighbors) {
             if (nr >= 0 && nr < size && nc >= 0 && nc < size && newBoard[nr][nc] === opponent) {
@@ -30,28 +37,46 @@ export const GoLogic = {
             }
         }
 
-        // 自杀检查
+        // 3. 自杀检查
         if (GoLogic.calculateLiberties(newBoard, r, c) === 0) {
             return { success: false, error: 'suicide' };
         }
 
-        // 打劫检查 (简单历史对比)
-        const boardStr = JSON.stringify(newBoard);
-        if (boardHistory.some(h => JSON.stringify(h) === boardStr)) {
-            return { success: false, error: 'ko' };
+        // 4. 高级打劫检查 (Ko)
+        // 逻辑：禁止立即回提到上一手的局面（同形禁着）
+        if (boardHistory.length > 0) {
+            const lastBoard = boardHistory[boardHistory.length - 1];
+            if (GoLogic.isSameBoard(newBoard, lastBoard)) {
+                return { success: false, error: 'ko' };
+            }
         }
 
         return { success: true, newBoard, capturedStones: capturedCount };
     },
 
+    /**
+     * 判断两个棋盘状态是否完全相同（比 JSON.stringify 快得多）
+     */
+    isSameBoard: (boardA: BoardState, boardB: BoardState): boolean => {
+        const size = boardA.length;
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                if (boardA[r][c] !== boardB[r][c]) return false;
+            }
+        }
+        return true;
+    },
+
+    /**
+     * 计算气数
+     */
     calculateLiberties: (board: BoardState, r: number, c: number): number => {
         const size = board.length;
-        const player = board[r][c];
         const group = GoLogic.getGroup(board, r, c);
         const liberties = new Set<string>();
 
         group.forEach(([gr, gc]) => {
-            [[gr-1, gc], [gr+1, gc], [gr, gc-1], [gr, gc+1]].forEach(([nr, nc]) => {
+            [[gr - 1, gc], [gr + 1, gc], [gr, gc - 1], [gr, gc + 1]].forEach(([nr, nc]) => {
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === null) {
                     liberties.add(`${nr},${nc}`);
                 }
@@ -60,6 +85,9 @@ export const GoLogic = {
         return liberties.size;
     },
 
+    /**
+     * 获取相连的棋子集群 (BFS)
+     */
     getGroup: (board: BoardState, r: number, c: number): [number, number][] => {
         const size = board.length;
         const player = board[r][c];
@@ -70,7 +98,7 @@ export const GoLogic = {
         while (queue.length > 0) {
             const [currR, currC] = queue.shift()!;
             group.push([currR, currC]);
-            [[currR-1, currC], [currR+1, currC], [currR, currC-1], [currR, currC+1]].forEach(([nr, nc]) => {
+            [[currR - 1, currC], [currR + 1, currC], [currR, currC - 1], [currR, currC + 1]].forEach(([nr, nc]) => {
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === player && !visited.has(`${nr},${nc}`)) {
                     visited.add(`${nr},${nc}`);
                     queue.push([nr, nc]);
@@ -80,37 +108,85 @@ export const GoLogic = {
         return group;
     },
 
-    // 坐标转换
-    sgfToCoord: (sgf: string) => ({
-        r: sgf.charCodeAt(1) - 97,
-        c: sgf.charCodeAt(0) - 97
-    }),
-
-    coordToSgf: (r: number, c: number) => 
-        String.fromCharCode(c + 97) + String.fromCharCode(r + 97)
+    // 坐标转换统一出口
+    sgfToCoord: SgfProcessor.fromSgf,
+    coordToSgf: SgfProcessor.toSgf
 };
 
+/**
+ * 自动点目算法：基于漫水填充 (Flood Fill) 判断空白区域归属
+ */
+function findEmptyArea(board: BoardState, r: number, c: number, globalVisited: Set<string>) {
+    const size = board.length;
+    const queue: [number, number][] = [[r, c]];
+    const areaPoints: [number, number][] = [];
+    const localVisited = new Set<string>([`${r},${c}`]);
+    const borders = new Set<Player>();
+
+    while (queue.length > 0) {
+        const [currR, currC] = queue.shift()!;
+        areaPoints.push([currR, currC]);
+        globalVisited.add(`${currR},${currC}`);
+
+        [[currR-1, currC], [currR+1, currC], [currR, currC-1], [currR, currC+1]].forEach(([nr, nc]) => {
+            if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+                const occupant = board[nr][nc];
+                if (occupant === null) {
+                    if (!localVisited.has(`${nr},${nc}`)) {
+                        localVisited.add(`${nr},${nc}`);
+                        queue.push([nr, nc]);
+                    }
+                } else {
+                    borders.add(occupant);
+                }
+            }
+        });
+    }
+
+    let owner: Player | null = null;
+    if (borders.size === 1) {
+        owner = borders.has('black') ? 'black' : 'white';
+    }
+    return { points: areaPoints.length, owner };
+}
+
+/**
+ * 终局胜负计算 (数子法 + 贴目)
+ */
 export const calculateScore = (board: BoardState): { winner: Player | 'draw'; blackScore: number; whiteScore: number; details: ScoreDetails } => {
-    // 简化版中国规则结算
     const size = board.length;
     let blackStones = 0;
     let whiteStones = 0;
-    board.forEach(row => row.forEach(s => {
-        if (s === 'black') blackStones++;
-        if (s === 'white') whiteStones++;
-    }));
-    
+    let blackTerritory = 0;
+    let whiteTerritory = 0;
+    const visited = new Set<string>();
+
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            if (board[r][c] === 'black') blackStones++;
+            else if (board[r][c] === 'white') whiteStones++;
+            else if (!visited.has(`${r},${c}`)) {
+                const area = findEmptyArea(board, r, c, visited);
+                if (area.owner === 'black') blackTerritory += area.points;
+                if (area.owner === 'white') whiteTerritory += area.points;
+            }
+        }
+    }
+
     const komi = 7.5;
-    const blackScore = blackStones; 
-    const whiteScore = whiteStones + komi;
+    const blackTotal = blackStones + blackTerritory;
+    const whiteTotal = whiteStones + whiteTerritory + komi;
 
     return {
-        winner: blackScore > whiteScore ? 'black' : 'white',
-        blackScore,
-        whiteScore,
-        details: { blackStones, whiteStones, blackTerritory: 0, whiteTerritory: 0, komi }
+        winner: blackTotal > whiteTotal ? 'black' : (blackTotal < whiteTotal ? 'white' : 'draw'),
+        blackScore: blackTotal,
+        whiteScore: whiteTotal,
+        details: { blackStones, whiteStones, blackTerritory, whiteTerritory, komi }
     };
 };
 
+export const createEmptyBoard = (size: number): BoardState => 
+    Array(size).fill(null).map(() => Array(size).fill(null));
+
+// 为了保持与原有 API 兼容
 export const processMove = GoLogic.processMove;
-export const createEmptyBoard = (size: number): BoardState => Array(size).fill(null).map(() => Array(size).fill(null));
