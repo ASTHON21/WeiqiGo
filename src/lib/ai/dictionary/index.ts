@@ -21,6 +21,9 @@ export function findSgfMatch(history: Move[], size: number): { r: number; c: num
         // 3. Calculate MD5 hash
         const currentHash = crypto.createHash('md5').update(pathStr).digest('hex');
 
+        // 打印当前局面哈希，方便手动往 joseki.json 添加内容
+        console.log("当前局面哈希:", currentHash);
+
         // 4. O(1) retrieval
         const match = database[currentHash];
 
