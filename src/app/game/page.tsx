@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils";
 import { MoveHistory } from "@/components/game/MoveHistory";
 import { useFirestore, addDocumentNonBlocking } from "@/firebase";
 import { collection } from "firebase/firestore";
-import { getAiMoveAction } from "@/app/actions/ai";
+import { getAiMove } from "@/app/actions/ai";
 
 const timeSettings: { [key: number]: number } = {
   9: 60 * 60 * 1000,
@@ -59,7 +59,7 @@ interface GameState {
   board: BoardState;
   currentPlayer: Player;
   gameStatus: GameStatus;
-  gameResult: GameResult;
+  gameResult: GameResult | null;
   moveHistory: Move[];
   boardHistory: BoardState[];
   lastMove: Move | null;
@@ -174,13 +174,13 @@ export default function GamePage() {
   
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [aiGamePhase, setAiGamePhase] = useState<GamePhase>('Unknown');
-  const [aiExplanation, setAiExplanation] = useState("The AI is waiting for the game to start.");
+  const [aiExplanation, setAiExplanation] = useState("AI 正在等待游戏开始。");
   const [aiDebugLog, setAiDebugLog] = useState<any>(null);
 
   const handleStartGame = useCallback((options: { boardSize: number; gameMode: GameMode }) => {
     dispatch({ type: 'START_GAME', payload: options });
     setTimers({ black: timeSettings[options.boardSize], white: timeSettings[options.boardSize] });
-    setAiExplanation("AI is ready. Make your first move.");
+    setAiExplanation("AI 已就绪，请黑方落子。");
     setAiGamePhase("Fuseki");
     setAiDebugLog(null);
   }, []);
@@ -193,11 +193,11 @@ export default function GamePage() {
      if (gameStatus !== 'playing') return;
      const lastMoveInHistory = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
      if (lastMoveInHistory && lastMoveInHistory.r === -1 && lastMoveInHistory.c === -1) {
-         toast({ title: 'Game Over', description: 'Both players passed consecutively.'});
+         toast({ title: '游戏结束', description: '双方连续停着。'});
          const scoreResult = calculateScore(board);
-         endGame(scoreResult.winner, 'Agreement', scoreResult);
+         endGame(scoreResult.winner, '双方停着协议终局', scoreResult);
      } else {
-        toast({ title: `${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} passed.` });
+        toast({ title: `${currentPlayer === 'black' ? '黑方' : '白方'} 停着。` });
         dispatch({ type: 'PASS_TURN' });
      }
   }, [board, currentPlayer, gameStatus, toast, moveHistory, endGame]);
@@ -205,17 +205,17 @@ export default function GamePage() {
   const handleResign = () => {
     if (gameStatus !== 'playing') return;
     const winner = currentPlayer === 'black' ? 'white' : 'black';
-    endGame(winner, `${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} resigned.`);
+    endGame(winner, `${currentPlayer === 'black' ? '黑方' : '白方'} 投子认负。`);
   }
 
   const handleUndo = () => {
     if (gameStatus !== 'playing' || moveHistory.length === 0) {
-       toast({ title: 'Cannot Undo', description: 'No moves to undo.', variant: 'destructive' });
+       toast({ title: '无法悔棋', description: '没有可撤销的棋步。', variant: 'destructive' });
        return;
     }
     dispatch({ type: 'UNDO' });
     const movesUndone = gameMode === 'pve' && moveHistory.length >= 2 ? 2 : 1;
-    toast({ title: 'Undo Successful', description: `Reverted ${movesUndone} move(s).`});
+    toast({ title: '悔棋成功', description: `已回退 ${movesUndone} 手。`});
   }
 
   const handleMove = useCallback((r: number, c: number) => {
@@ -224,7 +224,7 @@ export default function GamePage() {
       if (result.success) {
           dispatch({ type: 'MAKE_MOVE', payload: { board: result.newBoard, move: { r, c, player: currentPlayer }, capturedStones: result.capturedStones } });
       } else { 
-          toast({ title: "Invalid Move", description: result.error || "Illegal move", variant: "destructive" });
+          toast({ title: "非法落子", description: result.error === 'ko' ? "禁止打劫回提" : "此处不可落子", variant: "destructive" });
       }
     }, [board, boardHistory, currentPlayer, gameStatus, toast, gameMode]
   );
@@ -233,11 +233,11 @@ export default function GamePage() {
     if (gameMode === 'pve' && currentPlayer === 'white' && gameStatus === 'playing' && !isAiThinking) {
       const handleAiTurn = async () => {
         setIsAiThinking(true);
-        setAiExplanation("AI is calculating...");
+        setAiExplanation("AI 正在深度思考中...");
         
         try {
-          // Asynchronously request AI move from the server
-          const aiResult = await getAiMoveAction(board, 'white', moveHistory, boardSize, boardHistory);
+          // 调用重塑后的服务端网关
+          const aiResult = await getAiMove(board, 'white', moveHistory, boardSize, boardHistory);
 
           if (aiResult.bestMove && aiResult.bestMove.r !== -1) {
             setAiGamePhase(aiResult.gamePhase as any);
@@ -255,18 +255,18 @@ export default function GamePage() {
                 } 
               });
             } else {
-                 toast({ title: "AI Error", description: `AI chose an invalid move. Passing.`, variant: 'destructive'});
+                 toast({ title: "AI 错误", description: `AI 选择了一个非法位置。强制停着。`, variant: 'destructive'});
                  dispatch({ type: 'PASS_TURN' });
             }
           } else {
-            setAiExplanation(aiResult.explanation || "AI decided to pass.");
+            setAiExplanation(aiResult.explanation || "AI 选择停着。");
             setAiDebugLog(aiResult.debugLog);
-            toast({ title: "AI Passes", description: aiResult.explanation });
+            toast({ title: "AI 停着", description: aiResult.explanation });
             dispatch({ type: 'PASS_TURN' });
           }
         } catch (error) {
           console.error("AI Turn Error:", error);
-          toast({ title: "AI Server Error", description: "Communication with AI server failed.", variant: "destructive" });
+          toast({ title: "AI 服务异常", description: "与 AI 引擎通讯失败，请检查网络。", variant: "destructive" });
           dispatch({ type: 'PASS_TURN' });
         } finally {
           setIsAiThinking(false);
@@ -282,7 +282,7 @@ export default function GamePage() {
           setTimers(prev => {
               const newTime = prev[currentPlayer] - 1000;
               if (newTime <= 0) {
-                  endGame(currentPlayer === 'black' ? 'white' : 'black', `${currentPlayer} ran out of time.`);
+                  endGame(currentPlayer === 'black' ? 'white' : 'black', `${currentPlayer === 'black' ? '黑方' : '白方'} 超时。`);
                   return { ...prev, [currentPlayer]: 0 };
               }
               return { ...prev, [currentPlayer]: newTime };
@@ -310,7 +310,7 @@ export default function GamePage() {
           status: 'finished',
           createdAt: new Date().toISOString(),
         });
-        toast({ title: "Cloud Sync", description: "Game saved to your profile." });
+        toast({ title: "云端同步", description: "对局记录已保存到您的资料库。" });
       } catch (error) {
         console.error("Failed to save to Firestore:", error);
       }
@@ -335,9 +335,9 @@ export default function GamePage() {
         <CardHeader>
             <CardTitle className="flex items-center justify-center gap-2 text-xl font-headline">
             <Icons.Stone className={cn("w-6 h-6", player === 'black' ? 'fill-black' : 'fill-white stroke-black stroke-[2px]')}/>
-            <span>{isAI ? 'Shadow AI' : (player.charAt(0).toUpperCase() + player.slice(1))}</span>
+            <span>{isAI ? 'Shadow AI' : (player === 'black' ? '黑方' : '白方')}</span>
             </CardTitle>
-            <CardDescription>Captures: {captures[player]}</CardDescription>
+            <CardDescription>提子数: {captures[player]}</CardDescription>
         </CardHeader>
         <CardContent>
             <div className="text-4xl font-mono font-bold tracking-wider">{formatTime(timers[player])}</div>
@@ -352,7 +352,7 @@ export default function GamePage() {
         <div className="text-center">
           <h1 className="text-6xl font-headline font-bold text-primary">Go Master</h1>
           <p className="mt-4 text-xl text-foreground/80">
-            The ancient game of strategy.
+            探寻黑白博弈的终极智慧。
           </p>
           <NewGameDialog onStartGame={handleStartGame} />
         </div>
@@ -365,36 +365,36 @@ export default function GamePage() {
       <Dialog open={gameStatus === "finished"} onOpenChange={(open) => !open && dispatch({type: 'SET_GAME_STATUS', payload: 'setup'})}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-headline text-2xl">Game Over</DialogTitle>
+            <DialogTitle className="font-headline text-2xl">对局结束</DialogTitle>
             <DialogDescription>
               {gameResult?.winner === 'draw'
-                ? `The game is a draw.`
-                : `Winner: ${gameResult?.winner?.charAt(0).toUpperCase()}${gameResult?.winner?.slice(1)}`}
+                ? `本局握手言和（和棋）。`
+                : `获胜方：${gameResult?.winner === 'black' ? '黑方' : '白方'}`}
               <br />
-              Reason: {gameResult?.reason}
+              判定原因: {gameResult?.reason}
             </DialogDescription>
           </DialogHeader>
           {gameResult?.scoreDetails ? (
               <div className="text-sm font-mono -mt-2 space-y-3 p-4 bg-muted/50 rounded-md">
                   <div className="grid grid-cols-2 gap-x-4">
                     <div className="space-y-1">
-                        <h4 className="font-bold text-base mb-1">Black</h4>
-                        <p>Stones: {gameResult.scoreDetails.blackStones}</p>
-                        <p>Territory: {gameResult.scoreDetails.blackTerritory}</p>
-                        <p className="font-bold border-t border-muted-foreground/50 pt-1">Total: {gameResult.blackScore?.toFixed(1)}</p>
+                        <h4 className="font-bold text-base mb-1">黑方</h4>
+                        <p>子力: {gameResult.scoreDetails.blackStones}</p>
+                        <p>领地: {gameResult.scoreDetails.blackTerritory}</p>
+                        <p className="font-bold border-t border-muted-foreground/50 pt-1">总分: {gameResult.blackScore?.toFixed(1)}</p>
                     </div>
                      <div className="space-y-1">
-                        <h4 className="font-bold text-base mb-1">White</h4>
-                        <p>Stones: {gameResult.scoreDetails.whiteStones}</p>
-                        <p>Territory: {gameResult.scoreDetails.whiteTerritory}</p>
-                        <p>Komi: {gameResult.scoreDetails.komi.toFixed(1)}</p>
-                        <p className="font-bold border-t border-muted-foreground/50 pt-1">Total: {gameResult.whiteScore?.toFixed(1)}</p>
+                        <h4 className="font-bold text-base mb-1">白方</h4>
+                        <p>子力: {gameResult.scoreDetails.whiteStones}</p>
+                        <p>领地: {gameResult.scoreDetails.whiteTerritory}</p>
+                        <p>贴目: {gameResult.scoreDetails.komi.toFixed(1)}</p>
+                        <p className="font-bold border-t border-muted-foreground/50 pt-1">总分: {gameResult.whiteScore?.toFixed(1)}</p>
                     </div>
                   </div>
               </div>
           ) : null}
           <DialogFooter>
-            <Button onClick={() => dispatch({type: 'SET_GAME_STATUS', payload: 'setup'})}>Main Menu</Button>
+            <Button onClick={() => dispatch({type: 'SET_GAME_STATUS', payload: 'setup'})}>回到主菜单</Button>
             <NewGameDialog onStartGame={handleStartGame} isPlayAgain={true} />
           </DialogFooter>
         </DialogContent>
@@ -431,20 +431,20 @@ export default function GamePage() {
         {renderPlayerCard('black')}
         <Card>
           <CardHeader>
-            <CardTitle className="font-headline text-xl">Controls</CardTitle>
+            <CardTitle className="font-headline text-xl">对局控制</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             <Button onClick={handlePass} disabled={gameStatus !== 'playing' || isAiThinking}>
-              <Icons.Play className="mr-2 -rotate-90"/> Pass Turn
+              <Icons.Play className="mr-2 -rotate-90"/> 停着 (Pass)
             </Button>
              <Button onClick={handleUndo} disabled={gameStatus !== 'playing' || isAiThinking || moveHistory.length < (gameMode === 'pve' ? 2 : 1)}>
-                <Icons.Undo className="mr-2"/> Undo
+                <Icons.Undo className="mr-2"/> 悔棋 (Undo)
             </Button>
             <Button variant="destructive" onClick={handleResign} disabled={gameStatus !== 'playing' || isAiThinking}>
-              <Icons.Resign className="mr-2"/> Resign
+              <Icons.Resign className="mr-2"/> 认负 (Resign)
             </Button>
             <Button variant="outline" onClick={() => dispatch({type: 'SET_GAME_STATUS', payload: 'setup'})}>
-              <Icons.Logo className="mr-2"/> New Game
+              <Icons.Logo className="mr-2"/> 新对局
             </Button>
           </CardContent>
         </Card>
@@ -456,7 +456,7 @@ export default function GamePage() {
 
 function NewGameDialog({ onStartGame, isPlayAgain = false }: { onStartGame: (options: { boardSize: number, gameMode: GameMode }) => void; isPlayAgain?: boolean; }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [boardSize, setBoardSize] = useState("9");
+  const [boardSize, setBoardSize] = useState("19");
   const [gameMode, setGameMode] = useState<GameMode>("pve");
   const handleStart = () => {
     onStartGame({ boardSize: Number(boardSize), gameMode: gameMode });
@@ -465,38 +465,38 @@ function NewGameDialog({ onStartGame, isPlayAgain = false }: { onStartGame: (opt
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <Button onClick={() => setIsOpen(true)} className={cn("mt-8", isPlayAgain && "mt-0")} size={isPlayAgain ? "default" : "lg"}>
-        {isPlayAgain ? 'Play Again' : 'Start New Game'}
+        {isPlayAgain ? '再来一局' : '开启新对局'}
       </Button>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="font-headline text-2xl">New Game Settings</DialogTitle>
-          <DialogDescription>Configure your match.</DialogDescription>
+          <DialogTitle className="font-headline text-2xl">对局配置</DialogTitle>
+          <DialogDescription>请选择棋盘大小及对战模式。</DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 py-4">
             <div className="grid gap-2">
-                <Label>Game Mode</Label>
+                <Label>对战模式</Label>
                 <Select value={gameMode} onValueChange={(value) => setGameMode(value as GameMode)}>
-                    <SelectTrigger><SelectValue placeholder="Select a game mode" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="选择模式" /></SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="pve">Player vs. AI</SelectItem>
-                        <SelectItem value="pvp">Player vs. Player</SelectItem>
+                        <SelectItem value="pve">人机对战 (vs Shadow AI)</SelectItem>
+                        <SelectItem value="pvp">本地对弈 (双人同屏)</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
             <div className="grid gap-2">
-                <Label>Board Size</Label>
+                <Label>棋盘尺寸</Label>
                 <Select value={boardSize} onValueChange={setBoardSize}>
-                    <SelectTrigger><SelectValue placeholder="Select a board size" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="选择棋盘" /></SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="19">19x19 (Standard)</SelectItem>
-                        <SelectItem value="13">13x13 (Quick Game)</SelectItem>
-                        <SelectItem value="9">9x9 (Beginner)</SelectItem>
+                        <SelectItem value="19">19x19 (标准竞赛)</SelectItem>
+                        <SelectItem value="13">13x13 (快速对局)</SelectItem>
+                        <SelectItem value="9">9x9 (初学者入门)</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
         </div>
         <DialogFooter>
-          <Button onClick={handleStart}><Icons.Play className="mr-2"/> Start Game</Button>
+          <Button onClick={handleStart}><Icons.Play className="mr-2"/> 开始对局</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
