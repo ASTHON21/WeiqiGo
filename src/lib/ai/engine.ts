@@ -5,14 +5,14 @@ import { findSgfMatch } from './dictionary/index';
 
 /**
  * 高级指挥层 (ShadowEngine)
- * 升级：迭代加深搜索 (Iterative Deepening) + 时间预算控制
+ * 升级：结合动态长度字典匹配与带置换表的迭代加深搜索
  */
 export class ShadowEngine {
   private evaluator: BoardEvaluator;
   private boardSize: number;
   private nodesEvaluated: number = 0;
   
-  // 置换表：缓存已计算过的局面分值
+  // 置换表：缓存已计算过的局面分值，提高搜索效率
   private transpositionTable = new Map<string, number>();
   
   // 搜索配置
@@ -43,7 +43,7 @@ export class ShadowEngine {
     this.transpositionTable.clear();
     const startTime = Date.now();
     
-    // 1. --- 模块：本能响应 (SGF 字典/矩阵匹配) ---
+    // 1. --- 模块：本能响应 (升级：动态长度匹配) ---
     const sgfMatch = findSgfMatch(history, this.boardSize);
     if (sgfMatch) {
       return {
@@ -69,10 +69,10 @@ export class ShadowEngine {
     let bestValueFound = 0;
 
     try {
-      // 迭代加深：1层，2层... 直到时间耗尽
+      // 迭代加深：1层，2层... 直到时间耗尽或达到上限
       for (let depth = 1; depth <= 6; depth++) {
         const elapsed = Date.now() - startTime;
-        if (elapsed > this.TIME_LIMIT * 0.8) break;
+        if (elapsed > this.TIME_LIMIT * 0.8) break; // 留出 20% 安全余量
 
         const result = this.searchAtDepth(board, depth, player, boardHistory, startTime);
         
@@ -168,6 +168,7 @@ export class ShadowEngine {
   ): number {
     this.nodesEvaluated++;
     
+    // 定期检查时间，避免深度递归时失控
     if (this.nodesEvaluated % 128 === 0 && Date.now() - startTime > this.TIME_LIMIT) {
       throw new Error("Timeout");
     }
@@ -254,8 +255,8 @@ export class ShadowEngine {
 
   private determinePhase(moveCount: number): string {
     const total = this.boardSize * this.boardSize;
-    if (moveCount < total * 0.15) return 'Fuseki';
-    if (moveCount < total * 0.6) return 'Chuban';
-    return 'Yose';
+    if (moveCount < total * 0.1) return 'Opening';
+    if (moveCount < total * 0.5) return 'Midgame';
+    return 'Endgame';
   }
 }

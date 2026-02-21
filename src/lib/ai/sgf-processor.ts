@@ -1,12 +1,12 @@
 import { Move } from '../types';
 
 /**
- * SgfProcessor - 项目中的“翻译官”
+ * SgfProcessor - 19路棋盘标准转换器与矩阵变换核心
  * 负责处理所有与 SGF 字符相关的转换逻辑，并提供 8 种棋盘矩阵对称变换。
  */
 export const SgfProcessor = {
     /**
-     * 将数字坐标转换为 SGF 字母坐标 (例如: 3, 15 -> "pd")
+     * 将数字坐标转换为 SGF 字母坐标 (支持 19x19，范围 a-s)
      */
     toSgf(r: number, c: number): string {
         if (r < 0 || c < 0) return "";
@@ -27,7 +27,8 @@ export const SgfProcessor = {
     },
 
     /**
-     * 生成当前对局路径的唯一哈希键
+     * 19路棋盘路径哈希生成器
+     * 使用 "r,c" 格式并用 "|" 分隔，不带颜色标签以提高泛化性
      */
     generatePathKey(history: Move[]): string {
         return history.map(m => `${m.r},${m.c}`).join('|');
@@ -66,14 +67,5 @@ export const SgfProcessor = {
             case 7: return { r: s - c, c: s - r }; // 对角线 / 还原
             default: return { r, c };              // 原始还原
         }
-    },
-
-    /**
-     * 辅助功能：解析简单的 SGF 属性值
-     */
-    extractProperty(sgfText: string, prop: string): string | null {
-        const regex = new RegExp(`${prop}\\[(.*?)\\]`);
-        const match = sgfText.match(regex);
-        return match ? match[1] : null;
     }
 };

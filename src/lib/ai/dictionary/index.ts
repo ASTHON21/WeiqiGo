@@ -4,47 +4,56 @@ import { Move } from '../../types';
 import * as crypto from 'crypto';
 
 /**
- * 带有矩阵变换的高级匹配函数
- * 此文件通过调用矩阵变换，让 AI 在每一手都能尝试从 8 个角度去“套用”那几千条棋谱
+ * 重塑后的 findSgfMatch：引入动态长度匹配与矩阵变换
+ * AI 现在不仅看全盘历史，还会尝试匹配最近的局部定式路径。
  */
 export function findSgfMatch(history: Move[], size: number): { r: number; c: number; explanation: string } | null {
     if (!history || history.length === 0) return null;
 
-    // 获取单例数据库
+    // 获取单例混合数据库（棋谱库 + 定式库）
     const database = DictionaryManager.loadDatabase();
 
-    // 遍历 8 种矩阵对称形态
-    for (let type = 0; type < 8; type++) {
-        // 1. 将当前对局历史整体进行对应的矩阵变换
-        const transformedHistory = history.map(m => {
-            const sym = SgfProcessor.getSymmetryCoords(m.r, m.c, size)[type];
-            return { ...m, r: sym.r, c: sym.c };
-        });
+    // 尝试不同的“回顾长度”，从最长到最短
+    // 这样即便开局断了，AI 也能在最近的局部棋形中找回记忆
+    const lengthsToTry = [history.length, 10, 8, 6, 4];
 
-        // 2. 生成变换后的哈希键
-        const pathStr = SgfProcessor.generatePathKey(transformedHistory);
-        const currentHash = crypto.createHash('md5').update(pathStr).digest('hex');
+    for (const len of lengthsToTry) {
+        if (len > history.length || len < 2) continue;
+        
+        // 截取最近的 len 手棋进行匹配
+        const subHistory = history.slice(-len);
 
-        // 3. 在数据库中检索
-        const match = database[currentHash];
+        // 遍历 8 种矩阵对称形态
+        for (let type = 0; type < 8; type++) {
+            // 1. 将当前局部历史进行对应的矩阵变换
+            const transformed = subHistory.map(m => {
+                const sym = SgfProcessor.getSymmetryCoords(m.r, m.c, size)[type];
+                return { ...m, r: sym.r, c: sym.c };
+            });
 
-        if (match) {
-            // 4. 如果匹配成功，获取库中的下一步坐标 (SGF 格式)
-            const symNextMove = SgfProcessor.fromSgf(match.nextMove);
-            
-            // 5. 【关键】将匹配到的库坐标，通过逆向矩阵变换转回当前棋盘视角
-            const realCoord = SgfProcessor.invertTransform(symNextMove.r, symNextMove.c, type, size);
-            
-            const symNames = ["原始", "旋转90°", "旋转180°", "旋转270°", "水平镜像", "垂直镜像", "对角线\\镜像", "对角线/镜像"];
-            
-            return {
-                r: realCoord.r,
-                c: realCoord.c,
-                explanation: `[矩阵匹配] 命中 ${symNames[type]} 形态（来源：${match.source}）`
-            };
+            // 2. 生成标准化哈希键
+            const pathStr = SgfProcessor.generatePathKey(transformed);
+            const currentHash = crypto.createHash('md5').update(pathStr).digest('hex');
+
+            // 3. 在数据库中检索
+            const match = database[currentHash];
+
+            if (match) {
+                // 4. 如果匹配成功，获取库中的下一步坐标
+                const symNextMove = SgfProcessor.fromSgf(match.nextMove);
+                
+                // 5. 将匹配到的坐标通过逆向矩阵变换转回当前棋盘视角
+                const realCoord = SgfProcessor.invertTransform(symNextMove.r, symNextMove.c, type, size);
+                
+                return {
+                    r: realCoord.r,
+                    c: realCoord.c,
+                    explanation: `[19路矩阵匹配] 长度:${len} 形态:${type} 来源:${match.source}`
+                };
+            }
         }
     }
 
-    // 若 8 种形态均未匹配，则返回 null
+    // 若所有长度与形态均未匹配
     return null;
 }
