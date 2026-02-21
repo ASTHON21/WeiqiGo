@@ -4,53 +4,47 @@ import { Move } from '../../types';
 import * as crypto from 'crypto';
 
 /**
- * 核心查表匹配函数 (支持 8 种对称方位匹配)
- * 职责：在开局阶段通过 MD5 哈希瞬间识别已知棋谱。
+ * 带有矩阵变换的高级匹配函数
+ * 此文件通过调用矩阵变换，让 AI 在每一手都能尝试从 8 个角度去“套用”那几千条棋谱
  */
 export function findSgfMatch(history: Move[], size: number): { r: number; c: number; explanation: string } | null {
-    // 字典目前主要覆盖布局和定式阶段（前 20 手）
-    if (!history || history.length === 0 || history.length > 20) return null;
+    if (!history || history.length === 0) return null;
 
-    try {
-        // 1. 获取数据库 (单例加载)
-        const database = DictionaryManager.loadDatabase();
+    // 获取单例数据库
+    const database = DictionaryManager.loadDatabase();
 
-        // 2. 生成当前局面的 8 种对称形态路径
-        const symmetries = SgfProcessor.getSymmetricPaths(history, size);
-        
-        for (const symPath of symmetries) {
-            // 对每一种对称形态生成哈希键
-            const pathStr = SgfProcessor.generatePathKey(symPath.moves);
-            const currentHash = crypto.createHash('md5').update(pathStr).digest('hex');
+    // 遍历 8 种矩阵对称形态
+    for (let type = 0; type < 8; type++) {
+        // 1. 将当前对局历史整体进行对应的矩阵变换
+        const transformedHistory = history.map(m => {
+            const sym = SgfProcessor.getSymmetryCoords(m.r, m.c, size)[type];
+            return { ...m, r: sym.r, c: sym.c };
+        });
 
-            // 在原始方向（type 0）时打印哈希，方便维护 joseki.json
-            if (symPath.type === 0) {
-                console.log(`[Instinct] Current Hash: ${currentHash}`);
-            }
+        // 2. 生成变换后的哈希键
+        const pathStr = SgfProcessor.generatePathKey(transformedHistory);
+        const currentHash = crypto.createHash('md5').update(pathStr).digest('hex');
 
-            // 3. 查表匹配
-            const match = database[currentHash];
+        // 3. 在数据库中检索
+        const match = database[currentHash];
 
-            if (match) {
-                // 4. 匹配成功：获取该对称空间下的下一步 SGF 坐标
-                const symCoord = SgfProcessor.fromSgf(match.nextMove);
-                
-                // 5. 关键：将“对称空间坐标”逆向变换回“真实棋盘坐标”
-                const originalCoord = SgfProcessor.invertTransform(symCoord, symPath.type, size);
-                
-                const symNames = ["Identity", "Rot90", "Rot180", "Rot270", "H-Flip", "V-Flip", "D-Flip1", "D-Flip2"];
-                
-                return {
-                    r: originalCoord.r,
-                    c: originalCoord.c,
-                    explanation: `[${symNames[symPath.type]}] 匹配到棋谱《${match.source}》的后续走法。`
-                };
-            }
+        if (match) {
+            // 4. 如果匹配成功，获取库中的下一步坐标 (SGF 格式)
+            const symNextMove = SgfProcessor.fromSgf(match.nextMove);
+            
+            // 5. 【关键】将匹配到的库坐标，通过逆向矩阵变换转回当前棋盘视角
+            const realCoord = SgfProcessor.invertTransform(symNextMove.r, symNextMove.c, type, size);
+            
+            const symNames = ["原始", "旋转90°", "旋转180°", "旋转270°", "水平镜像", "垂直镜像", "对角线\\镜像", "对角线/镜像"];
+            
+            return {
+                r: realCoord.r,
+                c: realCoord.c,
+                explanation: `[矩阵匹配] 命中 ${symNames[type]} 形态（来源：${match.source}）`
+            };
         }
-    } catch (error) {
-        console.warn('[SGF Dictionary] Matching error:', error);
     }
 
-    // 未命中字典，返回 null 交给 Alpha-Beta 搜索
+    // 若 8 种形态均未匹配，则返回 null
     return null;
 }
