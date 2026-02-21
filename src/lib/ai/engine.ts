@@ -5,7 +5,7 @@ import { findSgfMatch } from './dictionary/index';
 
 /**
  * 高级指挥层 (ShadowEngine)
- * 升级：迭代加深搜索 (Iterative Deepening) + 置换表 (Transposition Table)
+ * 升级：迭代加深搜索 (Iterative Deepening) + 时间预算控制
  * 职责：在限定时间内通过多层探索寻找最优解。
  */
 export class ShadowEngine {
@@ -17,8 +17,7 @@ export class ShadowEngine {
   private transpositionTable = new Map<string, number>();
   
   // 搜索配置
-  private readonly TIME_LIMIT = 4000; // 4秒限制
-  private readonly MAX_DEPTH = 6;     // 最大深度
+  private readonly TIME_LIMIT = 4000; // 4秒时间预算
 
   constructor(boardSize: number) {
     this.boardSize = boardSize;
@@ -45,7 +44,7 @@ export class ShadowEngine {
     this.transpositionTable.clear();
     const startTime = Date.now();
     
-    // 1. --- 模块：本能响应 (SGF 字典) ---
+    // 1. --- 模块：本能响应 (SGF 字典/矩阵匹配) ---
     const sgfMatch = findSgfMatch(history, this.boardSize);
     if (sgfMatch) {
       return {
@@ -64,18 +63,21 @@ export class ShadowEngine {
       };
     }
 
-    // 2. --- 模块：迭代加深搜索 ---
+    // 2. --- 模块：迭代加深逻辑搜索 ---
     const currentPhase = this.determinePhase(history.length);
     let bestMoveFound: Move | null = null;
     let finalDepth = 0;
     let bestValueFound = 0;
 
     try {
-      for (let depth = 1; depth <= this.MAX_DEPTH; depth++) {
-        // 检查剩余时间
-        if (Date.now() - startTime > this.TIME_LIMIT * 0.8) break;
+      // 从 1 层开始逐步深挖，最高 6 层
+      for (let depth = 1; depth <= 6; depth++) {
+        const elapsed = Date.now() - startTime;
+        // 如果已用时间超过预算的 80%，则不再尝试下一层，确保安全收工
+        if (elapsed > this.TIME_LIMIT * 0.8) break;
 
         const result = this.searchAtDepth(board, depth, player, boardHistory, startTime);
+        
         if (result.move) {
           bestMoveFound = result.move;
           bestValueFound = result.value;
@@ -83,10 +85,10 @@ export class ShadowEngine {
         }
       }
     } catch (e) {
-      console.log("[Engine] 搜索超时中断。");
+      console.log("[Engine] 搜索超时中断，返回当前最佳。");
     }
 
-    const elapsed = Date.now() - startTime;
+    const totalElapsed = Date.now() - startTime;
 
     if (!bestMoveFound) {
       return { 
@@ -94,21 +96,20 @@ export class ShadowEngine {
         explanation: "AI 认为当前局面已终了。", 
         gamePhase: currentPhase,
         debugLog: { 
-          status: "No moves",
-          rational: { nodesEvaluated: this.nodesEvaluated, bestValue: 0 }
+          rational: { nodesEvaluated: this.nodesEvaluated, bestValue: 0, depth: 0, time: totalElapsed }
         }
       };
     }
 
     return {
       bestMove: bestMoveFound,
-      explanation: `[逻辑搜索] 深度 ${finalDepth} 层, 耗时 ${elapsed}ms, 评估分: ${bestValueFound.toFixed(1)}。`,
+      explanation: `[逻辑搜索] 深度 ${finalDepth} 层, 耗时 ${totalElapsed}ms, 评估分: ${bestValueFound.toFixed(1)}。`,
       gamePhase: currentPhase,
       debugLog: {
         rational: {
           nodesEvaluated: this.nodesEvaluated,
           depth: finalDepth,
-          time: elapsed,
+          time: totalElapsed,
           bestValue: bestValueFound,
           tableSize: this.transpositionTable.size
         }
@@ -128,9 +129,9 @@ export class ShadowEngine {
     const possibleMoves = this.getOrderedMoves(board, player, boardHistory.length);
 
     for (const move of possibleMoves) {
+      // 每一手迭代前检查一次时间
       if (Date.now() - startTime > this.TIME_LIMIT) throw new Error("Timeout");
 
-      // 模拟落子时传递 boardHistory 以遵循打劫规则
       const result = GoLogic.processMove(board, move.r, move.c, player, boardHistory);
       if (!result.success) continue;
 
@@ -142,7 +143,7 @@ export class ShadowEngine {
         false, 
         player,
         boardHistory.length + 1,
-        [...boardHistory, board], // 传递历史快照
+        [...boardHistory, board],
         startTime
       );
 
@@ -168,7 +169,8 @@ export class ShadowEngine {
   ): number {
     this.nodesEvaluated++;
     
-    if (this.nodesEvaluated % 100 === 0 && Date.now() - startTime > this.TIME_LIMIT) {
+    // 周期性检查时间，避免深层递归导致挂死
+    if (this.nodesEvaluated % 128 === 0 && Date.now() - startTime > this.TIME_LIMIT) {
       throw new Error("Timeout");
     }
 
@@ -209,7 +211,7 @@ export class ShadowEngine {
         alpha = Math.max(alpha, evaluation);
         if (beta <= alpha) break;
       }
-      resultValue = maxEval;
+      resultValue = maxEval === -Infinity ? this.evaluator.evaluate(board, aiPlayer, moveCount) : maxEval;
     } else {
       let minEval = Infinity;
       for (const move of moves) {
@@ -231,7 +233,7 @@ export class ShadowEngine {
         beta = Math.min(beta, evaluation);
         if (beta <= alpha) break;
       }
-      resultValue = minEval;
+      resultValue = minEval === Infinity ? this.evaluator.evaluate(board, aiPlayer, moveCount) : minEval;
     }
 
     this.transpositionTable.set(boardHash, resultValue);
@@ -240,14 +242,16 @@ export class ShadowEngine {
 
   private getOrderedMoves(board: BoardState, player: Player, moveCount: number): Move[] {
     const moves: { r: number; c: number; player: Player; score: number }[] = [];
-    for (let r = 0; r < this.boardSize; r++) {
-      for (let c = 0; c < this.boardSize; c++) {
+    const size = board.length;
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
         if (board[r][c] === null) {
           const score = this.evaluator.getQuickScore(r, c, moveCount);
           moves.push({ r, c, player, score });
         }
       }
     }
+    // 启发式：优先搜索评估分高的点，加速剪枝
     return moves.sort((a, b) => b.score - a.score);
   }
 
