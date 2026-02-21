@@ -61,7 +61,7 @@ interface GameState {
   gameStatus: GameStatus;
   gameResult: GameResult | null;
   moveHistory: Move[];
-  boardHistory: BoardState[];
+  boardHistory: BoardState[]; // 存储每一手开始前的盘面，用于打劫校验
   lastMove: Move | null;
   captures: { black: number; white: number };
   gameMode: GameMode;
@@ -74,7 +74,7 @@ const getInitialState = (size: number = 19): GameState => ({
   gameStatus: 'setup',
   gameResult: null,
   moveHistory: [],
-  boardHistory: [createEmptyBoard(size)],
+  boardHistory: [],
   lastMove: null,
   captures: { black: 0, white: 0 },
   gameMode: 'pve',
@@ -96,6 +96,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...getInitialState(boardSize),
         gameMode,
         gameStatus: 'playing',
+        boardHistory: [], // 初始历史为空
       };
     }
     case 'MAKE_MOVE': {
@@ -108,7 +109,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         board,
         moveHistory: [...state.moveHistory, move],
-        boardHistory: [...state.boardHistory, board],
+        boardHistory: [...state.boardHistory, state.board], // 关键：存储落子前的快照用于打劫判定
         lastMove: move,
         currentPlayer: state.currentPlayer === 'black' ? 'white' : 'black',
         captures: newCaptures,
@@ -129,8 +130,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const movesToUndo = state.gameMode === 'pve' && state.moveHistory.length >= 2 ? 2 : 1;
       const newMoveHistory = state.moveHistory.slice(0, state.moveHistory.length - movesToUndo);
       const newBoardHistory = state.boardHistory.slice(0, state.boardHistory.length - movesToUndo);
-      const lastValidBoard = newBoardHistory[newBoardHistory.length - 1] || createEmptyBoard(state.boardSize);
+      
+      // 还原到历史记录中的最后一个盘面，或者空棋盘
+      const lastValidBoard = newBoardHistory.length > 0 
+        ? state.boardHistory[state.boardHistory.length - movesToUndo]
+        : createEmptyBoard(state.boardSize);
+        
       const newLastMove = newMoveHistory.length > 0 ? newMoveHistory[newMoveHistory.length - 1] : null;
+      
       return {
           ...state,
           moveHistory: newMoveHistory,
@@ -220,11 +227,22 @@ export default function GamePage() {
 
   const handleMove = useCallback((r: number, c: number) => {
       if (gameStatus !== "playing" || (gameMode === 'pve' && currentPlayer === 'white')) return;
+      
+      // 传递 boardHistory 进行打劫校验
       const result = processMove(board, r, c, currentPlayer, boardHistory);
+      
       if (result.success) {
-          dispatch({ type: 'MAKE_MOVE', payload: { board: result.newBoard, move: { r, c, player: currentPlayer }, capturedStones: result.capturedStones } });
+          dispatch({ 
+            type: 'MAKE_MOVE', 
+            payload: { 
+              board: result.newBoard, 
+              move: { r, c, player: currentPlayer }, 
+              capturedStones: result.capturedStones 
+            } 
+          });
       } else { 
-          toast({ title: "非法落子", description: result.error === 'ko' ? "禁止打劫回提" : "此处不可落子", variant: "destructive" });
+          const errorMsg = result.error === 'ko' ? "打劫！请先在别处落子。" : "此处不可落子";
+          toast({ title: "非法落子", description: errorMsg, variant: "destructive" });
       }
     }, [board, boardHistory, currentPlayer, gameStatus, toast, gameMode]
   );
@@ -236,7 +254,7 @@ export default function GamePage() {
         setAiExplanation("AI 正在深度思考中...");
         
         try {
-          // 调用重塑后的服务端网关
+          // 调用服务端网关，传递棋盘历史
           const aiResult = await getAiMove(board, 'white', moveHistory, boardSize, boardHistory);
 
           if (aiResult.bestMove && aiResult.bestMove.r !== -1) {
@@ -297,7 +315,7 @@ export default function GamePage() {
           id: new Date().toISOString(),
           date: new Date().toISOString(),
           mode: gameMode === 'pve' ? 'ai' : 'local',
-          result: gameResult,
+          result: gameResult as any,
           moveHistory: moveHistory,
           boardSize: boardSize,
       };

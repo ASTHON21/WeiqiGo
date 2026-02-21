@@ -37,25 +37,25 @@ export const GoLogic = {
             }
         }
 
-        // 3. 自杀检查
-        if (GoLogic.calculateLiberties(newBoard, r, c) === 0) {
-            return { success: false, error: 'suicide' };
-        }
-
-        // 4. 高级打劫检查 (Ko)
-        // 逻辑：禁止立即回提到上一手的局面（同形禁着）
-        if (boardHistory.length > 0) {
+        // 3. 高级打劫检查 (Ko Rule)
+        // 逻辑：禁止落子后局面回到对手落子前的状态（同形禁着）
+        if (boardHistory && boardHistory.length > 0) {
             const lastBoard = boardHistory[boardHistory.length - 1];
             if (GoLogic.isSameBoard(newBoard, lastBoard)) {
                 return { success: false, error: 'ko' };
             }
         }
 
+        // 4. 自杀检查
+        if (GoLogic.calculateLiberties(newBoard, r, c) === 0) {
+            return { success: false, error: 'suicide' };
+        }
+
         return { success: true, newBoard, capturedStones: capturedCount };
     },
 
     /**
-     * 判断两个棋盘状态是否完全相同（比 JSON.stringify 快得多）
+     * 判断两个棋盘状态是否完全相同
      */
     isSameBoard: (boardA: BoardState, boardB: BoardState): boolean => {
         const size = boardA.length;
@@ -72,6 +72,9 @@ export const GoLogic = {
      */
     calculateLiberties: (board: BoardState, r: number, c: number): number => {
         const size = board.length;
+        const stone = board[r][c];
+        if (!stone) return 0;
+
         const group = GoLogic.getGroup(board, r, c);
         const liberties = new Set<string>();
 
@@ -91,6 +94,8 @@ export const GoLogic = {
     getGroup: (board: BoardState, r: number, c: number): [number, number][] => {
         const size = board.length;
         const player = board[r][c];
+        if (!player) return [];
+
         const group: [number, number][] = [];
         const queue: [number, number][] = [[r, c]];
         const visited = new Set<string>([`${r},${c}`]);
@@ -108,13 +113,12 @@ export const GoLogic = {
         return group;
     },
 
-    // 坐标转换统一出口
     sgfToCoord: SgfProcessor.fromSgf,
     coordToSgf: SgfProcessor.toSgf
 };
 
 /**
- * 自动点目算法：基于漫水填充 (Flood Fill) 判断空白区域归属
+ * 自动点目辅助：漫水填充
  */
 function findEmptyArea(board: BoardState, r: number, c: number, globalVisited: Set<string>) {
     const size = board.length;
@@ -151,7 +155,7 @@ function findEmptyArea(board: BoardState, r: number, c: number, globalVisited: S
 }
 
 /**
- * 终局胜负计算 (数子法 + 贴目)
+ * 胜负点目计算
  */
 export const calculateScore = (board: BoardState): { winner: Player | 'draw'; blackScore: number; whiteScore: number; details: ScoreDetails } => {
     const size = board.length;
@@ -185,8 +189,4 @@ export const calculateScore = (board: BoardState): { winner: Player | 'draw'; bl
     };
 };
 
-export const createEmptyBoard = (size: number): BoardState => 
-    Array(size).fill(null).map(() => Array(size).fill(null));
-
-// 为了保持与原有 API 兼容
 export const processMove = GoLogic.processMove;

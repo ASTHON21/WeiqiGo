@@ -26,7 +26,7 @@ export class ShadowEngine {
   }
 
   /**
-   * 生成局面唯一哈希键 (用于置换表)
+   * 生成局面唯一哈希键
    */
   private getBoardHash(board: BoardState): string {
     return board.map(row => row.map(cell => cell || '.').join('')).join('|');
@@ -72,7 +72,7 @@ export class ShadowEngine {
 
     try {
       for (let depth = 1; depth <= this.MAX_DEPTH; depth++) {
-        // 检查是否还有足够时间进行下一层搜索
+        // 检查剩余时间
         if (Date.now() - startTime > this.TIME_LIMIT * 0.8) break;
 
         const result = this.searchAtDepth(board, depth, player, boardHistory, startTime);
@@ -83,7 +83,7 @@ export class ShadowEngine {
         }
       }
     } catch (e) {
-      console.log("[Engine] 搜索因时间耗尽强行中断。");
+      console.log("[Engine] 搜索超时中断。");
     }
 
     const elapsed = Date.now() - startTime;
@@ -102,7 +102,7 @@ export class ShadowEngine {
 
     return {
       bestMove: bestMoveFound,
-      explanation: `[理性搜索] 深度 ${finalDepth} 层, 耗时 ${elapsed}ms, 评估分: ${bestValueFound.toFixed(1)}。`,
+      explanation: `[逻辑搜索] 深度 ${finalDepth} 层, 耗时 ${elapsed}ms, 评估分: ${bestValueFound.toFixed(1)}。`,
       gamePhase: currentPhase,
       debugLog: {
         rational: {
@@ -128,9 +128,9 @@ export class ShadowEngine {
     const possibleMoves = this.getOrderedMoves(board, player, boardHistory.length);
 
     for (const move of possibleMoves) {
-      // 每一手棋都检查时间
       if (Date.now() - startTime > this.TIME_LIMIT) throw new Error("Timeout");
 
+      // 模拟落子时传递 boardHistory 以遵循打劫规则
       const result = GoLogic.processMove(board, move.r, move.c, player, boardHistory);
       if (!result.success) continue;
 
@@ -142,7 +142,7 @@ export class ShadowEngine {
         false, 
         player,
         boardHistory.length + 1,
-        [...boardHistory, result.newBoard],
+        [...boardHistory, board], // 传递历史快照
         startTime
       );
 
@@ -168,12 +168,10 @@ export class ShadowEngine {
   ): number {
     this.nodesEvaluated++;
     
-    // 时间检查
     if (this.nodesEvaluated % 100 === 0 && Date.now() - startTime > this.TIME_LIMIT) {
       throw new Error("Timeout");
     }
 
-    // 置换表查表
     const boardHash = this.getBoardHash(board);
     if (this.transpositionTable.has(boardHash)) {
       return this.transpositionTable.get(boardHash)!;
@@ -204,7 +202,7 @@ export class ShadowEngine {
           false,
           aiPlayer,
           moveCount + 1,
-          [...boardHistory, result.newBoard],
+          [...boardHistory, board],
           startTime
         );
         maxEval = Math.max(maxEval, evaluation);
@@ -226,7 +224,7 @@ export class ShadowEngine {
           true,
           aiPlayer,
           moveCount + 1,
-          [...boardHistory, result.newBoard],
+          [...boardHistory, board],
           startTime
         );
         minEval = Math.min(minEval, evaluation);
@@ -250,7 +248,6 @@ export class ShadowEngine {
         }
       }
     }
-    // 启发式排序：优先探索高分落子点，极大提高剪枝效率
     return moves.sort((a, b) => b.score - a.score);
   }
 
@@ -260,15 +257,4 @@ export class ShadowEngine {
     if (moveCount < total * 0.6) return 'Chuban';
     return 'Yose';
   }
-}
-
-export function findBestMove(
-  board: BoardState,
-  player: Player,
-  moveHistory: Move[],
-  boardSize: number,
-  boardHistory: BoardState[]
-) {
-  const engine = new ShadowEngine(boardSize);
-  return engine.findBestMove(board, player, moveHistory, boardHistory);
 }
