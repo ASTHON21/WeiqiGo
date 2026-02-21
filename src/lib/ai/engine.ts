@@ -4,19 +4,32 @@ import { BoardEvaluator } from './evaluator';
 import { findSgfMatch } from './dictionary/index';
 
 /**
- * 指挥层 (ShadowEngine)
- * 职责：决策总调度。
- * 优先级：1. SGF 字典匹配 (本能) -> 2. Alpha-Beta 启发式搜索 (理性)
+ * 高级指挥层 (ShadowEngine)
+ * 升级：迭代加深搜索 (Iterative Deepening) + 置换表 (Transposition Table)
+ * 职责：在限定时间内通过多层探索寻找最优解。
  */
 export class ShadowEngine {
   private evaluator: BoardEvaluator;
   private boardSize: number;
-  private maxDepth: number = 3;
   private nodesEvaluated: number = 0;
+  
+  // 置换表：缓存已计算过的局面分值
+  private transpositionTable = new Map<string, number>();
+  
+  // 搜索配置
+  private readonly TIME_LIMIT = 4000; // 4秒限制
+  private readonly MAX_DEPTH = 6;     // 最大深度
 
   constructor(boardSize: number) {
     this.boardSize = boardSize;
     this.evaluator = new BoardEvaluator(boardSize);
+  }
+
+  /**
+   * 生成局面唯一哈希键 (用于置换表)
+   */
+  private getBoardHash(board: BoardState): string {
+    return board.map(row => row.map(cell => cell || '.').join('')).join('|');
   }
 
   /**
@@ -29,53 +42,97 @@ export class ShadowEngine {
     boardHistory: BoardState[]
   ): { bestMove: Move | null; explanation: string; gamePhase: string; debugLog: any } {
     this.nodesEvaluated = 0;
+    this.transpositionTable.clear();
+    const startTime = Date.now();
     
     // 1. --- 模块：本能响应 (SGF 字典) ---
     const sgfMatch = findSgfMatch(history, this.boardSize);
     if (sgfMatch) {
       return {
         bestMove: { r: sgfMatch.r, c: sgfMatch.c, player },
-        explanation: `[记忆匹配] ${sgfMatch.explanation}`,
-        gamePhase: 'Joseki',
-        debugLog: {
-          instinct: {
-            status: "Hit",
-            match: sgfMatch
-          }
-        }
+        explanation: `[本能匹配] ${sgfMatch.explanation}`,
+        gamePhase: 'Opening',
+        debugLog: { instinct: { status: "Hit", match: sgfMatch } }
       };
     }
 
-    // 2. --- 模块：环境评估 ---
+    // 2. --- 模块：迭代加深搜索 ---
     const currentPhase = this.determinePhase(history.length);
-    const possibleMoves = this.getOrderedMoves(board, player, history.length);
+    let bestMoveFound: Move | null = null;
+    let finalDepth = 0;
+    let bestValueFound = -Infinity;
 
-    if (possibleMoves.length === 0) {
+    try {
+      for (let depth = 1; depth <= this.MAX_DEPTH; depth++) {
+        // 检查是否还有足够时间进行下一层搜索
+        if (Date.now() - startTime > this.TIME_LIMIT * 0.8) break;
+
+        const result = this.searchAtDepth(board, depth, player, boardHistory, startTime);
+        if (result.move) {
+          bestMoveFound = result.move;
+          bestValueFound = result.value;
+          finalDepth = depth;
+        }
+      }
+    } catch (e) {
+      console.log("[Engine] 搜索因时间耗尽强行中断。");
+    }
+
+    const elapsed = Date.now() - startTime;
+
+    if (!bestMoveFound) {
       return { 
         bestMove: null, 
-        explanation: "已无合法落子点，建议停着。", 
+        explanation: "AI 认为当前局面已终了。", 
         gamePhase: currentPhase,
-        debugLog: { status: "No legal moves" }
+        debugLog: { status: "No moves" }
       };
     }
 
-    // 3. --- 模块：自主思考 (Alpha-Beta 搜索) ---
+    return {
+      bestMove: bestMoveFound,
+      explanation: `[理性搜索] 深度 ${finalDepth} 层, 耗时 ${elapsed}ms, 评估分: ${bestValueFound.toFixed(1)}。`,
+      gamePhase: currentPhase,
+      debugLog: {
+        rational: {
+          nodes: this.nodesEvaluated,
+          depth: finalDepth,
+          time: elapsed,
+          value: bestValueFound,
+          tableSize: this.transpositionTable.size
+        }
+      }
+    };
+  }
+
+  private searchAtDepth(
+    board: BoardState, 
+    depth: number, 
+    player: Player, 
+    boardHistory: BoardState[],
+    startTime: number
+  ): { move: Move | null, value: number } {
     let bestValue = -Infinity;
-    let bestMove = possibleMoves[0];
+    let bestMove: Move | null = null;
+    const possibleMoves = this.getOrderedMoves(board, player, boardHistory.length);
 
     for (const move of possibleMoves) {
+      // 每一手棋都检查时间
+      if (Date.now() - startTime > this.TIME_LIMIT) throw new Error("Timeout");
+
       const result = GoLogic.processMove(board, move.r, move.c, player, boardHistory);
       if (!result.success) continue;
 
       const val = this.alphaBeta(
         result.newBoard,
-        this.maxDepth - 1,
+        depth - 1,
         -Infinity,
         Infinity,
         false, 
         player,
-        history.length + 1,
-        [...boardHistory, result.newBoard]
+        boardHistory.length + 1,
+        [...boardHistory, result.newBoard],
+        startTime
       );
 
       if (val > bestValue) {
@@ -84,20 +141,7 @@ export class ShadowEngine {
       }
     }
 
-    return {
-      bestMove: bestMove,
-      explanation: `[逻辑搜索] 字典未命中，已计算最佳评估分: ${bestValue.toFixed(1)}。`,
-      gamePhase: currentPhase,
-      debugLog: {
-        instinct: { status: "Miss" },
-        rational: {
-          nodesEvaluated: this.nodesEvaluated,
-          bestValue: bestValue,
-          moveCount: history.length,
-          phase: currentPhase
-        }
-      }
-    };
+    return { move: bestMove, value: bestValue };
   }
 
   private alphaBeta(
@@ -108,18 +152,33 @@ export class ShadowEngine {
     isMaximizing: boolean,
     aiPlayer: Player,
     moveCount: number,
-    boardHistory: BoardState[]
+    boardHistory: BoardState[],
+    startTime: number
   ): number {
     this.nodesEvaluated++;
     
+    // 时间检查
+    if (this.nodesEvaluated % 100 === 0 && Date.now() - startTime > this.TIME_LIMIT) {
+      throw new Error("Timeout");
+    }
+
+    // 置换表查表
+    const boardHash = this.getBoardHash(board);
+    if (this.transpositionTable.has(boardHash)) {
+      return this.transpositionTable.get(boardHash)!;
+    }
+
     if (depth === 0) {
-      return this.evaluator.evaluate(board, aiPlayer, moveCount);
+      const score = this.evaluator.evaluate(board, aiPlayer, moveCount);
+      this.transpositionTable.set(boardHash, score);
+      return score;
     }
 
     const opponent = aiPlayer === 'black' ? 'white' : 'black';
     const currentPlayer = isMaximizing ? aiPlayer : opponent;
     const moves = this.getOrderedMoves(board, currentPlayer, moveCount);
 
+    let resultValue: number;
     if (isMaximizing) {
       let maxEval = -Infinity;
       for (const move of moves) {
@@ -134,13 +193,14 @@ export class ShadowEngine {
           false,
           aiPlayer,
           moveCount + 1,
-          [...boardHistory, result.newBoard]
+          [...boardHistory, result.newBoard],
+          startTime
         );
         maxEval = Math.max(maxEval, evaluation);
         alpha = Math.max(alpha, evaluation);
         if (beta <= alpha) break;
       }
-      return maxEval;
+      resultValue = maxEval;
     } else {
       let minEval = Infinity;
       for (const move of moves) {
@@ -155,14 +215,18 @@ export class ShadowEngine {
           true,
           aiPlayer,
           moveCount + 1,
-          [...boardHistory, result.newBoard]
+          [...boardHistory, result.newBoard],
+          startTime
         );
         minEval = Math.min(minEval, evaluation);
         beta = Math.min(beta, evaluation);
         if (beta <= alpha) break;
       }
-      return minEval;
+      resultValue = minEval;
     }
+
+    this.transpositionTable.set(boardHash, resultValue);
+    return resultValue;
   }
 
   private getOrderedMoves(board: BoardState, player: Player, moveCount: number): Move[] {
@@ -175,13 +239,14 @@ export class ShadowEngine {
         }
       }
     }
+    // 启发式排序：优先探索高分落子点，极大提高剪枝效率
     return moves.sort((a, b) => b.score - a.score);
   }
 
   private determinePhase(moveCount: number): string {
     const total = this.boardSize * this.boardSize;
-    if (moveCount < total * 0.2) return 'Fuseki';
-    if (moveCount < total * 0.7) return 'Chuban';
+    if (moveCount < total * 0.15) return 'Fuseki';
+    if (moveCount < total * 0.6) return 'Chuban';
     return 'Yose';
   }
 }
