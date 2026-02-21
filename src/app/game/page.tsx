@@ -246,7 +246,6 @@ export default function GamePage() {
         setAiExplanation("AI 正在深度思考中...");
         
         try {
-          // 优化：不再通过网络传递庞大的 boardHistory，仅传递 Move[]
           const aiResult = await getAiMove(board, 'white', moveHistory, boardSize);
 
           if (aiResult.bestMove && aiResult.bestMove.r !== -1) {
@@ -467,11 +466,21 @@ export default function GamePage() {
 function NewGameDialog({ onStartGame, isPlayAgain = false }: { onStartGame: (options: { boardSize: number, gameMode: GameMode }) => void; isPlayAgain?: boolean; }) {
   const [isOpen, setIsOpen] = useState(false);
   const [boardSize, setBoardSize] = useState("19");
-  const [gameMode, setBoardMode] = useState<GameMode>("pve");
+  const [gameMode, setGameMode] = useState<GameMode>("pve");
+
+  const handleModeChange = (mode: string) => {
+    const selectedMode = mode as GameMode;
+    setGameMode(selectedMode);
+    if (selectedMode === "pve") {
+      setBoardSize("19");
+    }
+  };
+
   const handleStart = () => {
     onStartGame({ boardSize: Number(boardSize), gameMode: gameMode });
     setIsOpen(false);
   };
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <Button onClick={() => setIsOpen(true)} className={cn("mt-8", isPlayAgain && "mt-0")} size={isPlayAgain ? "default" : "lg"}>
@@ -485,7 +494,7 @@ function NewGameDialog({ onStartGame, isPlayAgain = false }: { onStartGame: (opt
         <div className="grid gap-6 py-4">
             <div className="grid gap-2">
                 <Label>对战模式</Label>
-                <Select value={gameMode} onValueChange={(value) => setBoardMode(value as GameMode)}>
+                <Select value={gameMode} onValueChange={handleModeChange}>
                     <SelectTrigger><SelectValue placeholder="选择模式" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="pve">人机对战 (vs Shadow AI)</SelectItem>
@@ -495,14 +504,21 @@ function NewGameDialog({ onStartGame, isPlayAgain = false }: { onStartGame: (opt
             </div>
             <div className="grid gap-2">
                 <Label>棋盘尺寸</Label>
-                <Select value={boardSize} onValueChange={setBoardSize}>
+                <Select value={boardSize} onValueChange={setBoardSize} disabled={gameMode === "pve"}>
                     <SelectTrigger><SelectValue placeholder="选择棋盘" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="19">19x19 (标准竞赛)</SelectItem>
-                        <SelectItem value="13">13x13 (快速对局)</SelectItem>
-                        <SelectItem value="9">9x9 (初学者入门)</SelectItem>
+                        {gameMode === "pvp" && (
+                          <>
+                            <SelectItem value="13">13x13 (快速对局)</SelectItem>
+                            <SelectItem value="9">9x9 (初学者入门)</SelectItem>
+                          </>
+                        )}
                     </SelectContent>
                 </Select>
+                {gameMode === "pve" && (
+                  <p className="text-xs text-muted-foreground mt-1">人机对战模式目前仅支持 19x19 标准棋盘。</p>
+                )}
             </div>
         </div>
         <DialogFooter>
