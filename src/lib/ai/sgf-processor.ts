@@ -1,22 +1,12 @@
-import { Move } from '../types';
+import { Move, LevelData } from '../types';
 
 /**
- * SgfProcessor - 19路棋盘标准转换器与矩阵变换核心
- * 负责处理所有与 SGF 字符相关的转换逻辑，并提供 8 种棋盘矩阵对称变换。
+ * SgfProcessor - 镜像系统核心解析器
+ * 负责将 SGF 文件转换为有序的动作序列，支持解析预摆棋子。
  */
 export const SgfProcessor = {
     /**
-     * 将数字坐标转换为 SGF 字母坐标 (支持 19x19，范围 a-s)
-     */
-    toSgf(r: number, c: number): string {
-        if (r < 0 || c < 0) return "";
-        const col = String.fromCharCode(c + 97);
-        const row = String.fromCharCode(r + 97);
-        return `${col}${row}`;
-    },
-
-    /**
-     * 将 SGF 字母坐标转换为数字坐标
+     * 解析 SGF 坐标 (如 "pd" -> {r:15, c:15})
      */
     fromSgf(sgf: string): { r: number; c: number } {
         if (!sgf || sgf.length < 2) return { r: -1, c: -1 };
@@ -27,45 +17,47 @@ export const SgfProcessor = {
     },
 
     /**
-     * 19路棋盘路径哈希生成器
-     * 使用 "r,c" 格式并用 "|" 分隔，不带颜色标签以提高泛化性
+     * 解析完整的 SGF 字符串为 LevelData
      */
-    generatePathKey(history: Move[]): string {
-        return history.map(m => `${m.r},${m.c}`).join('|');
-    },
+    parseLevel(id: string, content: string): LevelData {
+        const moves: Move[] = [];
+        const handicaps: Move[] = [];
+        
+        // 解析标题 [SZ] [KM] [PB] [PW] 等标签 (简易实现)
+        const boardSizeMatch = content.match(/SZ\[(\d+)\]/);
+        const boardSize = boardSizeMatch ? parseInt(boardSizeMatch[1]) : 19;
 
-    /**
-     * 矩阵变换核心：计算 8 种对称坐标
-     * @param r 行, @param c 列, @param size 棋盘大小
-     */
-    getSymmetryCoords(r: number, c: number, size: number) {
-        const s = size - 1;
-        return [
-            { r, c },                   // 0: 原始
-            { r: c, c: s - r },         // 1: 顺时针 90°
-            { r: s - r, c: s - c },     // 2: 180°
-            { r: s - c, c: r },         // 3: 270°
-            { r, c: s - c },            // 4: 水平镜像
-            { r: s - r, c },            // 5: 垂直镜像
-            { r: c, c: r },             // 6: 对角线镜像 \
-            { r: s - c, c: s - r }      // 7: 对角线镜像 /
-        ];
-    },
-
-    /**
-     * 逆向矩阵变换：将匹配到的对称坐标还原回当前玩家视角
-     */
-    invertTransform(r: number, c: number, type: number, size: number): { r: number, c: number } {
-        const s = size - 1;
-        switch (type) {
-            case 1: return { r: s - c, c: r };     // 逆时针 90° 还原
-            case 2: return { r: s - r, c: s - c }; // 180° 还原
-            case 3: return { r: c, c: s - r };     // 顺时针 90° 还原
-            case 4: return { r, c: s - c };        // 水平还原
-            case 5: return { r: s - r, c };        // 垂直还原
-            case 6: return { r: c, c: r };         // 对角线 \ 还原
-            case 7: return { r: s - c, c: s - r }; // 对角线 / 还原
-            default: return { r, c };              // 原始还原
+        // 解析预摆棋子 AB[pd][pp]...
+        const abMatches = content.matchAll(/AB\[([a-s]{2})\]/g);
+        for (const match of abMatches) {
+            const coord = this.fromSgf(match[1]);
+            handicaps.push({ ...coord, player: 'black' });
         }
+        
+        const awMatches = content.matchAll(/AW\[([a-s]{2})\]/g);
+        for (const match of awMatches) {
+            const coord = this.fromSgf(match[1]);
+            handicaps.push({ ...coord, player: 'white' });
+        }
+
+        // 解析步进序列 ;B[pd];W[dp]...
+        const moveMatches = content.matchAll(/;([BW])\[([a-s]{2})\]/g);
+        let index = 0;
+        for (const match of moveMatches) {
+            const player = match[1] === 'B' ? 'black' : 'white';
+            const coord = this.fromSgf(match[2]);
+            moves.push({ ...coord, player, index: index++ });
+        }
+
+        return {
+            id,
+            title: `AlphaGo vs Human - ${id}`,
+            description: "复刻 AlphaGo 的传奇思路",
+            difficulty: 'Hard',
+            boardSize,
+            handicaps,
+            moves,
+            totalSteps: moves.length
+        };
     }
 };

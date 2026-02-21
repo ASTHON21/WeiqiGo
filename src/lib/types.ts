@@ -15,33 +15,50 @@ export type BoardState = Stone[][];
  * 动作与历史
  */
 export interface Move {
-  r: number;          // 行坐标 (-1 表示停着/Pass，0-18 表示落子)
-  c: number;          // 列坐标 (-1 表示停着/Pass，0-18 表示落子)
+  r: number;          // 行坐标 (0-18)
+  c: number;          // 列坐标 (0-18)
   player: Player;     // 落子方
-  t?: number;         // 时间戳 (可选)
+  index?: number;     // 在棋谱中的序号
 }
 
 /**
- * 游戏生命周期与模式
+ * 镜像关卡系统专用类型
+ */
+export interface LevelData {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  boardSize: number;
+  handicaps: Move[];  // 初始预摆棋子 (AB/AW)
+  moves: Move[];      // 完整对局序列
+  totalSteps: number;
+}
+
+export interface MirrorGameState {
+  currentStepIndex: number; // 当前在 moves 数组中的索引
+  isCompleted: boolean;
+  isCorrect: boolean | null;
+  hintPosition: { r: number; c: number } | null;
+}
+
+/**
+ * 游戏生命周期
  */
 export type GameStatus = 'setup' | 'playing' | 'finished';
-export type GameMode = 'pvp' | 'pve';
-export type GamePhase = 'Fuseki' | 'Chuban' | 'Yose' | 'Unknown';
+export type GameMode = 'mirror' | 'pvp';
 
 /**
- * 评分与结算详细信息
+ * 评分详细信息 (保留用于对局结束)
  */
 export interface ScoreDetails {
-  blackStones: number;    // 黑棋子数
-  whiteStones: number;    // 白棋子数
-  blackTerritory: number; // 黑地（目数）
-  whiteTerritory: number; // 白地（目数）
-  komi: number;           // 贴目 (通常为 7.5)
+  blackStones: number;
+  whiteStones: number;
+  blackTerritory: number;
+  whiteTerritory: number;
+  komi: number;
 }
 
-/**
- * 游戏结果封装
- */
 export interface GameResult {
   winner: Player | 'draw' | null;
   reason: string;
@@ -50,34 +67,12 @@ export interface GameResult {
   scoreDetails?: ScoreDetails;
 }
 
-/**
- * 对局历史记录
- */
 export interface GameHistoryEntry {
   id: string;
   date: string;
-  mode: 'local' | 'ai';
+  mode: 'mirror' | 'local';
+  levelId?: string;
   result: GameResult | null;
   moveHistory: Move[];
   boardSize: number;
-}
-
-/**
- * AI 引擎相关接口 (与 ShadowEngine 对齐)
- */
-export interface AiResponse {
-  bestMove: Move | null;
-  explanation: string;   // 决策依据
-  gamePhase: GamePhase | string;
-  debugLog?: any;        // 调试信息
-  confidence?: number;   // 置信度 (可选)
-}
-
-/**
- * 字典条目接口 (与 DictionaryManager 对齐)
- */
-export interface SgfDatabaseEntry {
-  hash: string;          // 路径哈希
-  nextMove: string;      // SGF 格式坐标 (如 "pd")
-  source: string;        // 来源 SGF 文件名
 }
