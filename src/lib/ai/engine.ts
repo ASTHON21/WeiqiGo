@@ -52,7 +52,15 @@ export class ShadowEngine {
         bestMove: { r: sgfMatch.r, c: sgfMatch.c, player },
         explanation: `[本能匹配] ${sgfMatch.explanation}`,
         gamePhase: 'Opening',
-        debugLog: { instinct: { status: "Hit", match: sgfMatch } }
+        debugLog: { 
+          instinct: { status: "Hit", match: sgfMatch },
+          rational: {
+            nodesEvaluated: 0,
+            bestValue: 0,
+            depth: 0,
+            time: 0
+          }
+        }
       };
     }
 
@@ -60,7 +68,7 @@ export class ShadowEngine {
     const currentPhase = this.determinePhase(history.length);
     let bestMoveFound: Move | null = null;
     let finalDepth = 0;
-    let bestValueFound = -Infinity;
+    let bestValueFound = 0;
 
     try {
       for (let depth = 1; depth <= this.MAX_DEPTH; depth++) {
@@ -85,7 +93,10 @@ export class ShadowEngine {
         bestMove: null, 
         explanation: "AI 认为当前局面已终了。", 
         gamePhase: currentPhase,
-        debugLog: { status: "No moves" }
+        debugLog: { 
+          status: "No moves",
+          rational: { nodesEvaluated: this.nodesEvaluated, bestValue: 0 }
+        }
       };
     }
 
@@ -95,10 +106,10 @@ export class ShadowEngine {
       gamePhase: currentPhase,
       debugLog: {
         rational: {
-          nodes: this.nodesEvaluated,
+          nodesEvaluated: this.nodesEvaluated,
           depth: finalDepth,
           time: elapsed,
-          value: bestValueFound,
+          bestValue: bestValueFound,
           tableSize: this.transpositionTable.size
         }
       }

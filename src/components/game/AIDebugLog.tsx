@@ -55,11 +55,11 @@ export function AIDebugLog({ log, className }: AIDebugLogProps) {
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="p-2 border rounded-md bg-muted/30">
                         <p className="text-muted-foreground">Nodes Checked</p>
-                        <p className="font-bold">{log.rational.nodesEvaluated}</p>
+                        <p className="font-bold">{log.rational?.nodesEvaluated ?? 0}</p>
                       </div>
                       <div className="p-2 border rounded-md bg-muted/30">
                         <p className="text-muted-foreground">Eval Score</p>
-                        <p className="font-bold">{log.rational.bestValue.toFixed(1)}</p>
+                        <p className="font-bold">{(log.rational?.bestValue ?? 0).toFixed(1)}</p>
                       </div>
                     </div>
                     <ScrollArea className="h-32 rounded-md border bg-muted/50 p-2">
