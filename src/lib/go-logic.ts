@@ -118,6 +118,14 @@ export const GoLogic = {
 };
 
 /**
+ * 辅助：创建空棋盘
+ */
+export const createEmptyBoard = (size: number): BoardState =>
+  Array(size)
+    .fill(null)
+    .map(() => Array(size).fill(null));
+
+/**
  * 自动点目辅助：漫水填充
  */
 function findEmptyArea(board: BoardState, r: number, c: number, globalVisited: Set<string>) {

@@ -6,7 +6,6 @@ import { findSgfMatch } from './dictionary/index';
 /**
  * 高级指挥层 (ShadowEngine)
  * 升级：迭代加深搜索 (Iterative Deepening) + 时间预算控制
- * 职责：在限定时间内通过多层探索寻找最优解。
  */
 export class ShadowEngine {
   private evaluator: BoardEvaluator;
@@ -49,7 +48,7 @@ export class ShadowEngine {
     if (sgfMatch) {
       return {
         bestMove: { r: sgfMatch.r, c: sgfMatch.c, player },
-        explanation: `[本能匹配] ${sgfMatch.explanation}`,
+        explanation: sgfMatch.explanation,
         gamePhase: 'Opening',
         debugLog: { 
           instinct: { status: "Hit", match: sgfMatch },
@@ -70,10 +69,9 @@ export class ShadowEngine {
     let bestValueFound = 0;
 
     try {
-      // 从 1 层开始逐步深挖，最高 6 层
+      // 迭代加深：1层，2层... 直到时间耗尽
       for (let depth = 1; depth <= 6; depth++) {
         const elapsed = Date.now() - startTime;
-        // 如果已用时间超过预算的 80%，则不再尝试下一层，确保安全收工
         if (elapsed > this.TIME_LIMIT * 0.8) break;
 
         const result = this.searchAtDepth(board, depth, player, boardHistory, startTime);
@@ -96,6 +94,7 @@ export class ShadowEngine {
         explanation: "AI 认为当前局面已终了。", 
         gamePhase: currentPhase,
         debugLog: { 
+          instinct: { status: "Miss" },
           rational: { nodesEvaluated: this.nodesEvaluated, bestValue: 0, depth: 0, time: totalElapsed }
         }
       };
@@ -103,9 +102,10 @@ export class ShadowEngine {
 
     return {
       bestMove: bestMoveFound,
-      explanation: `[逻辑搜索] 深度 ${finalDepth} 层, 耗时 ${totalElapsed}ms, 评估分: ${bestValueFound.toFixed(1)}。`,
+      explanation: `[逻辑搜索] 深度:${finalDepth} 耗时:${totalElapsed}ms 评估:${bestValueFound.toFixed(1)}`,
       gamePhase: currentPhase,
       debugLog: {
+        instinct: { status: "Miss" },
         rational: {
           nodesEvaluated: this.nodesEvaluated,
           depth: finalDepth,
@@ -129,7 +129,6 @@ export class ShadowEngine {
     const possibleMoves = this.getOrderedMoves(board, player, boardHistory.length);
 
     for (const move of possibleMoves) {
-      // 每一手迭代前检查一次时间
       if (Date.now() - startTime > this.TIME_LIMIT) throw new Error("Timeout");
 
       const result = GoLogic.processMove(board, move.r, move.c, player, boardHistory);
@@ -169,7 +168,6 @@ export class ShadowEngine {
   ): number {
     this.nodesEvaluated++;
     
-    // 周期性检查时间，避免深层递归导致挂死
     if (this.nodesEvaluated % 128 === 0 && Date.now() - startTime > this.TIME_LIMIT) {
       throw new Error("Timeout");
     }
@@ -251,7 +249,6 @@ export class ShadowEngine {
         }
       }
     }
-    // 启发式：优先搜索评估分高的点，加速剪枝
     return moves.sort((a, b) => b.score - a.score);
   }
 

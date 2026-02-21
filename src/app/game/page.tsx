@@ -36,7 +36,7 @@ import type {
   GameMode,
   GamePhase,
 } from "@/lib/types";
-import { processMove, calculateScore } from "@/lib/go-logic";
+import { processMove, calculateScore, createEmptyBoard } from "@/lib/go-logic";
 import { cn } from "@/lib/utils";
 import { MoveHistory } from "@/components/game/MoveHistory";
 import { useFirestore, addDocumentNonBlocking } from "@/firebase";
@@ -49,11 +49,6 @@ const timeSettings: { [key: number]: number } = {
   19: 3 * 60 * 60 * 1000,
 };
 
-const createEmptyBoard = (size: number): BoardState =>
-  Array(size)
-    .fill(null)
-    .map(() => Array(size).fill(null));
-
 interface GameState {
   boardSize: number;
   board: BoardState;
@@ -61,7 +56,7 @@ interface GameState {
   gameStatus: GameStatus;
   gameResult: GameResult | null;
   moveHistory: Move[];
-  boardHistory: BoardState[]; // 存储每一手开始前的盘面，用于打劫校验
+  boardHistory: BoardState[];
   lastMove: Move | null;
   captures: { black: number; white: number };
   gameMode: GameMode;
@@ -96,7 +91,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...getInitialState(boardSize),
         gameMode,
         gameStatus: 'playing',
-        boardHistory: [], // 初始历史为空
+        boardHistory: [],
       };
     }
     case 'MAKE_MOVE': {
@@ -109,7 +104,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         board,
         moveHistory: [...state.moveHistory, move],
-        boardHistory: [...state.boardHistory, state.board], // 关键：存储落子前的快照用于打劫判定
+        boardHistory: [...state.boardHistory, state.board],
         lastMove: move,
         currentPlayer: state.currentPlayer === 'black' ? 'white' : 'black',
         captures: newCaptures,
@@ -131,9 +126,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const newMoveHistory = state.moveHistory.slice(0, state.moveHistory.length - movesToUndo);
       const newBoardHistory = state.boardHistory.slice(0, state.boardHistory.length - movesToUndo);
       
-      // 还原到历史记录中的最后一个盘面，或者空棋盘
       const lastValidBoard = newBoardHistory.length > 0 
-        ? state.boardHistory[state.boardHistory.length - movesToUndo]
+        ? newBoardHistory[newBoardHistory.length - 1]
         : createEmptyBoard(state.boardSize);
         
       const newLastMove = newMoveHistory.length > 0 ? newMoveHistory[newMoveHistory.length - 1] : null;
@@ -200,7 +194,6 @@ export default function GamePage() {
      if (gameStatus !== 'playing') return;
      const lastMoveInHistory = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
      if (lastMoveInHistory && lastMoveInHistory.r === -1 && lastMoveInHistory.c === -1) {
-         toast({ title: '游戏结束', description: '双方连续停着。'});
          const scoreResult = calculateScore(board);
          endGame(scoreResult.winner, '双方停着协议终局', scoreResult);
      } else {
@@ -228,7 +221,6 @@ export default function GamePage() {
   const handleMove = useCallback((r: number, c: number) => {
       if (gameStatus !== "playing" || (gameMode === 'pve' && currentPlayer === 'white')) return;
       
-      // 传递 boardHistory 进行打劫校验
       const result = processMove(board, r, c, currentPlayer, boardHistory);
       
       if (result.success) {
@@ -254,8 +246,8 @@ export default function GamePage() {
         setAiExplanation("AI 正在深度思考中...");
         
         try {
-          // 调用服务端网关，传递棋盘历史
-          const aiResult = await getAiMove(board, 'white', moveHistory, boardSize, boardHistory);
+          // 优化：不再通过网络传递庞大的 boardHistory，仅传递 Move[]
+          const aiResult = await getAiMove(board, 'white', moveHistory, boardSize);
 
           if (aiResult.bestMove && aiResult.bestMove.r !== -1) {
             setAiGamePhase(aiResult.gamePhase as any);
@@ -475,7 +467,7 @@ export default function GamePage() {
 function NewGameDialog({ onStartGame, isPlayAgain = false }: { onStartGame: (options: { boardSize: number, gameMode: GameMode }) => void; isPlayAgain?: boolean; }) {
   const [isOpen, setIsOpen] = useState(false);
   const [boardSize, setBoardSize] = useState("19");
-  const [gameMode, setGameMode] = useState<GameMode>("pve");
+  const [gameMode, setBoardMode] = useState<GameMode>("pve");
   const handleStart = () => {
     onStartGame({ boardSize: Number(boardSize), gameMode: gameMode });
     setIsOpen(false);
@@ -493,7 +485,7 @@ function NewGameDialog({ onStartGame, isPlayAgain = false }: { onStartGame: (opt
         <div className="grid gap-6 py-4">
             <div className="grid gap-2">
                 <Label>对战模式</Label>
-                <Select value={gameMode} onValueChange={(value) => setGameMode(value as GameMode)}>
+                <Select value={gameMode} onValueChange={(value) => setBoardMode(value as GameMode)}>
                     <SelectTrigger><SelectValue placeholder="选择模式" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="pve">人机对战 (vs Shadow AI)</SelectItem>
