@@ -14,7 +14,7 @@ import type { Player, BoardState, LevelData } from "@/lib/types";
 import { GoLogic, createEmptyBoard } from "@/lib/go-logic";
 import { getLevelData } from "@/app/actions/ai";
 import { cn } from "@/lib/utils";
-import { History, ArrowLeftRight, Loader2, Users } from "lucide-react";
+import { History, ArrowLeftRight, Loader2, Users, LayoutGrid } from "lucide-react";
 
 export default function GameContainerPage() {
   const searchParams = useSearchParams();
@@ -22,9 +22,11 @@ export default function GameContainerPage() {
   const levelId = searchParams.get('levelId') || 'AlphaGo_LeeSedol_G1';
   const initialPlayerColor = (searchParams.get('playerColor') as Player) || 'black';
   const isWaiting = searchParams.get('isWaiting') === 'true';
+  const requestedBoardSize = parseInt(searchParams.get('boardSize') || '19');
 
   const [level, setLevel] = useState<LevelData | null>(null);
-  const [board, setBoard] = useState<BoardState>(createEmptyBoard(19));
+  const [boardSize, setBoardSize] = useState(requestedBoardSize);
+  const [board, setBoard] = useState<BoardState>(createEmptyBoard(requestedBoardSize));
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hint, setHint] = useState<{r: number, c: number} | null>(null);
@@ -37,20 +39,26 @@ export default function GameContainerPage() {
       if (mode === 'mirror') {
         const data = await getLevelData(levelId);
         setLevel(data);
+        setBoardSize(data.boardSize);
         let initBoard = createEmptyBoard(data.boardSize);
         data.handicaps.forEach(m => { initBoard[m.r][m.c] = m.player; });
         setBoard(initBoard);
-      } else if (mode === 'pvp' && isWaiting) {
-        setMatchStatus('waiting');
-        setTimeout(() => setMatchStatus('ready'), 2500);
-      } else if (mode === 'self') {
-        // 自对弈模式：根据初始选择设置颜色，但不使用 AI
-        setPlayerColor(initialPlayerColor);
+      } else {
+        // 自对弈或 PVP 模式使用请求的尺寸
+        setBoardSize(requestedBoardSize);
+        setBoard(createEmptyBoard(requestedBoardSize));
+        
+        if (mode === 'pvp' && isWaiting) {
+          setMatchStatus('waiting');
+          setTimeout(() => setMatchStatus('ready'), 2500);
+        } else if (mode === 'self') {
+          setPlayerColor(initialPlayerColor);
+        }
       }
       setIsLoading(false);
     }
     init();
-  }, [mode, levelId, isWaiting, initialPlayerColor]);
+  }, [mode, levelId, isWaiting, initialPlayerColor, requestedBoardSize]);
 
   const handleMove = useCallback((r: number, c: number) => {
     const currentTurn = currentStep % 2 === 0 ? 'black' : 'white';
@@ -82,8 +90,6 @@ export default function GameContainerPage() {
         toast({ title: "路径错误", description: "这里的走法与棋谱不符。", variant: "destructive" });
       }
     } else {
-      // 本地练棋 (Self) 或 PVP 逻辑
-      // 在本地练棋模式下，不拦截任何颜色的落子，完全由用户控制
       if (mode === 'pvp' && currentTurn !== playerColor) {
         toast({ title: "等待对手", description: "现在是对方的回合。" });
         return;
@@ -109,7 +115,7 @@ export default function GameContainerPage() {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-medium">正在初始化名局环境...</p>
+        <p className="text-muted-foreground font-medium">正在初始化棋局环境...</p>
       </div>
     );
   }
@@ -123,7 +129,7 @@ export default function GameContainerPage() {
         </div>
         <div className="text-center space-y-2">
           <h2 className="text-2xl font-bold">正在匹配对手...</h2>
-          <p className="text-muted-foreground">正在为您寻找全球各地的围棋高手</p>
+          <p className="text-muted-foreground">正在寻找 {boardSize}x{boardSize} 棋局的对手</p>
         </div>
         <Button variant="ghost" onClick={() => window.history.back()}>取消匹配</Button>
       </div>
@@ -143,10 +149,12 @@ export default function GameContainerPage() {
               <Badge variant="outline" className="mb-2">
                 {mode === 'mirror' ? '镜像复刻' : mode === 'pvp' ? '玩家连线' : '本地练棋'}
               </Badge>
-              {level && <Badge>{level.difficulty}</Badge>}
+              <Badge variant="secondary" className="flex items-center gap-1">
+                <LayoutGrid className="h-3 w-3" /> {boardSize}x{boardSize}
+              </Badge>
             </div>
             <CardTitle className="font-headline text-2xl">{level?.title || (mode === 'pvp' ? '在线对局' : '自由练习')}</CardTitle>
-            <CardDescription>{level?.description || '自由落子，手动控制双方，磨炼棋艺。'}</CardDescription>
+            <CardDescription>{level?.description || '手动控制落子，研究棋理。'}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {mode === 'mirror' && (
@@ -206,7 +214,7 @@ export default function GameContainerPage() {
           onMove={handleMove} 
           disabled={mode === 'mirror' && level ? currentStep >= level.totalSteps : false}
           lastMove={null} 
-          size={19}
+          size={boardSize}
           currentPlayer={currentTurn}
           isAiThinking={false}
         />
@@ -214,8 +222,8 @@ export default function GameContainerPage() {
           <div 
             className="absolute h-8 w-8 rounded-full border-4 border-yellow-400 border-dashed animate-pulse pointer-events-none"
             style={{
-              top: `${(hint.r / 18) * 100}%`,
-              left: `${(hint.c / 18) * 100}%`,
+              top: `${(hint.r / (boardSize - 1)) * 100}%`,
+              left: `${(hint.c / (boardSize - 1)) * 100}%`,
               transform: 'translate(-50%, -50%)',
               marginTop: '16px',
               marginLeft: '16px'
@@ -241,14 +249,14 @@ export default function GameContainerPage() {
                     )}>
                       <span className="font-mono text-xs w-6">{i + 1}.</span>
                       <div className={cn("w-3 h-3 rounded-full border", m.player === 'black' ? 'bg-black' : 'bg-white')} />
-                      <span>{String.fromCharCode(m.c + 97).toUpperCase()}{19 - m.r}</span>
+                      <span>{String.fromCharCode(m.c + 97).toUpperCase()}{boardSize - m.r}</span>
                       {i < currentStep && <Icons.Play className="ml-auto h-3 w-3 text-green-500" />}
                     </div>
                   ))
                 ) : (
                   <div className="p-8 text-center text-muted-foreground">
                     <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                    <p>自由对弈模式下，动作序列将实时显示在这里。</p>
+                    <p>动作序列将实时显示在这里。</p>
                   </div>
                 )}
              </div>
