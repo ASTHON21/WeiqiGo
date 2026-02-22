@@ -10,11 +10,20 @@ import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import type { Player, BoardState, LevelData } from "@/lib/types";
 import { GoLogic, createEmptyBoard } from "@/lib/go-logic";
-import { getLevelData } from "@/app/actions/ai";
+import { getLevelData, getRulesContent } from "@/app/actions/ai";
 import { cn } from "@/lib/utils";
-import { History, ArrowLeftRight, Loader2, Users, LayoutGrid } from "lucide-react";
+import { History, ArrowLeftRight, Loader2, Users, LayoutGrid, BookOpen, Info } from "lucide-react";
 
 export default function GameContainerPage() {
   const searchParams = useSearchParams();
@@ -32,10 +41,15 @@ export default function GameContainerPage() {
   const [hint, setHint] = useState<{r: number, c: number} | null>(null);
   const [playerColor, setPlayerColor] = useState<Player>(initialPlayerColor);
   const [matchStatus, setMatchStatus] = useState<'waiting' | 'ready'>('ready');
+  const [rules, setRules] = useState<string>("");
   const { toast } = useToast();
 
   useEffect(() => {
     async function init() {
+      // 提前加载规则内容
+      const rulesContent = await getRulesContent();
+      setRules(rulesContent);
+
       if (mode === 'mirror') {
         const data = await getLevelData(levelId);
         setLevel(data);
@@ -44,7 +58,6 @@ export default function GameContainerPage() {
         data.handicaps.forEach(m => { initBoard[m.r][m.c] = m.player; });
         setBoard(initBoard);
       } else {
-        // 自对弈或 PVP 模式使用请求的尺寸
         setBoardSize(requestedBoardSize);
         setBoard(createEmptyBoard(requestedBoardSize));
         
@@ -90,18 +103,13 @@ export default function GameContainerPage() {
         toast({ title: "路径错误", description: "这里的走法与棋谱不符。", variant: "destructive" });
       }
     } else {
-      if (mode === 'pvp' && currentTurn !== playerColor) {
-        toast({ title: "等待对手", description: "现在是对方的回合。" });
-        return;
-      }
-      
       const result = GoLogic.processMove(board, r, c, currentTurn);
       if (result.success) {
         setBoard(result.newBoard);
         setCurrentStep(prev => prev + 1);
       }
     }
-  }, [mode, level, currentStep, board, playerColor, toast]);
+  }, [mode, level, currentStep, board, toast]);
 
   const requestSwap = () => {
     toast({ title: "换子请求已发送", description: "等待对方确认..." });
@@ -153,7 +161,7 @@ export default function GameContainerPage() {
                 <LayoutGrid className="h-3 w-3" /> {boardSize}x{boardSize}
               </Badge>
             </div>
-            <CardTitle className="font-headline text-2xl">{level?.title || (mode === 'pvp' ? '在线对局' : '自由练习')}</CardTitle>
+            <CardTitle className="font-headline text-2xl">{level?.title || (mode === 'pvp' ? '在线对局' : '本地练棋')}</CardTitle>
             <CardDescription>{level?.description || '手动控制落子，研究棋理。'}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -199,6 +207,32 @@ export default function GameContainerPage() {
                 <Button className="w-full" variant="outline" onClick={requestSwap}>
                   <ArrowLeftRight className="mr-2 h-4 w-4" /> 请求换子
                 </Button>
+              )}
+              {(mode === 'self' || mode === 'pvp') && (
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button className="w-full" variant="secondary">
+                      <BookOpen className="mr-2 h-4 w-4" /> 查阅竞赛规则
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+                    <SheetHeader>
+                      <SheetTitle className="flex items-center gap-2">
+                        <Info className="h-5 w-5 text-accent" /> 中国围棋竞赛规则
+                      </SheetTitle>
+                      <SheetDescription>
+                        版本：v2.0 | 适用范围：世界级赛事
+                      </SheetDescription>
+                    </SheetHeader>
+                    <ScrollArea className="h-[calc(100vh-120px)] mt-6 pr-4">
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                          {rules}
+                        </pre>
+                      </div>
+                    </ScrollArea>
+                  </SheetContent>
+                </Sheet>
               )}
               <Button className="w-full" variant="ghost" onClick={() => window.location.href = '/'}>
                 <Icons.Home className="mr-2 h-4 w-4" /> 返回主菜单
