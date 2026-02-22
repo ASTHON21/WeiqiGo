@@ -19,11 +19,22 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import type { Player, BoardState, LevelData } from "@/lib/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import type { Player, BoardState, LevelData, GameResult } from "@/lib/types";
 import { GoLogic, createEmptyBoard } from "@/lib/go-logic";
 import { getLevelData, getRulesContent } from "@/app/actions/ai";
 import { cn } from "@/lib/utils";
-import { History, ArrowLeftRight, Loader2, Users, LayoutGrid, BookOpen, Info } from "lucide-react";
+import { History, ArrowLeftRight, Loader2, Users, LayoutGrid, BookOpen, Info, Flag, Swords } from "lucide-react";
 
 export default function GameContainerPage() {
   const searchParams = useSearchParams();
@@ -36,17 +47,20 @@ export default function GameContainerPage() {
   const [level, setLevel] = useState<LevelData | null>(null);
   const [boardSize, setBoardSize] = useState(requestedBoardSize);
   const [board, setBoard] = useState<BoardState>(createEmptyBoard(requestedBoardSize));
+  const [boardHistory, setBoardHistory] = useState<BoardState[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hint, setHint] = useState<{r: number, c: number} | null>(null);
   const [playerColor, setPlayerColor] = useState<Player>(initialPlayerColor);
   const [matchStatus, setMatchStatus] = useState<'waiting' | 'ready'>('ready');
   const [rules, setRules] = useState<string>("");
+  const [consecutivePasses, setConsecutivePasses] = useState(0);
+  const [gameResult, setGameResult] = useState<GameResult | null>(null);
+  
   const { toast } = useToast();
 
   useEffect(() => {
     async function init() {
-      // 提前加载规则内容
       const rulesContent = await getRulesContent();
       setRules(rulesContent);
 
@@ -64,8 +78,6 @@ export default function GameContainerPage() {
         if (mode === 'pvp' && isWaiting) {
           setMatchStatus('waiting');
           setTimeout(() => setMatchStatus('ready'), 2500);
-        } else if (mode === 'self') {
-          setPlayerColor(initialPlayerColor);
         }
       }
       setIsLoading(false);
@@ -73,23 +85,53 @@ export default function GameContainerPage() {
     init();
   }, [mode, levelId, isWaiting, initialPlayerColor, requestedBoardSize]);
 
+  const handleEndGame = useCallback(() => {
+    const score = GoLogic.calculateScore(board);
+    setGameResult({
+      winner: score.winner,
+      reason: "双方弃权，终局数子",
+      blackScore: score.blackTotal,
+      whiteScore: score.whiteTotal
+    });
+    toast({
+      title: "对局结束",
+      description: `黑方 ${score.blackTotal} 子，白方 ${score.whiteTotal} 子（含贴目）。${score.winner === 'black' ? '黑胜' : '白胜'} ${score.diff.toFixed(1)} 目。`,
+    });
+  }, [board, toast]);
+
+  const handlePass = useCallback(() => {
+    const nextPasses = consecutivePasses + 1;
+    setConsecutivePasses(nextPasses);
+    setCurrentStep(prev => prev + 1);
+    
+    toast({ title: "弃权", description: `${currentStep % 2 === 0 ? '黑方' : '白方'}选择了弃权。` });
+
+    if (nextPasses >= 2) {
+      handleEndGame();
+    }
+  }, [consecutivePasses, currentStep, handleEndGame, toast]);
+
   const handleMove = useCallback((r: number, c: number) => {
+    if (gameResult) return;
     const currentTurn = currentStep % 2 === 0 ? 'black' : 'white';
 
     if (mode === 'mirror') {
       if (!level || currentStep >= level.moves.length) return;
       const expectedMove = level.moves[currentStep];
       if (GoLogic.validateMirrorMove({r, c}, expectedMove)) {
-        const result = GoLogic.processMove(board, r, c, expectedMove.player);
+        const result = GoLogic.processMove(board, r, c, expectedMove.player, boardHistory);
         if (result.success) {
+          setBoardHistory(prev => [...prev, board]);
           setBoard(result.newBoard);
           setHint(null);
+          setConsecutivePasses(0);
           const nextIndex = currentStep + 1;
           if (nextIndex < level.moves.length) {
             const aiMove = level.moves[nextIndex];
             setTimeout(() => {
-              const aiResult = GoLogic.processMove(result.newBoard, aiMove.r, aiMove.c, aiMove.player);
+              const aiResult = GoLogic.processMove(result.newBoard, aiMove.r, aiMove.c, aiMove.player, [...boardHistory, board, result.newBoard]);
               if (aiResult.success) {
+                setBoardHistory(prev => [...prev, result.newBoard]);
                 setBoard(aiResult.newBoard);
                 setCurrentStep(nextIndex + 1);
               }
@@ -98,18 +140,24 @@ export default function GameContainerPage() {
             setCurrentStep(nextIndex);
             toast({ title: "关卡完成！", description: "你完美复刻了 AlphaGo 的思路。" });
           }
+        } else {
+           toast({ title: "无效落子", description: result.error === 'ko' ? "打劫！请先在别处落子。" : "该位置无法落子。", variant: "destructive" });
         }
       } else {
         toast({ title: "路径错误", description: "这里的走法与棋谱不符。", variant: "destructive" });
       }
     } else {
-      const result = GoLogic.processMove(board, r, c, currentTurn);
+      const result = GoLogic.processMove(board, r, c, currentTurn, boardHistory);
       if (result.success) {
+        setBoardHistory(prev => [...prev, board]);
         setBoard(result.newBoard);
         setCurrentStep(prev => prev + 1);
+        setConsecutivePasses(0);
+      } else {
+        toast({ title: "无效落子", description: result.error === 'ko' ? "打劫！请先在别处落子。" : result.error === 'suicide' ? "禁止自杀！此子落入后己方无气。" : "该位置无法落子。", variant: "destructive" });
       }
     }
-  }, [mode, level, currentStep, board, toast]);
+  }, [mode, level, currentStep, board, boardHistory, toast, gameResult]);
 
   const requestSwap = () => {
     toast({ title: "换子请求已发送", description: "等待对方确认..." });
@@ -162,78 +210,100 @@ export default function GameContainerPage() {
               </Badge>
             </div>
             <CardTitle className="font-headline text-2xl">{level?.title || (mode === 'pvp' ? '在线对局' : '本地练棋')}</CardTitle>
-            <CardDescription>{level?.description || '手动控制落子，研究棋理。'}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {mode === 'mirror' && (
-              <div className="space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span>对齐进度</span>
-                  <span>{Math.round(progress)}%</span>
+            {gameResult ? (
+              <div className="p-4 rounded-lg bg-accent/10 border border-accent text-center space-y-2">
+                <Swords className="h-8 w-8 mx-auto text-accent" />
+                <h3 className="font-bold text-lg">对局已终局</h3>
+                <p className="text-sm">胜负已分：{gameResult.winner === 'black' ? '黑中盘胜' : '白中盘胜'}</p>
+                <div className="flex justify-center gap-4 text-xs font-mono">
+                  <span>黑: {gameResult.blackScore}</span>
+                  <span>白: {gameResult.whiteScore}</span>
                 </div>
-                <Progress value={progress} className="h-2" />
-                <p className="text-xs text-muted-foreground text-right mt-1">
-                  步数: {currentStep} / {level?.totalSteps}
-                </p>
               </div>
-            )}
-            
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
-              <div className="flex items-center gap-3">
-                <div className={cn("h-4 w-4 rounded-full border", currentTurn === 'black' ? "bg-black" : "bg-white")} />
-                <span className="text-sm font-medium">{currentTurn === 'black' ? '黑方落子' : '白方落子'}</span>
-              </div>
-              <Badge variant="secondary">第 {currentStep + 1} 手</Badge>
-            </div>
-
-            {mode === 'pvp' && (
-              <Alert className="bg-blue-500/5 border-blue-500/20">
-                <AlertTitle className="text-blue-500 flex items-center gap-2">
-                  <Users className="h-4 w-4" /> 玩家已连线
-                </AlertTitle>
-                <AlertDescription className="text-xs">
-                  你当前执 <span className="font-bold underline">{playerColor === 'black' ? '黑' : '白'}</span> 子。
-                </AlertDescription>
-              </Alert>
+            ) : (
+              <>
+                {mode === 'mirror' && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span>对齐进度</span>
+                      <span>{Math.round(progress)}%</span>
+                    </div>
+                    <Progress value={progress} className="h-2" />
+                  </div>
+                )}
+                
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("h-4 w-4 rounded-full border", currentTurn === 'black' ? "bg-black" : "bg-white", "animate-pulse")} />
+                    <span className="text-sm font-medium">{currentTurn === 'black' ? '黑方落子' : '白方落子'}</span>
+                  </div>
+                  <Badge variant="secondary">第 {currentStep + 1} 手</Badge>
+                </div>
+              </>
             )}
 
             <div className="pt-2 space-y-2">
-              {mode === 'mirror' && (
+              {mode === 'mirror' && !gameResult && (
                 <Button className="w-full" variant="secondary" onClick={() => level && setHint({r: level.moves[currentStep].r, c: level.moves[currentStep].c})}>
                   <Icons.Settings className="mr-2 h-4 w-4" /> 获取名局提示
                 </Button>
               )}
-              {mode === 'pvp' && (
+              
+              {!gameResult && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button className="w-full" variant="outline">
+                      <Flag className="mr-2 h-4 w-4" /> 弃权 (Pass)
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>确认弃权？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        如果你认为当前局面已经无处可下，可以选择弃权。如果双方连续弃权，对局将结束并进入数子结算。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogAction onClick={handlePass}>确认弃权</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+
+              {mode === 'pvp' && !gameResult && (
                 <Button className="w-full" variant="outline" onClick={requestSwap}>
                   <ArrowLeftRight className="mr-2 h-4 w-4" /> 请求换子
                 </Button>
               )}
-              {(mode === 'self' || mode === 'pvp') && (
-                <Sheet>
-                  <SheetTrigger asChild>
-                    <Button className="w-full" variant="secondary">
-                      <BookOpen className="mr-2 h-4 w-4" /> 查阅竞赛规则
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="right" className="w-[400px] sm:w-[540px]">
-                    <SheetHeader>
-                      <SheetTitle className="flex items-center gap-2">
-                        <Info className="h-5 w-5 text-accent" /> 中国围棋竞赛规则
-                      </SheetTitle>
-                      <SheetDescription>
-                        版本：v2.0 | 适用范围：世界级赛事
-                      </SheetDescription>
-                    </SheetHeader>
-                    <ScrollArea className="h-[calc(100vh-120px)] mt-6 pr-4">
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
-                        <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-                          {rules}
-                        </pre>
-                      </div>
-                    </ScrollArea>
-                  </SheetContent>
-                </Sheet>
-              )}
+
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button className="w-full" variant="secondary">
+                    <BookOpen className="mr-2 h-4 w-4" /> 查阅竞赛规则
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+                  <SheetHeader>
+                    <SheetTitle className="flex items-center gap-2">
+                      <Info className="h-5 w-5 text-accent" /> 中国围棋竞赛规则
+                    </SheetTitle>
+                    <SheetDescription>
+                      版本：v2.0 | 适用范围：世界级赛事
+                    </SheetDescription>
+                  </SheetHeader>
+                  <ScrollArea className="h-[calc(100vh-120px)] mt-6 pr-4">
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                        {rules}
+                      </pre>
+                    </div>
+                  </ScrollArea>
+                </SheetContent>
+              </Sheet>
+
               <Button className="w-full" variant="ghost" onClick={() => window.location.href = '/'}>
                 <Icons.Home className="mr-2 h-4 w-4" /> 返回主菜单
               </Button>
@@ -246,7 +316,7 @@ export default function GameContainerPage() {
         <GoBoard 
           board={board} 
           onMove={handleMove} 
-          disabled={mode === 'mirror' && level ? currentStep >= level.totalSteps : false}
+          disabled={!!gameResult || (mode === 'mirror' && level ? currentStep >= level.totalSteps : false)}
           lastMove={null} 
           size={boardSize}
           currentPlayer={currentTurn}
@@ -270,16 +340,16 @@ export default function GameContainerPage() {
         <Card className="h-[600px] flex flex-col border-2">
           <CardHeader className="border-b bg-muted/20">
             <CardTitle className="text-xl flex items-center gap-2">
-              <History className="h-5 w-5" /> 动作序列
+              <History className="h-5 w-5" /> 对局动态
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto p-0">
-             <div className="divide-y">
+          <CardContent className="flex-1 overflow-y-auto p-4">
+             <div className="space-y-3">
                 {mode === 'mirror' && level ? (
                   level.moves.slice(0, currentStep + 10).map((m, i) => (
                     <div key={i} className={cn(
-                      "flex items-center gap-3 p-3 text-sm transition-colors",
-                      i < currentStep ? "bg-primary/5 opacity-40" : i === currentStep ? "bg-accent/10 font-bold" : "opacity-20"
+                      "flex items-center gap-3 p-2 text-sm rounded transition-colors",
+                      i < currentStep ? "bg-primary/5 opacity-40" : i === currentStep ? "bg-accent/10 font-bold border-l-4 border-accent" : "opacity-20"
                     )}>
                       <span className="font-mono text-xs w-6">{i + 1}.</span>
                       <div className={cn("w-3 h-3 rounded-full border", m.player === 'black' ? 'bg-black' : 'bg-white')} />
@@ -288,9 +358,9 @@ export default function GameContainerPage() {
                     </div>
                   ))
                 ) : (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                    <p>动作序列将实时显示在这里。</p>
+                  <div className="text-center py-10 opacity-50">
+                    <History className="h-10 w-10 mx-auto mb-2" />
+                    <p className="text-xs">等待对局记录...</p>
                   </div>
                 )}
              </div>
