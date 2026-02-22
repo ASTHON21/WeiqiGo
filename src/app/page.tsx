@@ -19,7 +19,6 @@ const LEVELS = [
 export default function HomePage() {
   const router = useRouter();
   const [selectedLevel, setSelectedLevel] = useState(LEVELS[0].id);
-  const [selfPlayColor, setSelfPlayColor] = useState<'black' | 'white'>('black');
   const [localSize, setLocalSize] = useState('19');
   const [pvpSize, setPvpSize] = useState('19');
 
@@ -28,7 +27,8 @@ export default function HomePage() {
   };
 
   const startSelfPlay = () => {
-    router.push(`/game?mode=self&playerColor=${selfPlayColor}&boardSize=${localSize}`);
+    // Local practice always starts with black (standard Go rule)
+    router.push(`/game?mode=self&playerColor=black&boardSize=${localSize}`);
   };
 
   const startPvP = () => {
@@ -102,30 +102,13 @@ export default function HomePage() {
                     </TabsList>
                   </Tabs>
                 </div>
-                <div className="space-y-3">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase">首手选择</label>
-                  <div className="flex justify-center gap-4">
-                    <button 
-                      onClick={() => setSelfPlayColor('black')}
-                      className={cn(
-                        "flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all flex-1",
-                        selfPlayColor === 'black' ? "border-primary bg-primary/5 scale-105" : "border-transparent opacity-50"
-                      )}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-black shadow-lg" />
-                      <span className="text-[10px] font-bold">执黑</span>
-                    </button>
-                    <button 
-                      onClick={() => setSelfPlayColor('white')}
-                      className={cn(
-                        "flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all flex-1",
-                        selfPlayColor === 'white' ? "border-primary bg-primary/5 scale-105" : "border-transparent opacity-50"
-                      )}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-white border shadow-lg" />
-                      <span className="text-[10px] font-bold">执白</span>
-                    </button>
+                <div className="flex flex-col items-center justify-center pt-8 text-center">
+                  <div className="p-4 rounded-full bg-primary/5 mb-2">
+                    <Disc className="h-10 w-10 text-primary opacity-40" />
                   </div>
+                  <p className="text-[10px] text-muted-foreground px-4">
+                    在此模式下，您可以交替控制黑白双方。
+                  </p>
                 </div>
               </CardContent>
               <CardFooter>

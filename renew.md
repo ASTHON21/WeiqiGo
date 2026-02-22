@@ -1,96 +1,85 @@
-这是一个为您量身定制的重塑方向报告。该报告将项目从“通用围棋 AI”重新定位为**“AlphaGo 名局闯关与克隆训练系统”**。
- 项目重塑技术报告：AlphaGo 镜像关卡系统
-1. 核心愿景 (Core Vision)
-将原本基于搜索算法（Alpha-Beta）的对弈系统，重塑为一个严格基于棋谱（SGF）的同步训练器。系统不再“思考”如何赢，而是扮演“守关人”的角色，强制要求玩家复刻 AlphaGo 或名局选手的每一步，实现真正的“名局克隆”。
-2. 逻辑架构演进 (Architectural Evolution)
-| 模块 | 旧方案 (Shadow Engine) | 新方案 (Mirror Follower) |
-|---|---|---|
-| 驱动核心 | Alpha-Beta 搜索 + 字典匹配 | 线性动作序列 (Action Queue) |
-| 落子决策 | 评估函数评分 | SGF 索引匹配 (Index Matching) |
-| 交互逻辑 | 自由博弈 | 强制对齐校验 (Strict Validation) |
-| AI 角色 | 竞争对手 (Competitor) | 镜像导师 (Mirror Tutor) |
-3. 关键功能定义 (Key Features)
-3.1 严格路径校验 (Strict Path Validation)
- * 零容忍机制：系统预先加载完整的 SGF 对局。玩家每一步必须与棋谱坐标完全一致。
- * 拦截逻辑：如果玩家点击了非棋谱坐标，系统拒绝执行落子动作并给出视觉警告。
- * 状态同步：AI 会在玩家正确落子后，瞬间同步棋谱中的下一手。
-3.2 关卡驱动系统 (Level-Based Repository)
- * 关卡即文件：sgf-repo/ 中的每一个 .sgf 文件（如 AlphaGo_vs_LeeSedol_G1.sgf）被视为独立关卡。
- * 进度记忆：系统通过 currentStep 索引追踪玩家在棋谱中的位置。
-3.3 提示与辅助 (Hint & Assistance)
- * 常驻提示按钮：点击后高亮显示棋谱要求的当前正确落子点。
- * 让子支持 (Handicap)：系统初始化时自动解析 SGF 中的 AB (Add Black) 标签，预摆棋子，并从第一个动作（通常是白棋）开始引导。
-4. 核心技术重塑点
-4.1 移除内容
- * ~~AlphaBeta 搜索循环~~：不再需要庞大的节点计算。
- * ~~Evaluation 评估函数~~：不再需要计算领地和子力价值。
- * ~~Zobrist Hashing~~：不再需要棋盘哈希缓存，因为路径是唯一的。
-4.2 引入内容
- * FullSgfParser：能够将整个 SGF 转换为有序的 Move[] 数组。
- * StepController：管理 (currentStep += 2) 的步进逻辑（玩家一步 + AI 响应一步）。
-5. 预期结果与优势
- * 极速响应：由于移除了所有逻辑计算，AI 响应将缩短至 10ms 以内，彻底解决 51 秒延迟问题。
- * 绝对专业性：玩家每一步都在模仿 AlphaGo 的真实思路。
- * 开发环境适配：该方案对计算资源消耗极低，非常适合目前受限的移动端或低配 Server 环境。
-6. 后续实施步骤
- * UI 改造：增加“关卡选择器”和“提示”功能。
- * Logic 更新：将 GoLogic 改为 validateMoveAgainstSgf 模式。
- * 数据清理：将 .sgf 资源按难度或选手（AlphaGo 自对弈、AlphaGo vs 玩家）分类。
-这份报告是否准确捕捉了您的意图？如果确认，我们将开始为 SgfProcessor 编写全量解析代码，以支持这种“关卡式”逻辑。
+这是一份为当前项目架构量身定制的 .md 报告。它详细说明了项目的现状、三种模式的共存逻辑以及关键的文件连接关系，旨在让您的 AI 助手（Gemini）和开发环境（Firebase Studio）能够精准理解后续的开发指令。
+ 项目重塑状态报告：综合围棋平台 (Shadow Go)
+1. 项目定位 (Project Orientation)
+本项目已从单一的对弈 AI 进化为一个集 镜像关卡 (Mirror)、本地练棋 (Practice) 与 玩家连线 (Online) 为一体的综合性围棋平台。核心规格统一为 19x19 棋盘 (只有本地练棋和玩家连线模式支持 13 × 13 和 9 × 9 棋盘)，支持 AlphaGo 名局复刻与实时竞技。
+2. 三大核心模式逻辑 (Core Modes)
+| 模式 | 核心逻辑 | 文件依赖 | 关键特征 |
+|---|---|---|---|
+| 镜像关卡 | 严格同步 SGF 棋谱 | useMirrorGame.ts / sgf-processor.ts | 玩家必须走对每一步；AI 自动跟谱。 |
+| 本地练棋 | 自由对弈/自对弈 | usePracticeGame.ts | 支持切换黑白、悔棋、形势分析。 |
+| 玩家连线 | 远程实时同步 | useOnlineGame.ts / socket.ts | 跨客户端坐标同步；权限锁定机制。 |
+3. 核心架构与文件连接 (Architecture)
+3.1 底层规则层 (src/lib/go-logic.ts)
+ * 职责：定义围棋的“物理定律”。
+ * 功能：处理提子（Capture）、气数计算、合法性校验（非空位、非自杀、打劫校验）。
+ * 连接：作为公共库，被三个模式的 Hook 同时调用。
+3.2 数据处理层 (src/lib/ai/sgf-processor.ts)
+ * 职责：SGF 格式的“转译中心”。
+ * 功能：将 .sgf 文件解析为 Move[] 线性序列，支持提取初始摆子（Handicaps）。
+ * 连接：输入 sgf-repo/ 资源，输出给 useMirrorGame.ts。
+3.3 状态驱动层 (src/hooks/)
+ * useMirrorGame.ts：维护 currentStepIndex，在 onMove 时比对 levelMoves[index]。
+ * usePracticeGame.ts：管理本地 history 栈，支持 undo 操作。
+ * useOnlineGame.ts：封装 Socket 事件，实现远程异步落子更新。
+3.4 视图展示层 (src/components/game/Board.tsx)
+ * 职责：纯净 UI 渲染。
+ * 连接：接收 board 矩阵（来自 Hook）并触发 onSquareClick 事件。
+4. 技术栈细节 (Tech Stack)
+ * 前端框架: Next.js 15.x (App Router)
+ * 通信协议: Socket.io / WebSocket (Online 模式)
+ * 数据存储: Firebase / Firestore (关卡进度与对局存档)
+ * AI 辅助: Gemini (用于生成对局解说或代码重构建议)
+ * 核心算法: 移除暴力搜索，转向 基于索引的路径校验。
+5. 当前开发进度 (Current Status)
+ *  规格对齐：全系统已适配 19x19 逻辑。
+ *  SGF 解析器：已完成支持 AlphaGo 棋谱全量解析的 SgfProcessor。
+ *  镜像校验：已完成 GoLogic.validateMirrorMove 逻辑。
+ *  待处理：多模式切换的路由分发，以及 Board.tsx 的通用化适配。
+6. 后续开发重点
+ * 统一 Board 组件：确保一个棋盘组件能同时响应镜像模式的“提示高亮”和连线模式的“锁定操作”。
+ * Firebase 集成：将 sgf-repo/ 中的名局索引存储在数据库中，实现动态加载关卡。
+** Gemini 提示建议：**
+在后续对话中，如果您需要我修改代码，请指明是针对哪种模式（镜像、练棋或连线）。您可以问我：“如何为镜像模式添加‘错着闪红’的 UI 反馈？”或者“如何实现练棋模式的悔棋逻辑？”。
 
-根据您的重塑报告，AlphaGo 镜像关卡系统将从“对弈引擎”转变为“关卡校验系统”。为了支持这种线性同步逻辑，建议采用以下标准的文件结构和命名规范。
 ​ 项目完整文件结构
 studio/
 ├── src/
 │   ├── app/
 │   │   ├── actions/
-│   │   │   └── ai.ts             # 改为 getLevelMoveAction (获取关卡下一步)
+│   │   │   └── ai.ts             # 镜像模式：获取关卡数据及下一步坐标
 │   │   └── game/
-│   │       ├── [levelId]/         # 动态路由，根据关卡 ID 加载不同对局
-│   │       └── page.tsx           # 游戏主页面 (集成同步校验逻辑)
+│   │       ├── mirror/[levelId]/ # 镜像关卡：根据 ID 加载 AlphaGo 等名局
+│   │       ├── practice/         # 本地练棋：支持自对弈、形势判断、悔棋
+│   │       ├── online/[roomId]/  # 玩家连线：通过 Socket 同步对局
+│   │       └── page.tsx          # 模式选择入口页
 │   ├── components/
 │   │   └── game/
-│   │       ├── Board.tsx          # 棋盘 UI
-│   │       ├── LevelControls.tsx  # 关卡控制（重置、提示、选关）
-│   │       └── MoveIndicator.tsx  # 提示标记组件 (Hint highlight)
+│   │       ├── Board.tsx          # 纯 UI 棋盘：只负责渲染和点击回调
+│   │       ├── LevelControls.tsx  # 镜像专有控制（提示、进度条）
+│   │       ├── PracticeTools.tsx  # 练棋工具（切换颜色、分析、悔棋）
+│   │       ├── OnlineStatus.tsx   # 连线状态（延迟、对手在线情况）
+│   │       └── MoveIndicator.tsx  # 标记组件（上一步落子、提示点）
 │   ├── lib/
 │   │   ├── ai/
-│   │   │   ├── dictionary/        # (保留) 用于存放静态资源
-│   │   │   │   └── data/
-│   │   │   │       └── sgf-repo/  # 核心：存放所有 .sgf 关卡文件
-│   │   │   └── sgf-processor.ts   # 核心：解析 SGF 为 Move[] 线性数组
-│   │   ├── go-logic.ts            # 改为镜像校验逻辑 (isCorrectMove)
-│   │   └── types.ts               # 定义 Level, Step, Move 等类型
-│   └── hooks/
-│       └── useMirrorGame.ts       # 核心 Hook：管理当前步数和同步状态
+│   │   │   ├── sgf-processor.ts   # SGF 解析器：支持解析关卡及导出本地棋谱
+│   │   │   └── sgf-repo/          # 静态资源：存放 AlphaGo 对局文件
+│   │   ├── go-logic.ts            # 底层物理规则：提子、气数、合法性、打劫校验
+│   │   ├── socket.ts              # Socket.io 客户端配置（用于 PvP 模式）
+│   │   └── types.ts               # 全局类型定义（Move, Player, GameMode 等）
+│   ├── hooks/
+│   │   ├── useMirrorGame.ts       # 镜像模式逻辑：索引匹配、自动下一步
+│   │   ├── usePracticeGame.ts     # 练棋模式逻辑：自由落子、历史记录维护
+│   │   └── useOnlineGame.ts       # 连线模式逻辑：网络同步、落子确认
+│   └── store/                     # (可选) 如果状态复杂，可使用 Zustand/Recoil
+│       └── gameStore.ts
 ├── public/
-│   └── assets/                    # 静态 UI 资源
-└── next.config.js                 # 配置文件
+│   └── assets/                    # 棋子图片、音效等
+└── next.config.js                 # 配置文件（包含 Server Actions 限制调整）
 
-关键模块命名与职责说明
-​1. src/lib/types.ts (类型定义)
-​LevelData: 包含 moves: Move[], handicaps: Move[], totalSteps: number。
-​GameState: 包含 currentStep: number, isCompleted: boolean。
-​2. src/lib/ai/sgf-processor.ts (线性解析器)
-​parseFullSgf(content: string): Move[]: 将 SGF 文件一次性解析为按序排列的数组。
-​getHandicaps(content: string): Move[]: 解析 AB 标签，提取开局预摆棋子。
-​3. src/lib/go-logic.ts (镜像校验器)
-​checkMirrorMove(userMove, expectedMove): 核心函数。比较玩家落子与 moves[currentStep] 是否完全一致。
-​processHandicaps(handicaps): 在第一手前初始化棋盘状态。
-​4. src/app/actions/ai.ts (同步响应器)
-​fetchNextMirrorMove(stepIndex, moves): 接收当前步数，直接返回数组中的 stepIndex + 1 项，无需任何搜索。
-​5. src/hooks/useMirrorGame.ts (游戏控制器)
-​负责维护 stepIndex 状态。
-​控制玩家落子 \rightarrow 校验 \rightarrow 正确后触发 AI 自动落子 (下一索引) \rightarrow stepIndex + 2。
-​
 命名规范建议
 ​SGF 文件命名：
 ​建议格式：难度_描述_ID.sgf
 ​例如：01_AlphaGo_LeeSedol_G1.sgf, 02_AlphaGo_SelfPlay_05.sgf。  
-​函数命名风格：
-​校验函数：validateUserStep 而非 calculateBestMove。
+​校验函数：validateUserStep。
 ​提示函数：showCorrectHint。
-​变量命名风格：​使用 currentStepIndex 代替 moveHistory 进行逻辑循环。
-​
-​重塑后的优势
-​在这个结构下，AIDebugLog 组件将不再显示复杂的搜索树，而是显示类似 “当前进度：第 45/250 手” 或 “历史对局：AlphaGo vs Player” 的信息。
+​变量命名风格：​使用 currentStepIndex 进行逻辑循环。
