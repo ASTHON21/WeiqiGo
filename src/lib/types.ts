@@ -1,8 +1,9 @@
+
 /**
  * 基础类型定义
  */
 
-// 玩家：黑色、白色或无（null）
+// 玩家：黑色、白色
 export type Player = 'black' | 'white';
 
 // 棋子状态：黑色、白色或空
@@ -28,7 +29,7 @@ export interface LevelData {
   id: string;
   title: string;
   description: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
+  difficulty: 'Easy' | 'Medium' | 'Hard' | 'Extreme';
   boardSize: number;
   handicaps: Move[];  // 初始预摆棋子 (AB/AW)
   moves: Move[];      // 完整对局序列
@@ -46,31 +47,19 @@ export interface MirrorGameState {
  * 游戏生命周期
  */
 export type GameStatus = 'setup' | 'playing' | 'finished';
-export type GameMode = 'mirror' | 'pvp';
-
-/**
- * 评分详细信息 (保留用于对局结束)
- */
-export interface ScoreDetails {
-  blackStones: number;
-  whiteStones: number;
-  blackTerritory: number;
-  whiteTerritory: number;
-  komi: number;
-}
+export type GameMode = 'mirror' | 'self' | 'pvp';
 
 export interface GameResult {
   winner: Player | 'draw' | null;
   reason: string;
   blackScore?: number;
   whiteScore?: number;
-  scoreDetails?: ScoreDetails;
 }
 
 export interface GameHistoryEntry {
   id: string;
   date: string;
-  mode: 'mirror' | 'local';
+  mode: GameMode;
   levelId?: string;
   result: GameResult | null;
   moveHistory: Move[];
