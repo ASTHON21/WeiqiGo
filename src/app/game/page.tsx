@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { GoBoard } from "@/components/game/GoBoard";
 import { Button } from "@/components/ui/button";
@@ -11,11 +10,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import type { Player, BoardState, Move, LevelData } from "@/lib/types";
+import type { Player, BoardState, LevelData } from "@/lib/types";
 import { GoLogic, createEmptyBoard } from "@/lib/go-logic";
 import { getLevelData } from "@/app/actions/ai";
 import { cn } from "@/lib/utils";
-import { History, ArrowLeftRight, Loader2 } from "lucide-react";
+import { History, ArrowLeftRight, Loader2, Users } from "lucide-react";
 
 export default function GameContainerPage() {
   const searchParams = useSearchParams();
@@ -33,7 +32,6 @@ export default function GameContainerPage() {
   const [matchStatus, setMatchStatus] = useState<'waiting' | 'ready'>('ready');
   const { toast } = useToast();
 
-  // 处理模式初始化
   useEffect(() => {
     async function init() {
       if (mode === 'mirror') {
@@ -44,15 +42,19 @@ export default function GameContainerPage() {
         setBoard(initBoard);
       } else if (mode === 'pvp' && isWaiting) {
         setMatchStatus('waiting');
-        // 模拟匹配过程
         setTimeout(() => setMatchStatus('ready'), 2500);
+      } else if (mode === 'self') {
+        // 自对弈模式：根据初始选择设置颜色，但不使用 AI
+        setPlayerColor(initialPlayerColor);
       }
       setIsLoading(false);
     }
     init();
-  }, [mode, levelId, isWaiting]);
+  }, [mode, levelId, isWaiting, initialPlayerColor]);
 
   const handleMove = useCallback((r: number, c: number) => {
+    const currentTurn = currentStep % 2 === 0 ? 'black' : 'white';
+
     if (mode === 'mirror') {
       if (!level || currentStep >= level.moves.length) return;
       const expectedMove = level.moves[currentStep];
@@ -80,33 +82,17 @@ export default function GameContainerPage() {
         toast({ title: "路径错误", description: "这里的走法与棋谱不符。", variant: "destructive" });
       }
     } else {
-      // 自对弈或PVP逻辑 (简化实现)
-      const turn = currentStep % 2 === 0 ? 'black' : 'white';
-      if (mode === 'pvp' && turn !== playerColor) return;
+      // 本地练棋 (Self) 或 PVP 逻辑
+      // 在本地练棋模式下，不拦截任何颜色的落子，完全由用户控制
+      if (mode === 'pvp' && currentTurn !== playerColor) {
+        toast({ title: "等待对手", description: "现在是对方的回合。" });
+        return;
+      }
       
-      const result = GoLogic.processMove(board, r, c, turn);
+      const result = GoLogic.processMove(board, r, c, currentTurn);
       if (result.success) {
         setBoard(result.newBoard);
         setCurrentStep(prev => prev + 1);
-        
-        // 模拟 AI 在自对弈模式下的响应
-        if (mode === 'self' && turn === playerColor) {
-           setTimeout(() => {
-             // 简单的随机落子模拟 AI
-             for(let i=0; i<19; i++) {
-               for(let j=0; j<19; j++) {
-                 if(result.newBoard[i][j] === null) {
-                    const aiResult = GoLogic.processMove(result.newBoard, i, j, playerColor === 'black' ? 'white' : 'black');
-                    if (aiResult.success) {
-                      setBoard(aiResult.newBoard);
-                      setCurrentStep(prev => prev + 2);
-                      return;
-                    }
-                 }
-               }
-             }
-           }, 800);
-        }
       }
     }
   }, [mode, level, currentStep, board, playerColor, toast]);
@@ -123,7 +109,7 @@ export default function GameContainerPage() {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-medium">正在初始化对局环境...</p>
+        <p className="text-muted-foreground font-medium">正在初始化名局环境...</p>
       </div>
     );
   }
@@ -155,12 +141,12 @@ export default function GameContainerPage() {
           <CardHeader>
             <div className="flex justify-between items-start">
               <Badge variant="outline" className="mb-2">
-                {mode === 'mirror' ? '镜像复刻' : mode === 'pvp' ? '玩家连线' : '自对弈模式'}
+                {mode === 'mirror' ? '镜像复刻' : mode === 'pvp' ? '玩家连线' : '本地练棋'}
               </Badge>
               {level && <Badge>{level.difficulty}</Badge>}
             </div>
-            <CardTitle className="font-headline text-2xl">{level?.title || (mode === 'pvp' ? '在线对局' : '本地对抗')}</CardTitle>
-            <CardDescription>{level?.description || '自由落子，磨炼棋艺。'}</CardDescription>
+            <CardTitle className="font-headline text-2xl">{level?.title || (mode === 'pvp' ? '在线对局' : '自由练习')}</CardTitle>
+            <CardDescription>{level?.description || '自由落子，手动控制双方，磨炼棋艺。'}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {mode === 'mirror' && (
@@ -179,7 +165,7 @@ export default function GameContainerPage() {
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
               <div className="flex items-center gap-3">
                 <div className={cn("h-4 w-4 rounded-full border", currentTurn === 'black' ? "bg-black" : "bg-white")} />
-                <span className="text-sm font-medium">{currentTurn === 'black' ? '黑方回合' : '白方回合'}</span>
+                <span className="text-sm font-medium">{currentTurn === 'black' ? '黑方落子' : '白方落子'}</span>
               </div>
               <Badge variant="secondary">第 {currentStep + 1} 手</Badge>
             </div>
@@ -198,7 +184,7 @@ export default function GameContainerPage() {
             <div className="pt-2 space-y-2">
               {mode === 'mirror' && (
                 <Button className="w-full" variant="secondary" onClick={() => level && setHint({r: level.moves[currentStep].r, c: level.moves[currentStep].c})}>
-                  <Icons.Settings className="mr-2 h-4 w-4" /> 获取提示
+                  <Icons.Settings className="mr-2 h-4 w-4" /> 获取名局提示
                 </Button>
               )}
               {mode === 'pvp' && (
@@ -207,7 +193,7 @@ export default function GameContainerPage() {
                 </Button>
               )}
               <Button className="w-full" variant="ghost" onClick={() => window.location.href = '/'}>
-                <Icons.Home className="mr-2 h-4 w-4" /> 返回首页
+                <Icons.Home className="mr-2 h-4 w-4" /> 返回主菜单
               </Button>
             </div>
           </CardContent>
@@ -219,7 +205,7 @@ export default function GameContainerPage() {
           board={board} 
           onMove={handleMove} 
           disabled={mode === 'mirror' && level ? currentStep >= level.totalSteps : false}
-          lastMove={currentStep > 0 && level ? level.moves[currentStep - 1] : null} 
+          lastMove={null} 
           size={19}
           currentPlayer={currentTurn}
           isAiThinking={false}
@@ -242,7 +228,7 @@ export default function GameContainerPage() {
         <Card className="h-[600px] flex flex-col border-2">
           <CardHeader className="border-b bg-muted/20">
             <CardTitle className="text-xl flex items-center gap-2">
-              <History className="h-5 w-5" /> 对局序列
+              <History className="h-5 w-5" /> 动作序列
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-0">
@@ -262,7 +248,7 @@ export default function GameContainerPage() {
                 ) : (
                   <div className="p-8 text-center text-muted-foreground">
                     <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                    <p>自由对弈中，棋谱序列将实时生成。</p>
+                    <p>自由对弈模式下，动作序列将实时显示在这里。</p>
                   </div>
                 )}
              </div>

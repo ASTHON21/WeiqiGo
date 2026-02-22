@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -6,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Icons } from '@/components/icons';
 import { Play, Users, Disc, Swords, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -31,7 +29,6 @@ export default function HomePage() {
   };
 
   const startPvP = () => {
-    // 随机分配颜色
     const randomColor = Math.random() > 0.5 ? 'black' : 'white';
     router.push(`/game?mode=pvp&playerColor=${randomColor}&isWaiting=true`);
   };
@@ -53,11 +50,11 @@ export default function HomePage() {
                   <Play className="text-accent" />
                 </div>
                 <CardTitle>镜像关卡</CardTitle>
-                <CardDescription>复刻 AlphaGo 经典棋谱，挑战自我。</CardDescription>
+                <CardDescription>复刻 AlphaGo 经典棋谱，强制对齐训练。</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase">选择关卡</label>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">选择名局</label>
                   <div className="flex flex-col gap-2">
                     {LEVELS.map((lvl) => (
                       <button
@@ -82,18 +79,18 @@ export default function HomePage() {
               </CardFooter>
             </Card>
 
-            {/* 自对弈 (vs AI) */}
+            {/* 本地练棋 (原自对弈) */}
             <Card className="border-2 hover:border-primary transition-all">
               <CardHeader>
                 <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                   <Disc className="text-primary" />
                 </div>
-                <CardTitle>自对弈模式</CardTitle>
-                <CardDescription>与最新的 Shadow Engine 展开自由博弈。</CardDescription>
+                <CardTitle>本地练棋</CardTitle>
+                <CardDescription>自由落子，手动操控黑白双方，研究棋理。</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 py-4">
                 <div className="space-y-3">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase">选择你的子色</label>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">首手选择</label>
                   <div className="flex justify-center gap-4">
                     <button 
                       onClick={() => setSelfPlayColor('black')}
@@ -103,7 +100,7 @@ export default function HomePage() {
                       )}
                     >
                       <div className="w-10 h-10 rounded-full bg-black shadow-xl" />
-                      <span className="text-xs font-bold">执黑</span>
+                      <span className="text-xs font-bold">先手执黑</span>
                     </button>
                     <button 
                       onClick={() => setSelfPlayColor('white')}
@@ -113,14 +110,14 @@ export default function HomePage() {
                       )}
                     >
                       <div className="w-10 h-10 rounded-full bg-white border shadow-xl" />
-                      <span className="text-xs font-bold">执白</span>
+                      <span className="text-xs font-bold">先手执白</span>
                     </button>
                   </div>
                 </div>
               </CardContent>
               <CardFooter>
                 <Button variant="secondary" className="w-full" onClick={startSelfPlay}>
-                  挑战 AI
+                  开始练习
                 </Button>
               </CardFooter>
             </Card>
@@ -132,7 +129,7 @@ export default function HomePage() {
                   <Users className="text-blue-500" />
                 </div>
                 <CardTitle>玩家连线</CardTitle>
-                <CardDescription>在全球范围内寻找对手，随机分配子色。</CardDescription>
+                <CardDescription>在全球范围内寻找对手，实时对局博弈。</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col items-center justify-center h-[180px] text-center">
                 <div className="p-4 rounded-full bg-blue-50/10 mb-4 animate-pulse">
@@ -151,9 +148,9 @@ export default function HomePage() {
           </div>
 
           <div className="flex justify-center gap-4 text-muted-foreground text-sm">
-            <span className="flex items-center gap-1"><Info className="h-4 w-4" /> 棋盘规格: 19 x 19</span>
+            <span className="flex items-center gap-1"><Info className="h-4 w-4" /> 棋盘规格: 19 x 19 标准</span>
             <span>|</span>
-            <span className="flex items-center gap-1"><Icons.Logo className="h-4 w-4" /> 引擎版本: Shadow 2.5</span>
+            <span className="flex items-center gap-1"><Icons.Logo className="h-4 w-4" /> AlphaGo 镜像系统 v1.0</span>
           </div>
         </div>
       </div>
