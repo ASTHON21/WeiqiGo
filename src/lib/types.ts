@@ -23,31 +23,39 @@ export interface Move {
 }
 
 /**
- * 镜像关卡系统专用类型
+ * SGF 元数据 (11项核心字段)
+ */
+export interface SgfMetadata {
+  event?: string;     // EV
+  round?: string;     // RO
+  blackName?: string; // PB
+  whiteName?: string; // PW
+  timeLimit?: string; // TM
+  komi?: string;      // KM
+  result?: string;    // RE
+  date?: string;      // DT
+  place?: string;     // PC
+  rules?: string;     // RU
+  comment?: string;   // GC
+}
+
+/**
+ * 关卡/棋谱完整数据
  */
 export interface LevelData {
   id: string;
-  title: string;
-  description: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard' | 'Extreme';
+  metadata: SgfMetadata;
   boardSize: number;
-  handicaps: Move[];  // 初始预摆棋子 (AB/AW)
-  moves: Move[];      // 完整对局序列
+  handicaps: Move[];
+  moves: Move[];
   totalSteps: number;
-}
-
-export interface MirrorGameState {
-  currentStepIndex: number; // 当前在 moves 数组中的索引
-  isCompleted: boolean;
-  isCorrect: boolean | null;
-  hintPosition: { r: number; c: number } | null;
 }
 
 /**
  * 游戏生命周期
  */
 export type GameStatus = 'setup' | 'playing' | 'finished';
-export type GameMode = 'mirror' | 'self' | 'pvp';
+export type GameMode = 'viewer' | 'practice' | 'online';
 
 export interface GameResult {
   winner: Player | 'draw' | null;
@@ -60,7 +68,7 @@ export interface GameHistoryEntry {
   id: string;
   date: string;
   mode: GameMode;
-  levelId?: string;
+  metadata?: SgfMetadata;
   result: GameResult | null;
   moveHistory: Move[];
   boardSize: number;

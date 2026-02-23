@@ -1,61 +1,64 @@
-import { Move, Player, LevelData } from '../types';
+
+import { Move, Player, LevelData, SgfMetadata } from '../types';
 
 /**
- * SGF 处理器：专门用于解析关卡对局
- * 负责将复杂的 SGF 字符串转换为前端可直接执行的 Move 数组
+ * SGF 处理器：负责 SGF 字符串与 Move[] 数组、Metadata 的转换
  */
 export const SgfProcessor = {
   /**
-   * 核心方法：解析完整的 SGF 内容并返回关卡数据
-   * @param id 关卡唯一标识符
-   * @param sgfContent 原始 SGF 字符串内容
-   * @returns 返回符合 LevelData 接口的完整关卡数据
+   * 解析 SGF 内容并返回完整数据
    */
-  parseLevel(id: string, sgfContent: string): LevelData {
+  parse(id: string, sgfContent: string): LevelData {
     const handicaps: Move[] = [];
     const moves: Move[] = [];
 
-    // 1. 解析棋盘大小 (SZ 标签)
+    // 1. 提取元数据 (利用正则匹配 11 项核心字段)
+    const metadata: SgfMetadata = {
+      event: this.extractTag(sgfContent, 'EV'),
+      round: this.extractTag(sgfContent, 'RO'),
+      blackName: this.extractTag(sgfContent, 'PB'),
+      whiteName: this.extractTag(sgfContent, 'PW'),
+      timeLimit: this.extractTag(sgfContent, 'TM'),
+      komi: this.extractTag(sgfContent, 'KM'),
+      result: this.extractTag(sgfContent, 'RE'),
+      date: this.extractTag(sgfContent, 'DT'),
+      place: this.extractTag(sgfContent, 'PC'),
+      rules: this.extractTag(sgfContent, 'RU'),
+      comment: this.extractTag(sgfContent, 'GC'),
+    };
+
+    // 2. 解析棋盘大小
     const boardSizeMatch = sgfContent.match(/SZ\[(\d+)\]/);
     const boardSize = boardSizeMatch ? parseInt(boardSizeMatch[1]) : 19;
 
-    // 2. 解析初始摆子 (Setup Moves)
-    // SGF 中 AB[pd][dp] 表示添加黑子，AW[...] 表示添加白子
+    // 3. 解析初始摆子 (AB/AW)
     const setupBlackRegex = /AB(?:\[([a-z]{2})\])+/g;
     const setupWhiteRegex = /AW(?:\[([a-z]{2})\])+/g;
 
     let match;
-    // 匹配所有 AB 标签下的坐标
     while ((match = setupBlackRegex.exec(sgfContent)) !== null) {
       const coords = this.extractCoordsFromTag(match[0]);
       coords.forEach(c => handicaps.push({ ...c, player: 'black' }));
     }
-    // 匹配所有 AW 标签下的坐标
     while ((match = setupWhiteRegex.exec(sgfContent)) !== null) {
       const coords = this.extractCoordsFromTag(match[0]);
       coords.forEach(c => handicaps.push({ ...c, player: 'white' }));
     }
 
-    // 3. 解析正谱序列 (Main Sequence)
-    // 匹配类似 ;B[pd] 或 ;W[dp] 的结构
+    // 4. 解析落子序列 (;B/W)
     const moveRegex = /;([BW])\[([a-z]{2})\]/g;
     let index = 0;
     while ((match = moveRegex.exec(sgfContent)) !== null) {
       const player: Player = match[1] === 'B' ? 'black' : 'white';
       const coords = this.fromSgf(match[2]);
-      moves.push({ ...coords, player, index: index++ });
+      if (coords.r !== -1) {
+        moves.push({ ...coords, player, index: index++ });
+      }
     }
-
-    // 4. 尝试解析标题和描述 (简易实现)
-    const pbMatch = sgfContent.match(/PB\[(.*?)\]/);
-    const pwMatch = sgfContent.match(/PW\[(.*?)\]/);
-    const title = pbMatch && pwMatch ? `${pbMatch[1]} vs ${pwMatch[1]}` : `名局复刻: ${id}`;
 
     return {
       id,
-      title,
-      description: "遵循 AlphaGo 的落子轨迹，学习顶尖人工智能的围棋逻辑。",
-      difficulty: 'Hard',
+      metadata,
       boardSize,
       handicaps,
       moves,
@@ -63,9 +66,12 @@ export const SgfProcessor = {
     };
   },
 
-  /**
-   * 辅助方法：从类似 AB[pd][dp] 的字符串中提取所有坐标对
-   */
+  private extractTag(content: string, tag: string): string | undefined {
+    const regex = new RegExp(`${tag}\\[(.*?)\\]`);
+    const match = content.match(regex);
+    return match ? match[1] : undefined;
+  },
+
   private extractCoordsFromTag(tagContent: string): { r: number, c: number }[] {
     const coords: { r: number, c: number }[] = [];
     const coordRegex = /\[([a-z]{2})\]/g;
@@ -76,21 +82,14 @@ export const SgfProcessor = {
     return coords;
   },
 
-  /**
-   * 将 SGF 字母坐标转换为 0-18 的数字坐标
-   * 例如: "pd" -> {r: 3, c: 15} (注意 SGF 格式通常是 col, row)
-   */
   fromSgf(sgf: string): { r: number; c: number } {
     if (!sgf || sgf.length < 2) return { r: -1, c: -1 };
     return {
-      c: sgf.charCodeAt(0) - 97, // 第一位是列 (column)
-      r: sgf.charCodeAt(1) - 97  // 第二位是行 (row)
+      c: sgf.charCodeAt(0) - 97,
+      r: sgf.charCodeAt(1) - 97
     };
   },
 
-  /**
-   * 将数字坐标转回 SGF 坐标（用于提示或日志）
-   */
   toSgf(r: number, c: number): string {
     return String.fromCharCode(c + 97) + String.fromCharCode(r + 97);
   }
