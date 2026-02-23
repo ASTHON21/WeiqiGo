@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Play, Swords, History, FileUp, Info } from 'lucide-react';
+import { Play, Swords, History, FileUp, Info, Users } from 'lucide-react';
 
 export default function HomePage() {
   const router = useRouter();
@@ -17,7 +17,7 @@ export default function HomePage() {
     router.push(`/game/practice?size=${practiceSize}`);
   };
 
-  const handleStartOnline = () => {
+  const handleEnterLobby = () => {
     router.push(`/game/online/lobby?size=${onlineSize}`);
   };
 
@@ -82,18 +82,18 @@ export default function HomePage() {
               </CardFooter>
             </Card>
 
-            {/* 玩家连线卡片 */}
+            {/* 竞技大厅卡片 */}
             <Card className="border-2 hover:border-blue-500 transition-all shadow-xl flex flex-col">
               <CardHeader className="text-center">
                 <div className="mx-auto w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
-                  <Swords className="h-8 w-8 text-blue-500" />
+                  <Users className="h-8 w-8 text-blue-500" />
                 </div>
-                <CardTitle className="text-2xl">玩家连线 (Online)</CardTitle>
-                <CardDescription>寻找实时对手，在标准的竞技规则下分出胜负。</CardDescription>
+                <CardTitle className="text-2xl">竞技大厅 (Lobby)</CardTitle>
+                <CardDescription>查看实时在线玩家，发起对局挑战，或观摩名手对弈。</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 mt-auto">
                 <div className="space-y-2">
-                  <p className="text-xs font-bold uppercase text-muted-foreground text-center">选择棋盘尺寸</p>
+                  <p className="text-xs font-bold uppercase text-muted-foreground text-center">默认对局尺寸</p>
                   <Tabs value={onlineSize} onValueChange={setOnlineSize} className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="9">9 x 9</TabsTrigger>
@@ -104,7 +104,7 @@ export default function HomePage() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button variant="secondary" className="w-full h-12 text-lg font-bold" onClick={handleStartOnline}>
+                <Button variant="secondary" className="w-full h-12 text-lg font-bold" onClick={handleEnterLobby}>
                   进入大厅
                 </Button>
               </CardFooter>
