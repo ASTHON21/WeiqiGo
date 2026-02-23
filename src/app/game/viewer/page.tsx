@@ -1,40 +1,83 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
-import { getPresetGame } from '@/app/actions/sgf';
+import { useState } from 'react';
+import { SgfProcessor } from '@/lib/ai/sgf-processor';
 import { LevelData } from '@/lib/types';
 import { GoBoard } from '@/components/game/GoBoard';
 import { SgfHeader } from '@/components/game/SgfHeader';
 import { NavControls } from '@/components/game/NavControls';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSgfViewer } from '@/hooks/useSgfViewer';
-import { Loader2, BookOpen } from 'lucide-react';
+import { FileUp, BookOpen, RotateCcw, ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
 
 export default function SgfViewerPage() {
   const [gameData, setGameData] = useState<LevelData | null>(null);
+  const router = useRouter();
 
-  useEffect(() => {
-    async function load() {
-      const data = await getPresetGame("lee-sedol-g1");
-      setGameData(data);
-    }
-    load();
-  }, []);
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      try {
+        const data = SgfProcessor.parse("uploaded", content);
+        setGameData(data);
+      } catch (err) {
+        console.error("SGF 解析失败:", err);
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const viewer = useSgfViewer(gameData || { id: '', metadata: {}, boardSize: 19, handicaps: [], moves: [], totalSteps: 0 });
 
   if (!gameData) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      <div className="container mx-auto p-8 flex flex-col items-center justify-center min-h-[80vh] space-y-8">
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-bold font-headline">SGF 棋谱查看器</h1>
+          <p className="text-muted-foreground">上传您的 .sgf 文件，支持步进查看与多尺寸棋盘自动适配。</p>
+        </div>
+        
+        <Card className="w-full max-w-md border-2 border-dashed bg-muted/20 hover:bg-muted/30 transition-colors cursor-pointer relative">
+          <label className="flex flex-col items-center justify-center p-12 cursor-pointer">
+            <FileUp className="h-12 w-12 text-accent mb-4" />
+            <span className="text-lg font-bold">点击选择文件</span>
+            <span className="text-xs text-muted-foreground mt-1">或拖拽 .sgf 文件到此处</span>
+            <input 
+              type="file" 
+              accept=".sgf" 
+              className="hidden" 
+              onChange={handleFileUpload}
+            />
+          </label>
+        </Card>
+
+        <Button variant="ghost" onClick={() => router.push('/')} className="gap-2">
+          <ArrowLeft className="h-4 w-4" /> 返回首页
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => setGameData(null)} className="gap-2">
+          <RotateCcw className="h-4 w-4" /> 更换棋谱
+        </Button>
+        <h2 className="text-xl font-bold font-headline text-accent">SGF 阅览模式</h2>
+        <Button variant="ghost" size="sm" onClick={() => router.push('/')}>
+          退出阅览
+        </Button>
+      </div>
+
       <SgfHeader metadata={viewer.metadata} />
 
       <div className="grid lg:grid-cols-[1fr_350px] gap-8 items-start">
@@ -42,7 +85,7 @@ export default function SgfViewerPage() {
           <GoBoard 
             board={viewer.currentBoard} 
             size={gameData.boardSize} 
-            readOnly={true}
+            readOnly={true} // 严格锁定，禁止交互
             lastMove={viewer.lastMove}
           />
           <Card className="w-full max-w-[80vh] border-2">
@@ -60,23 +103,40 @@ export default function SgfViewerPage() {
 
         <div className="space-y-6">
           <Card className="border-2 h-[600px] flex flex-col">
-            <CardHeader className="bg-muted/30 border-b">
+            <CardHeader className="bg-muted/30 border-b py-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                <BookOpen className="h-4 w-4" /> 落子注解
+                <BookOpen className="h-4 w-4 text-accent" /> 对局注解 (GC)
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 p-0 overflow-hidden">
               <ScrollArea className="h-full p-4">
                 <div className="space-y-4">
-                   <p className="text-sm leading-relaxed text-muted-foreground">
-                     {viewer.metadata.comment || "本对局暂无注解。通过步进按钮观察 AlphaGo 与顶级人类棋手的攻防逻辑。"}
-                   </p>
-                   <div className="border-t pt-4">
-                      <h4 className="text-xs font-bold uppercase text-accent mb-2">对局关键点</h4>
-                      <p className="text-xs text-muted-foreground">
-                        当前第 {viewer.currentIndex} 手。
-                        {viewer.lastMove && ` 最后落子坐标: ${String.fromCharCode(viewer.lastMove.c + 97).toUpperCase()}${gameData.boardSize - viewer.lastMove.r}`}
+                   <div className="p-3 bg-accent/5 rounded-md border border-accent/10">
+                      <p className="text-xs font-bold text-accent uppercase mb-1">当前状态</p>
+                      <p className="text-sm">
+                        第 {viewer.currentIndex} / {viewer.totalSteps} 手
                       </p>
+                      {viewer.lastMove && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          最后落子: {String.fromCharCode(viewer.lastMove.c + 97).toUpperCase()}{gameData.boardSize - viewer.lastMove.r} ({viewer.lastMove.player === 'black' ? '黑' : '白'})
+                        </p>
+                      )}
+                   </div>
+                   
+                   <div className="space-y-2">
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {viewer.metadata.comment || "该棋谱文件中未包含详细注解内容。"}
+                      </p>
+                   </div>
+
+                   <div className="pt-4 border-t space-y-3">
+                      <h4 className="text-xs font-bold uppercase text-muted-foreground">棋谱详情</h4>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
+                         <div><span className="text-muted-foreground">规则 (RU):</span> {viewer.metadata.rules || "N/A"}</div>
+                         <div><span className="text-muted-foreground">贴目 (KM):</span> {viewer.metadata.komi || "N/A"}</div>
+                         <div><span className="text-muted-foreground">地点 (PC):</span> {viewer.metadata.place || "N/A"}</div>
+                         <div><span className="text-muted-foreground">时间 (TM):</span> {viewer.metadata.timeLimit || "N/A"}</div>
+                      </div>
                    </div>
                 </div>
               </ScrollArea>
