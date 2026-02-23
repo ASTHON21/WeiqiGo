@@ -1,50 +1,107 @@
 
 "use client";
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Icons } from '@/components/icons';
-import { Play, BookOpen, Info } from 'lucide-react';
+import { Play, Swords, Info, History } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function HomePage() {
   const router = useRouter();
+  const [practiceSize, setPracticeSize] = useState("19");
+  const [onlineSize, setOnlineSize] = useState("19");
+
+  const handleStartPractice = () => {
+    router.push(`/game/practice?size=${practiceSize}`);
+  };
+
+  const handleStartOnline = () => {
+    router.push(`/game/online/lobby?size=${onlineSize}`);
+  };
 
   return (
     <div className="min-h-screen bg-[url('https://images.unsplash.com/photo-1529697210530-8c4bb1358ce5?q=80&w=2070')] bg-cover bg-center">
-      <div className="min-h-screen w-full bg-background/85 backdrop-blur-md flex flex-col items-center justify-center p-6">
-        <div className="max-w-4xl w-full text-center space-y-12">
-          <div className="space-y-4">
+      <div className="min-h-screen w-full bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6">
+        <div className="max-w-5xl w-full space-y-12">
+          <div className="text-center space-y-4">
             <h1 className="text-7xl font-bold font-headline tracking-tighter text-primary">SHADOW GO</h1>
             <p className="text-muted-foreground text-xl italic font-medium">
-              “复刻棋圣逻辑，探寻博弈边界。”
+              “博弈之间，见天地，见众生。”
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-            <Button size="lg" className="h-16 px-10 text-lg gap-3 shadow-xl" onClick={() => router.push('/game')}>
-              <Play className="h-6 w-6" /> 进入对局中心
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* 本地练棋卡片 */}
+            <Card className="border-2 hover:border-primary transition-all shadow-xl">
+              <CardHeader className="text-center">
+                <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                  <Play className="h-8 w-8 text-primary" />
+                </div>
+                <CardTitle className="text-2xl">本地练棋 (Practice)</CardTitle>
+                <CardDescription>一人分饰两角，研磨定式，探索棋道变化。</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-xs font-bold uppercase text-muted-foreground text-center">选择棋盘尺寸</p>
+                  <Tabs value={practiceSize} onValueChange={setPracticeSize} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="9">9 x 9</TabsTrigger>
+                      <TabsTrigger value="13">13 x 13</TabsTrigger>
+                      <TabsTrigger value="19">19 x 19</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full h-12 text-lg font-bold" onClick={handleStartPractice}>
+                  开始对局
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* 玩家连线卡片 */}
+            <Card className="border-2 hover:border-blue-500 transition-all shadow-xl">
+              <CardHeader className="text-center">
+                <div className="mx-auto w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
+                  <Swords className="h-8 w-8 text-blue-500" />
+                </div>
+                <CardTitle className="text-2xl">玩家连线 (Online)</CardTitle>
+                <CardDescription>寻找实时对手，在标准的竞技规则下分出胜负。</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-xs font-bold uppercase text-muted-foreground text-center">选择棋盘尺寸</p>
+                  <Tabs value={onlineSize} onValueChange={setOnlineSize} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="9">9 x 9</TabsTrigger>
+                      <TabsTrigger value="13">13 x 13</TabsTrigger>
+                      <TabsTrigger value="19">19 x 19</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button variant="secondary" className="w-full h-12 text-lg font-bold" onClick={handleStartOnline}>
+                  进入大厅
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+
+          <div className="flex justify-center gap-8">
+            <Button variant="ghost" onClick={() => router.push('/history')} className="gap-2">
+              <History className="h-4 w-4" /> 历史对局
             </Button>
-            <Button size="lg" variant="outline" className="h-16 px-10 text-lg gap-3 border-2" onClick={() => router.push('/game/viewer')}>
-              <BookOpen className="h-6 w-6" /> 名局深度阅览
+            <Button variant="ghost" className="gap-2">
+              <Info className="h-4 w-4" /> 竞技规则
             </Button>
           </div>
 
-          <div className="pt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="p-6 rounded-xl bg-muted/10 border border-border/50 backdrop-blur-sm">
-               <h3 className="font-bold text-lg mb-2 flex items-center justify-center gap-2"><Icons.Logo className="h-5 w-5 text-accent"/> 名局复刻</h3>
-               <p className="text-sm text-muted-foreground">精准解析 SGF 棋谱，动态追踪 AlphaGo 历史性对局轨迹。</p>
-            </div>
-            <div className="p-6 rounded-xl bg-muted/10 border border-border/50 backdrop-blur-sm">
-               <h3 className="font-bold text-lg mb-2 flex items-center justify-center gap-2"><Swords className="h-5 w-5 text-blue-500"/> 多维对弈</h3>
-               <p className="text-sm text-muted-foreground">支持本地练棋与在线对战，集成中国围棋数子法竞赛规则。</p>
-            </div>
-            <div className="p-6 rounded-xl bg-muted/10 border border-border/50 backdrop-blur-sm">
-               <h3 className="font-bold text-lg mb-2 flex items-center justify-center gap-2"><Info className="h-5 w-5 text-primary"/> 无损解析</h3>
-               <p className="text-sm text-muted-foreground">基于 11 项核心 SGF 元数据，提供最完整的棋谱展示体验。</p>
-            </div>
-          </div>
-
-          <div className="text-xs text-muted-foreground opacity-50">
+          <div className="text-xs text-center text-muted-foreground opacity-50">
             AlphaGo Mirror Architecture v2.0 · Powered by Firebase Studio
           </div>
         </div>
@@ -52,5 +109,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-import { Swords } from 'lucide-react';

@@ -1,13 +1,28 @@
 
 "use client";
 
+import { useSearchParams } from 'next/navigation';
 import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2 } from 'lucide-react';
+import { Users, Swords, Loader2, Book } from 'lucide-react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useEffect, useState } from 'react';
+import { getRulesContent } from '@/app/actions/sgf';
+import { createEmptyBoard } from '@/lib/go-logic';
 
 export default function OnlineGamePage() {
+  const searchParams = useSearchParams();
+  const size = parseInt(searchParams.get('size') || '19');
+  const [rules, setRules] = useState("");
+  const emptyBoard = createEmptyBoard(size);
+
+  useEffect(() => {
+    getRulesContent().then(setRules);
+  }, []);
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex items-center justify-between">
@@ -15,19 +30,27 @@ export default function OnlineGamePage() {
            <Swords className="h-6 w-6" /> 在线对局
          </h1>
          <div className="flex items-center gap-3">
+           <Badge variant="outline">{size}x{size}</Badge>
            <Badge variant="outline" className="animate-pulse flex items-center gap-1 border-blue-500 text-blue-500">
-             <div className="w-2 h-2 rounded-full bg-blue-500" /> 实时同步中
+             <div className="w-2 h-2 rounded-full bg-blue-500" /> 等待对手中
            </Badge>
          </div>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_350px] gap-8 items-start">
         <div className="flex flex-col items-center">
-          <div className="w-full max-w-[80vh] aspect-square bg-muted/20 rounded-lg flex items-center justify-center border-4 border-dashed border-muted">
-             <div className="text-center space-y-4">
-                <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto" />
-                <p className="text-muted-foreground font-medium">正在建立 Socket.io 安全隧道...</p>
-             </div>
+          <div className="relative w-full max-w-[80vh]">
+            <GoBoard 
+              board={emptyBoard} 
+              size={size} 
+              readOnly={true}
+            />
+            <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted">
+               <div className="text-center space-y-4">
+                  <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto" />
+                  <p className="text-muted-foreground font-medium">正在建立 Socket.io 安全隧道...</p>
+               </div>
+            </div>
           </div>
         </div>
 
@@ -55,6 +78,29 @@ export default function OnlineGamePage() {
               </div>
             </CardContent>
           </Card>
+
+          <Sheet>
+            <SheetTrigger asChild>
+              <Card className="border-2 cursor-pointer hover:bg-muted/50 transition-colors">
+                <CardContent className="p-4 flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                      <Book className="h-4 w-4 text-accent" />
+                      <span className="text-sm font-bold">查阅竞赛规则</span>
+                   </div>
+                </CardContent>
+              </Card>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+              <SheetHeader>
+                <SheetTitle>中国围棋竞赛规则</SheetTitle>
+              </SheetHeader>
+              <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
+                <div className="prose prose-sm dark:prose-invert">
+                   <pre className="whitespace-pre-wrap font-sans text-sm">{rules}</pre>
+                </div>
+              </ScrollArea>
+            </SheetContent>
+          </Sheet>
 
           <ToolPanel showChat={true} onAnalysis={() => {}} />
         </div>
