@@ -1,27 +1,39 @@
-
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Trophy } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function OnlineLobbyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const defaultSize = parseInt(searchParams.get('size') || '19');
-  const { user } = useUser();
+  const { user, loading: loadingUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
 
-  // 获取在线玩家 (此处模拟，实际开发中需通过 heartbeat 维护 onlineProfiles)
+  // 1. 在大厅注册当前一次性身份，以便他人可见
+  useEffect(() => {
+    if (user && db) {
+      const userRef = doc(db, "userProfiles", user.uid);
+      setDoc(userRef, {
+        id: user.uid,
+        displayName: user.displayName,
+        lastLoginAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      }, { merge: true });
+    }
+  }, [user, db]);
+
+  // 获取在线玩家
   const usersQuery = useMemoFirebase(() => query(collection(db, "userProfiles")), [db]);
   const { data: onlinePlayers, isLoading: loadingPlayers } = useCollection(usersQuery);
 
@@ -37,6 +49,8 @@ export default function OnlineLobbyPage() {
       const gameRef = await addDoc(collection(db, "games"), {
         playerBlackId: user.uid,
         playerWhiteId: targetUserId,
+        playerBlackName: user.displayName,
+        playerWhiteName: targetName,
         status: 'pending',
         boardSize: defaultSize,
         currentTurn: 'black',
@@ -64,6 +78,10 @@ export default function OnlineLobbyPage() {
     router.push(`/game/online/${gameId}?mode=spectate`);
   };
 
+  if (loadingUser) {
+    return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
+  }
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8 max-w-6xl">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -71,7 +89,9 @@ export default function OnlineLobbyPage() {
           <h1 className="text-4xl font-bold font-headline tracking-tight text-blue-500 flex items-center gap-3">
             <Swords className="h-10 w-10" /> 竞技大厅
           </h1>
-          <p className="text-muted-foreground italic">实时在线对局与社交中心</p>
+          <p className="text-muted-foreground italic">
+            您当前的临时身份: <span className="text-foreground font-bold">{user?.displayName}</span>
+          </p>
         </div>
         <Button variant="outline" onClick={() => router.push('/')}>返回主页</Button>
       </div>
@@ -79,7 +99,7 @@ export default function OnlineLobbyPage() {
       <Tabs defaultValue="players" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-2 h-12 mb-6">
           <TabsTrigger value="players" className="gap-2">
-            <Users className="h-4 w-4" /> 在线玩家
+            <Users className="h-4 w-4" /> 在线棋手
           </TabsTrigger>
           <TabsTrigger value="games" className="gap-2">
             <PlayCircle className="h-4 w-4" /> 实时观战
@@ -104,7 +124,6 @@ export default function OnlineLobbyPage() {
                     <div>
                       <h3 className="font-bold text-lg">{player.displayName}</h3>
                       <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="secondary" className="text-[10px]">9 Dan</Badge>
                         <div className="w-2 h-2 rounded-full bg-green-500" />
                         <span className="text-[10px] text-muted-foreground">在线</span>
                       </div>
@@ -115,7 +134,7 @@ export default function OnlineLobbyPage() {
                   </Button>
                 </CardContent>
               </Card>
-            )) || <div className="col-span-full text-center py-12 text-muted-foreground">暂无其他玩家在线</div>}
+            )) || <div className="col-span-full text-center py-12 text-muted-foreground">暂无其他棋手在线</div>}
           </div>
         </TabsContent>
 
@@ -130,18 +149,18 @@ export default function OnlineLobbyPage() {
                 <Card key={game.id} className="border-2 overflow-hidden flex flex-col">
                   <div className="bg-blue-500/10 p-3 border-b flex items-center justify-between">
                     <Badge variant="outline" className="bg-background">{game.boardSize}x{game.boardSize}</Badge>
-                    <span className="text-[10px] font-mono font-bold text-blue-600">IN PROGRESS</span>
+                    <span className="text-[10px] font-mono font-bold text-blue-600">进行中</span>
                   </div>
                   <CardContent className="p-6 flex-1 flex flex-col justify-center items-center gap-4">
                     <div className="flex items-center gap-6">
                       <div className="text-center space-y-2">
                          <div className="w-10 h-10 rounded-full bg-black mx-auto ring-2 ring-offset-2 ring-black/10" />
-                         <p className="text-xs font-bold truncate max-w-[80px]">Player 1</p>
+                         <p className="text-xs font-bold truncate max-w-[80px]">{game.playerBlackName || '匿名黑方'}</p>
                       </div>
                       <div className="text-xl font-bold text-muted-foreground">VS</div>
                       <div className="text-center space-y-2">
                          <div className="w-10 h-10 rounded-full bg-white border mx-auto ring-2 ring-offset-2 ring-black/10" />
-                         <p className="text-xs font-bold truncate max-w-[80px]">Player 2</p>
+                         <p className="text-xs font-bold truncate max-w-[80px]">{game.playerWhiteName || '匿名白方'}</p>
                       </div>
                     </div>
                   </CardContent>

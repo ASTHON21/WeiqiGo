@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useParams, useSearchParams } from 'next/navigation';
@@ -12,22 +11,23 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useEffect, useState } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
+import { useToast } from '@/hooks/use-toast';
 
 export default function OnlineGamePage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const roomId = params.roomId as string;
   const isSpectating = searchParams.get('mode') === 'spectate';
-  const { user } = useUser();
+  const { user, loading: loadingUser } = useUser();
   const db = useFirestore();
+  const { toast } = useToast();
 
   const [rules, setRules] = useState("");
   
   // 实时订阅游戏文档
-  const gameRef = useMemoFirebase(() => collection(db, "games"), [db]);
-  const { data: game, isLoading: loadingGame } = useDoc(roomId ? { path: `games/${roomId}` } as any : null);
+  const { data: game, isLoading: loadingGame } = useDoc(roomId ? doc(db, "games", roomId) as any : null);
 
   // 实时订阅步数
   const movesQuery = useMemoFirebase(() => 
@@ -54,9 +54,55 @@ export default function OnlineGamePage() {
   })();
 
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
-  const canMove = !isSpectating && isPlayer && game?.status === 'in-progress';
+  const isMyTurn = game && user && (
+    (game.currentTurn === 'black' && user.uid === game.playerBlackId) ||
+    (game.currentTurn === 'white' && user.uid === game.playerWhiteId)
+  );
+  const canMove = !isSpectating && isPlayer && game?.status === 'in-progress' && isMyTurn;
 
-  if (loadingGame) {
+  const handleMove = async (r: number, c: number) => {
+    if (!canMove || !user || !game) return;
+
+    const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
+    
+    // 逻辑验证（本地）
+    const logicResult = GoLogic.processMove(board, r, c, playerColor, []);
+    if (!logicResult.success) {
+      toast({
+        variant: "destructive",
+        title: "无效落子",
+        description: logicResult.error === 'occupied' ? "该位置已有棋子" : "违反围棋规则",
+      });
+      return;
+    }
+
+    // 写入数据库
+    try {
+      await addDoc(collection(db, `games/${roomId}/moves`), {
+        gameId: roomId,
+        playerColor,
+        coordinatesX: r,
+        coordinatesY: c,
+        moveNumber: (moves?.length || 0) + 1,
+        timestamp: serverTimestamp(),
+        evaluation: 0.5, // 占位
+        playerBlackId: game.playerBlackId, // 用于安全规则校验
+        playerWhiteId: game.playerWhiteId,
+      });
+
+      // 更新游戏状态
+      const nextTurn = playerColor === 'black' ? 'white' : 'black';
+      await setDoc(doc(db, "games", roomId), {
+        currentTurn: nextTurn,
+        status: 'in-progress'
+      }, { merge: true });
+
+    } catch (err) {
+      console.error("落子失败", err);
+    }
+  };
+
+  if (loadingGame || loadingUser) {
     return (
       <div className="h-screen flex items-center justify-center bg-background/50 backdrop-blur-sm">
         <div className="text-center space-y-4">
@@ -89,6 +135,8 @@ export default function OnlineGamePage() {
               board={board} 
               size={game?.boardSize || 19} 
               readOnly={!canMove}
+              onMove={handleMove}
+              currentPlayer={game?.currentTurn}
               lastMove={moves?.length ? { r: moves[moves.length-1].coordinatesX, c: moves[moves.length-1].coordinatesY, player: moves[moves.length-1].playerColor } : null}
             />
             {game?.status === 'pending' && !isSpectating && (
@@ -113,28 +161,27 @@ export default function OnlineGamePage() {
               <div className="flex items-center justify-between">
                  <div className="flex items-center gap-2">
                    <div className="w-8 h-8 rounded-full bg-black border-2 border-white shadow-sm" />
-                   <span className="text-sm font-bold">Black</span>
+                   <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerBlackName || '匿名黑方'}</span>
                  </div>
-                 {game?.playerBlackId === user?.uid && <Badge variant="secondary">You</Badge>}
+                 {game?.playerBlackId === user?.uid && <Badge variant="secondary">您</Badge>}
               </div>
               <div className="flex items-center justify-between">
                  <div className="flex items-center gap-2">
                    <div className="w-8 h-8 rounded-full bg-white border-2 border-black shadow-sm" />
-                   <span className="text-sm font-bold">White</span>
+                   <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerWhiteName || '匿名白方'}</span>
                  </div>
-                 {game?.playerWhiteId === user?.uid && <Badge variant="secondary">You</Badge>}
+                 {game?.playerWhiteId === user?.uid && <Badge variant="secondary">您</Badge>}
               </div>
             </CardContent>
           </Card>
 
-          {isSpectating && (
-             <Card className="border-2 bg-accent/5 border-accent/20">
-               <CardContent className="p-4 flex items-center gap-3">
-                 <PlayCircle className="h-5 w-5 text-accent animate-pulse" />
-                 <span className="text-sm font-medium">当前有 12 人正在共同观战</span>
-               </CardContent>
-             </Card>
-          )}
+          <div className="p-4 bg-muted/50 rounded-lg border-2 text-center">
+            <p className="text-xs text-muted-foreground uppercase font-bold mb-1">当前回合</p>
+            <p className="text-lg font-black flex items-center justify-center gap-2">
+              <div className={cn("w-3 h-3 rounded-full border", game?.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
+              {game?.currentTurn === 'black' ? '黑方落子' : '白方落子'}
+            </p>
+          </div>
 
           <Sheet>
             <SheetTrigger asChild>

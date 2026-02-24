@@ -1,36 +1,45 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { useAuth } from '@/firebase/provider';
 
 /**
- * React hook to subscribe to the Firebase Authentication state.
- * @returns An object containing the current user, loading state, and any error.
+ * 棋手身份接口
+ */
+export interface SessionUser {
+  uid: string;
+  displayName: string;
+}
+
+/**
+ * React hook to manage a one-time player identity using sessionStorage.
+ * This ID persists through refreshes but is cleared when the tab is closed.
  */
 export function useUser() {
-  const auth = useAuth();
-  const [user, setUser] = useState<User | null>(auth.currentUser);
-  const [loading, setLoading] = useState(!auth.currentUser);
-  const [error, setError] = useState<Error | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Subscribe to auth state changes
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (authUser) => {
-        setUser(authUser);
-        setLoading(false);
-      },
-      (err) => {
-        setError(err);
-        setLoading(false);
-      }
-    );
+    // 1. 尝试从 sessionStorage 获取现有身份
+    const storedId = sessionStorage.getItem('tempPlayerId');
+    const storedName = sessionStorage.getItem('tempDisplayName');
 
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, [auth]);
+    if (storedId && storedName) {
+      setUser({ uid: storedId, displayName: storedName });
+      setLoading(false);
+    } else {
+      // 2. 如果没有，生成新的匿名身份
+      const newId = crypto.randomUUID();
+      // 生成一个具有围棋韵味的随机昵称后缀
+      const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const newName = `棋手-${randomSuffix}`;
 
-  return { user, loading, error };
+      sessionStorage.setItem('tempPlayerId', newId);
+      sessionStorage.setItem('tempDisplayName', newName);
+
+      setUser({ uid: newId, displayName: newName });
+      setLoading(false);
+    }
+  }, []);
+
+  return { user, loading, error: null };
 }
