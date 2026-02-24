@@ -8,12 +8,23 @@ import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { History, Swords, Book } from 'lucide-react';
+import { History, Swords, Book, Calculator } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useEffect, useState } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
+import { GoLogic } from '@/lib/go-logic';
 
 export default function PracticePage() {
   const searchParams = useSearchParams();
@@ -21,6 +32,7 @@ export default function PracticePage() {
   const practice = usePracticeGame(size);
   const { toast } = useToast();
   const [rules, setRules] = useState("");
+  const [scoreResult, setScoreResult] = useState<any>(null);
 
   useEffect(() => {
     getRulesContent().then(setRules);
@@ -37,19 +49,24 @@ export default function PracticePage() {
     }
   };
 
+  const handleScore = () => {
+    const result = GoLogic.calculateScore(practice.board);
+    setScoreResult(result);
+  };
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex items-center justify-between">
-         <h1 className="text-2xl font-bold flex items-center gap-2">
-           <Swords className="text-primary" /> 本地练棋模式
+         <h1 className="text-2xl font-bold flex items-center gap-2 text-primary">
+           <Swords className="h-6 w-6" /> 本地练棋模式
          </h1>
          <div className="flex items-center gap-4">
-           <div className="flex items-center gap-2">
-             <div className={cn("w-3 h-3 rounded-full border", practice.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
-             <span className="text-sm font-medium">{practice.currentTurn === 'black' ? '黑方回合' : '白方回合'}</span>
+           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border">
+             <div className={cn("w-3 h-3 rounded-full border transition-colors", practice.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
+             <span className="text-sm font-bold">{practice.currentTurn === 'black' ? '黑方回合' : '白方回合'}</span>
            </div>
-           <Badge variant="outline">{size}x{size}</Badge>
-           <Badge variant="secondary">第 {practice.moveHistory.length + 1} 手</Badge>
+           <Badge variant="outline" className="font-mono">{size}x{size}</Badge>
+           <Badge variant="secondary" className="font-mono">MOVE {practice.moveHistory.length}</Badge>
          </div>
       </div>
 
@@ -68,26 +85,30 @@ export default function PracticePage() {
           <ToolPanel 
             onUndo={practice.undo} 
             onReset={practice.reset} 
+            onScore={handleScore}
           />
 
           <Sheet>
             <SheetTrigger asChild>
-              <Card className="border-2 cursor-pointer hover:bg-muted/50 transition-colors">
+              <Card className="border-2 cursor-pointer hover:bg-muted/50 transition-colors group">
                 <CardContent className="p-4 flex items-center justify-between">
                    <div className="flex items-center gap-2">
-                      <Book className="h-4 w-4 text-accent" />
+                      <Book className="h-4 w-4 text-accent group-hover:scale-110 transition-transform" />
                       <span className="text-sm font-bold">查阅竞赛规则</span>
                    </div>
+                   <Badge variant="outline" className="text-[10px]">中国规则</Badge>
                 </CardContent>
               </Card>
             </SheetTrigger>
             <SheetContent side="right" className="w-[400px] sm:w-[540px]">
               <SheetHeader>
-                <SheetTitle>中国围棋竞赛规则</SheetTitle>
+                <SheetTitle className="flex items-center gap-2">
+                  <Book className="h-5 w-5 text-accent" /> 中国围棋竞赛规则
+                </SheetTitle>
               </SheetHeader>
               <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
                 <div className="prose prose-sm dark:prose-invert">
-                   <pre className="whitespace-pre-wrap font-sans text-sm">{rules}</pre>
+                   <pre className="whitespace-pre-wrap font-sans text-sm p-4 bg-muted/30 rounded-lg border">{rules}</pre>
                 </div>
               </ScrollArea>
             </SheetContent>
@@ -96,27 +117,66 @@ export default function PracticePage() {
           <Card className="border-2 h-[320px] flex flex-col">
             <CardHeader className="py-3 bg-muted/30 border-b">
               <CardTitle className="text-sm flex items-center gap-2">
-                <History className="h-4 w-4" /> 棋谱记录
+                <History className="h-4 w-4 text-primary" /> 棋谱记录
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 p-0 overflow-hidden">
               <ScrollArea className="h-full p-2">
                 <div className="grid grid-cols-2 gap-2">
                   {practice.moveHistory.map((m, i) => (
-                    <div key={i} className="flex items-center gap-2 p-1.5 text-xs border rounded bg-muted/10">
-                      <span className="text-muted-foreground w-4">{i + 1}.</span>
+                    <div key={i} className="flex items-center gap-2 p-1.5 text-xs border rounded bg-muted/10 hover:bg-muted/20 transition-colors">
+                      <span className="text-muted-foreground w-4 font-mono">{i + 1}.</span>
                       <div className={cn("w-2 h-2 rounded-full", m.player === 'black' ? 'bg-black' : 'bg-white border')} />
-                      <span className="font-mono">
+                      <span className="font-mono font-bold">
                         {String.fromCharCode(m.c + 97).toUpperCase()}{size - m.r}
                       </span>
                     </div>
                   ))}
+                  {practice.moveHistory.length === 0 && (
+                    <div className="col-span-2 text-center py-12 text-muted-foreground text-xs italic">
+                      暂无落子记录
+                    </div>
+                  )}
                 </div>
               </ScrollArea>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      <AlertDialog open={!!scoreResult} onOpenChange={(open) => !open && setScoreResult(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-xl">
+              <Calculator className="h-6 w-6 text-blue-500" /> 数子结算结果
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg bg-black/5 border text-center space-y-1">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground">黑方总得点</p>
+                  <p className="text-3xl font-black">{scoreResult?.blackTotal}</p>
+                </div>
+                <div className="p-4 rounded-lg bg-black/5 border text-center space-y-1">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground">白方总得点</p>
+                  <p className="text-3xl font-black">{scoreResult?.whiteTotal}</p>
+                </div>
+              </div>
+              <div className="p-4 rounded-lg bg-blue-500/5 border-2 border-blue-500/20 text-center">
+                <p className="text-sm font-bold text-blue-600 mb-1">胜负判定 (含贴目 {scoreResult?.komi})</p>
+                <h3 className="text-2xl font-black text-blue-700">
+                  {scoreResult?.winner === 'black' ? '黑方胜' : '白方胜'} {scoreResult?.diff} 目
+                </h3>
+              </div>
+              <p className="text-[10px] text-muted-foreground text-center italic">
+                * 根据中国规则，黑棋贴 3.75 子（7.5 目）。
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setScoreResult(null)}>确认</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

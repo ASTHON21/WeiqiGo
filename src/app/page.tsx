@@ -1,17 +1,25 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Play, Swords, History, FileUp, Info, Users } from 'lucide-react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Play, Swords, History, FileUp, Info, Users, Book } from 'lucide-react';
+import { getRulesContent } from '@/app/actions/sgf';
 
 export default function HomePage() {
   const router = useRouter();
   const [practiceSize, setPracticeSize] = useState("19");
   const [onlineSize, setOnlineSize] = useState("19");
+  const [rules, setRules] = useState("");
+
+  useEffect(() => {
+    getRulesContent().then(setRules);
+  }, []);
 
   const handleStartPractice = () => {
     router.push(`/game/practice?size=${practiceSize}`);
@@ -115,9 +123,28 @@ export default function HomePage() {
             <Button variant="ghost" onClick={() => router.push('/history')} className="gap-2">
               <History className="h-4 w-4" /> 历史记录
             </Button>
-            <Button variant="ghost" className="gap-2">
-              <Info className="h-4 w-4" /> 规则说明
-            </Button>
+            
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" className="gap-2">
+                  <Info className="h-4 w-4" /> 规则说明
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+                <SheetHeader>
+                  <SheetTitle className="flex items-center gap-2">
+                    <Book className="h-5 w-5 text-accent" /> 中国围棋竞赛规则
+                  </SheetTitle>
+                </SheetHeader>
+                <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
+                  <div className="prose prose-sm dark:prose-invert">
+                    <pre className="whitespace-pre-wrap font-sans text-sm p-4 bg-muted/30 rounded-lg border">
+                      {rules || "正在加载规则..."}
+                    </pre>
+                  </div>
+                </ScrollArea>
+              </SheetContent>
+            </Sheet>
           </div>
 
           <div className="text-xs text-center text-muted-foreground opacity-50">
