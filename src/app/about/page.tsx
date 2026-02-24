@@ -3,7 +3,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Github, Globe, Mail } from "lucide-react";
+import { ArrowLeft, Github, Globe, Mail, User } from "lucide-react";
 
 export default function AboutPage() {
   const router = useRouter();
@@ -29,6 +29,14 @@ export default function AboutPage() {
                 我们致力于通过简洁、优雅的设计，结合强大的实时交互技术，为棋手提供一个纯粹的博弈空间。
               </p>
               
+              <div className="bg-muted/30 p-4 rounded-lg border-l-4 border-accent">
+                <h3 className="text-foreground font-bold flex items-center gap-2 mb-1">
+                  <User className="h-4 w-4 text-accent" /> 项目管理
+                </h3>
+                <p className="text-lg font-bold text-foreground">ASTHON SAM JUN AN</p>
+                <p className="text-xs">Project Manager</p>
+              </div>
+
               <h3 className="text-foreground font-bold mt-6 mb-2">项目初衷</h3>
               <p>
                 在快节奏的数字化时代，我们希望回归棋盘本身的宁静。无论是本地的潜心研磨，还是跨越网络的实时博弈，
