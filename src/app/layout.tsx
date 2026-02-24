@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Menu, History, Play } from 'lucide-react';
+import { Menu, History, Home, Info } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -42,15 +42,21 @@ export default function RootLayout({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 <DropdownMenuItem asChild>
-                  <Link href="/game" className="w-full cursor-pointer">
-                    <Play />
-                    <span>Play Game</span>
+                  <Link href="/" className="w-full cursor-pointer">
+                    <Home className="h-4 w-4" />
+                    <span>Homepage</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/history" className="w-full cursor-pointer">
-                    <History />
+                    <History className="h-4 w-4" />
                     <span>Game History</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/about" className="w-full cursor-pointer">
+                    <Info className="h-4 w-4" />
+                    <span>About</span>
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
