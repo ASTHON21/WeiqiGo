@@ -1,12 +1,44 @@
+
 "use client";
 
+import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Github, Globe, Mail, User } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AboutPage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const [clickCount, setClickCount] = useState(0);
+
+  const handleAdminTrigger = () => {
+    const nextCount = clickCount + 1;
+    setClickCount(nextCount);
+
+    if (nextCount === 10) {
+      setClickCount(0);
+      const password = prompt("请输入项目经理管理员密码：");
+      if (password === "ShadowGoAdmin888") {
+        sessionStorage.setItem('tempPlayerId', 'PM-EXCLUSIVE-ID');
+        sessionStorage.setItem('tempDisplayName', 'ASTHON SAM JUN AN (PM)');
+        toast({
+          title: "专属身份已激活",
+          description: "欢迎回来，项目经理。正在重启会话...",
+        });
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else if (password !== null) {
+        toast({
+          variant: "destructive",
+          title: "认证失败",
+          description: "密码错误，请联系技术支持。",
+        });
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background p-6 flex flex-col items-center justify-center">
@@ -31,7 +63,10 @@ export default function AboutPage() {
               
               <div className="bg-muted/30 p-4 rounded-lg border-l-4 border-accent">
                 <h3 className="text-foreground font-bold flex items-center gap-2 mb-1">
-                  <User className="h-4 w-4 text-accent" /> 项目管理
+                  <User 
+                    className="h-4 w-4 text-accent cursor-pointer hover:scale-110 transition-transform" 
+                    onClick={handleAdminTrigger}
+                  /> 项目管理
                 </h3>
                 <p className="text-lg font-bold text-foreground">ASTHON SAM JUN AN</p>
                 <p className="text-xs">Project Manager</p>
