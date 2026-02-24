@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -8,27 +9,26 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2 } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 export default function OnlineLobbyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const defaultSize = searchParams.get('size') || '19';
+  const acceptInvites = searchParams.get('acceptInvites') === 'true';
   const { user, loading: loadingUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
 
-  // 邀请状态
   const [invitingPlayer, setInvitingPlayer] = useState<{ id: string, name: string } | null>(null);
-  const [selectedSize, setSelectedSize] = useState<string>(defaultSize);
+  const [selectedSize, setSelectedSize] = useState<string>("19");
   const [opponentColor, setOpponentColor] = useState<'black' | 'white'>('white');
 
-  // 1. 在大厅注册身份
   useEffect(() => {
     if (user && db) {
       const userRef = doc(db, "userProfiles", user.uid);
@@ -37,9 +37,10 @@ export default function OnlineLobbyPage() {
         displayName: user.displayName,
         lastLoginAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
+        acceptingInvites: acceptInvites,
       }, { merge: true });
     }
-  }, [user, db]);
+  }, [user, db, acceptInvites]);
 
   const usersQuery = useMemoFirebase(() => query(collection(db, "userProfiles")), [db]);
   const { data: onlinePlayers, isLoading: loadingPlayers } = useCollection(usersQuery);
@@ -48,7 +49,15 @@ export default function OnlineLobbyPage() {
     query(collection(db, "games"), where("status", "==", "in-progress")), [db]);
   const { data: liveGames, isLoading: loadingGames } = useCollection(liveGamesQuery);
 
-  const handleInviteClick = (id: string, name: string) => {
+  const handleInviteClick = (id: string, name: string, isAccepting: boolean) => {
+    if (!isAccepting) {
+      toast({
+        variant: "destructive",
+        title: "无法邀请",
+        description: `${name} 当前设置了不接受任何对局邀请。`,
+      });
+      return;
+    }
     setInvitingPlayer({ id, name });
   };
 
@@ -56,7 +65,6 @@ export default function OnlineLobbyPage() {
     if (!user || !invitingPlayer) return;
     
     try {
-      // 如果对方是白色，则发起者是黑色
       const playerBlackId = opponentColor === 'white' ? user.uid : invitingPlayer.id;
       const playerWhiteId = opponentColor === 'white' ? invitingPlayer.id : user.uid;
       const playerBlackName = opponentColor === 'white' ? user.displayName : invitingPlayer.name;
@@ -108,6 +116,9 @@ export default function OnlineLobbyPage() {
           </h1>
           <p className="text-muted-foreground italic">
             您当前的临时身份: <span className="text-foreground font-bold">{user?.displayName}</span>
+            <Badge variant={acceptInvites ? "outline" : "destructive"} className="ml-2">
+              {acceptInvites ? "接受邀请中" : "拒绝邀请中"}
+            </Badge>
           </p>
         </div>
         <Button variant="outline" onClick={() => router.push('/')}>返回主页</Button>
@@ -131,31 +142,48 @@ export default function OnlineLobbyPage() {
                   <div className="p-6 h-24" />
                 </Card>
               ))
-            ) : onlinePlayers?.filter(p => p.id !== user?.uid).map((player) => (
-              <Card key={player.id} className="border-2 hover:border-blue-500/50 transition-all group">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-12 w-12 border-2 border-primary">
-                      <AvatarFallback className="bg-blue-500/10 text-blue-600 font-bold">{player.displayName?.[0] || 'U'}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h3 className="font-bold text-lg">{player.displayName}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-[10px] text-muted-foreground">在线</span>
+            ) : onlinePlayers?.filter(p => p.id !== user?.uid).map((player) => {
+              const isAccepting = player.acceptingInvites !== false;
+              return (
+                <Card key={player.id} className={cn("border-2 transition-all group", isAccepting ? "hover:border-blue-500/50" : "opacity-60")}>
+                  <CardContent className="p-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-12 w-12 border-2 border-primary">
+                        <AvatarFallback className={cn("text-white font-bold", isAccepting ? "bg-blue-500" : "bg-muted-foreground")}>
+                          {player.displayName?.[0] || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h3 className="font-bold text-lg flex items-center gap-2">
+                          {player.displayName}
+                          {!isAccepting && <Ban className="h-3 w-3 text-red-500" title="不接受邀请" />}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className={cn("w-2 h-2 rounded-full", isAccepting ? "bg-green-500 animate-pulse" : "bg-red-400")} />
+                          <span className="text-[10px] text-muted-foreground">
+                            {isAccepting ? "可对弈" : "请勿打扰"}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <Button size="icon" variant="ghost" className="group-hover:bg-blue-500 group-hover:text-white transition-colors" onClick={() => handleInviteClick(player.id, player.displayName)}>
-                    <UserPlus className="h-5 w-5" />
-                  </Button>
-                </CardContent>
-              </Card>
-            )) || <div className="col-span-full text-center py-12 text-muted-foreground">暂无其他棋手在线</div>}
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      disabled={!isAccepting}
+                      className={cn(isAccepting && "group-hover:bg-blue-500 group-hover:text-white transition-colors")} 
+                      onClick={() => handleInviteClick(player.id, player.displayName, isAccepting)}
+                    >
+                      {isAccepting ? <UserPlus className="h-5 w-5" /> : <Ban className="h-5 w-5 text-red-500" />}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            }) || <div className="col-span-full text-center py-12 text-muted-foreground">暂无其他棋手在线</div>}
           </div>
         </TabsContent>
 
         <TabsContent value="games">
+          {/* ... 保持原有观战列表代码不变 ... */}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {loadingGames ? (
               <div className="col-span-full flex justify-center py-12">
@@ -198,7 +226,7 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
-      {/* 邀请配置弹窗 */}
+      {/* 邀请配置弹窗保持不变 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

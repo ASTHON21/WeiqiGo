@@ -8,13 +8,14 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Play, Swords, History, FileUp, Info, Users, Book } from 'lucide-react';
+import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle } from 'lucide-react';
 import { getRulesContent } from '@/app/actions/sgf';
+import { cn } from '@/lib/utils';
 
 export default function HomePage() {
   const router = useRouter();
   const [practiceSize, setPracticeSize] = useState("19");
-  const [onlineSize, setOnlineSize] = useState("19");
+  const [acceptingInvites, setAcceptingInvites] = useState(true);
   const [rules, setRules] = useState("");
 
   useEffect(() => {
@@ -26,7 +27,7 @@ export default function HomePage() {
   };
 
   const handleEnterLobby = () => {
-    router.push(`/game/online/lobby?size=${onlineSize}`);
+    router.push(`/game/online/lobby?acceptInvites=${acceptingInvites}`);
   };
 
   return (
@@ -100,15 +101,21 @@ export default function HomePage() {
                 <CardDescription>查看实时在线玩家，发起对局挑战，或观摩名手对弈。</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 mt-auto">
-                <div className="space-y-2">
-                  <p className="text-xs font-bold uppercase text-muted-foreground text-center">默认对局尺寸</p>
-                  <Tabs value={onlineSize} onValueChange={setOnlineSize} className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="9">9 x 9</TabsTrigger>
-                      <TabsTrigger value="13">13 x 13</TabsTrigger>
-                      <TabsTrigger value="19">19 x 19</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button 
+                    variant={acceptingInvites ? "default" : "outline"} 
+                    className={cn("gap-2 h-11", acceptingInvites && "bg-green-600 hover:bg-green-700")}
+                    onClick={() => setAcceptingInvites(true)}
+                  >
+                    <CheckCircle2 className="h-4 w-4" /> 接受邀请
+                  </Button>
+                  <Button 
+                    variant={!acceptingInvites ? "default" : "outline"} 
+                    className={cn("gap-2 h-11", !acceptingInvites && "bg-red-600 hover:bg-red-700")}
+                    onClick={() => setAcceptingInvites(false)}
+                  >
+                    <XCircle className="h-4 w-4" /> 不接受邀请
+                  </Button>
                 </div>
               </CardContent>
               <CardFooter>
