@@ -13,6 +13,11 @@ export type Stone = Player | null;
 export type BoardState = Stone[][];
 
 /**
+ * 落子设定模式
+ */
+export type MoveSetting = 'direct' | 'confirm' | 'double-click';
+
+/**
  * 动作与历史
  */
 export interface Move {

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useSearchParams } from 'next/navigation';
@@ -24,6 +25,7 @@ import {
 import { useEffect, useState } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { GoLogic } from '@/lib/go-logic';
+import { MoveSetting } from '@/lib/types';
 
 export default function PracticePage() {
   const searchParams = useSearchParams();
@@ -32,6 +34,7 @@ export default function PracticePage() {
   const { toast } = useToast();
   const [rules, setRules] = useState("");
   const [scoreResult, setScoreResult] = useState<any>(null);
+  const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
 
   useEffect(() => {
     getRulesContent().then(setRules);
@@ -77,6 +80,7 @@ export default function PracticePage() {
             onMove={handleMove}
             currentPlayer={practice.currentTurn}
             lastMove={practice.moveHistory.length > 0 ? practice.moveHistory[practice.moveHistory.length - 1] : null}
+            moveSetting={moveSetting}
           />
         </div>
 
@@ -85,6 +89,8 @@ export default function PracticePage() {
             onReset={practice.reset} 
             onScore={handleScore}
             onPass={practice.pass}
+            moveSetting={moveSetting}
+            onMoveSettingChange={setMoveSetting}
           />
 
           <Sheet>

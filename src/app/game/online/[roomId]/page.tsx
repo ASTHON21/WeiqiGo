@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useParams, useSearchParams } from 'next/navigation';
@@ -15,6 +16,7 @@ import { collection, query, orderBy, addDoc, serverTimestamp, doc, setDoc } from
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { MoveSetting } from '@/lib/types';
 
 export default function OnlineGamePage() {
   const params = useParams();
@@ -26,6 +28,7 @@ export default function OnlineGamePage() {
   const { toast } = useToast();
 
   const [rules, setRules] = useState("");
+  const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   
   const { data: game, isLoading: loadingGame } = useDoc(roomId ? doc(db, "games", roomId) : null);
 
@@ -164,6 +167,7 @@ export default function OnlineGamePage() {
               onMove={handleMove}
               currentPlayer={game?.currentTurn}
               lastMove={moves?.length ? { r: moves[moves.length-1].coordinatesX, c: moves[moves.length-1].coordinatesY, player: moves[moves.length-1].playerColor } : null}
+              moveSetting={moveSetting}
             />
             {game?.status === 'pending' && !isSpectating && (
                <div className="absolute inset-0 z-50 bg-background/60 backdrop-blur-[2px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted">
@@ -232,7 +236,12 @@ export default function OnlineGamePage() {
             </SheetContent>
           </Sheet>
 
-          <ToolPanel onPass={handlePass} showChat={true} />
+          <ToolPanel 
+            onPass={handlePass} 
+            showChat={true} 
+            moveSetting={moveSetting}
+            onMoveSettingChange={setMoveSetting}
+          />
         </div>
       </div>
     </div>
