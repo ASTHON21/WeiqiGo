@@ -4,23 +4,31 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Swords, Users, PlayCircle, Loader2, UserPlus } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function OnlineLobbyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const defaultSize = parseInt(searchParams.get('size') || '19');
+  const defaultSize = searchParams.get('size') || '19';
   const { user, loading: loadingUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
 
-  // 1. 在大厅注册当前一次性身份，以便他人可见
+  // 邀请状态
+  const [invitingPlayer, setInvitingPlayer] = useState<{ id: string, name: string } | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string>(defaultSize);
+  const [opponentColor, setOpponentColor] = useState<'black' | 'white'>('white');
+
+  // 1. 在大厅注册身份
   useEffect(() => {
     if (user && db) {
       const userRef = doc(db, "userProfiles", user.uid);
@@ -33,26 +41,34 @@ export default function OnlineLobbyPage() {
     }
   }, [user, db]);
 
-  // 获取在线玩家
   const usersQuery = useMemoFirebase(() => query(collection(db, "userProfiles")), [db]);
   const { data: onlinePlayers, isLoading: loadingPlayers } = useCollection(usersQuery);
 
-  // 获取进行中的对局用于观战
   const liveGamesQuery = useMemoFirebase(() => 
     query(collection(db, "games"), where("status", "==", "in-progress")), [db]);
   const { data: liveGames, isLoading: loadingGames } = useCollection(liveGamesQuery);
 
-  const handleInvite = async (targetUserId: string, targetName: string) => {
-    if (!user) return;
+  const handleInviteClick = (id: string, name: string) => {
+    setInvitingPlayer({ id, name });
+  };
+
+  const confirmInvite = async () => {
+    if (!user || !invitingPlayer) return;
     
     try {
+      // 如果对方是白色，则发起者是黑色
+      const playerBlackId = opponentColor === 'white' ? user.uid : invitingPlayer.id;
+      const playerWhiteId = opponentColor === 'white' ? invitingPlayer.id : user.uid;
+      const playerBlackName = opponentColor === 'white' ? user.displayName : invitingPlayer.name;
+      const playerWhiteName = opponentColor === 'white' ? invitingPlayer.name : user.displayName;
+
       const gameRef = await addDoc(collection(db, "games"), {
-        playerBlackId: user.uid,
-        playerWhiteId: targetUserId,
-        playerBlackName: user.displayName,
-        playerWhiteName: targetName,
+        playerBlackId,
+        playerWhiteId,
+        playerBlackName,
+        playerWhiteName,
         status: 'pending',
-        boardSize: defaultSize,
+        boardSize: parseInt(selectedSize),
         currentTurn: 'black',
         startedAt: serverTimestamp(),
         komi: 7.5,
@@ -61,9 +77,10 @@ export default function OnlineLobbyPage() {
       
       toast({
         title: "已发送邀请",
-        description: `正在等待 ${targetName} 接受对局请求...`,
+        description: `正在等待 ${invitingPlayer.name} 接受对局请求...`,
       });
       
+      setInvitingPlayer(null);
       router.push(`/game/online/${gameRef.id}`);
     } catch (err) {
       toast({
@@ -79,7 +96,7 @@ export default function OnlineLobbyPage() {
   };
 
   if (loadingUser) {
-    return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
+    return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" /></div>;
   }
 
   return (
@@ -111,7 +128,7 @@ export default function OnlineLobbyPage() {
             {loadingPlayers ? (
               Array(6).fill(0).map((_, i) => (
                 <Card key={i} className="animate-pulse bg-muted/20 border-2">
-                  <CardContent className="h-24" />
+                  <div className="p-6 h-24" />
                 </Card>
               ))
             ) : onlinePlayers?.filter(p => p.id !== user?.uid).map((player) => (
@@ -119,17 +136,17 @@ export default function OnlineLobbyPage() {
                 <CardContent className="p-6 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <Avatar className="h-12 w-12 border-2 border-primary">
-                      <AvatarFallback>{player.displayName?.[0] || 'U'}</AvatarFallback>
+                      <AvatarFallback className="bg-blue-500/10 text-blue-600 font-bold">{player.displayName?.[0] || 'U'}</AvatarFallback>
                     </Avatar>
                     <div>
                       <h3 className="font-bold text-lg">{player.displayName}</h3>
                       <div className="flex items-center gap-2 mt-1">
-                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                         <span className="text-[10px] text-muted-foreground">在线</span>
                       </div>
                     </div>
                   </div>
-                  <Button size="icon" variant="ghost" className="group-hover:bg-blue-500 group-hover:text-white transition-colors" onClick={() => handleInvite(player.id, player.displayName)}>
+                  <Button size="icon" variant="ghost" className="group-hover:bg-blue-500 group-hover:text-white transition-colors" onClick={() => handleInviteClick(player.id, player.displayName)}>
                     <UserPlus className="h-5 w-5" />
                   </Button>
                 </CardContent>
@@ -180,6 +197,70 @@ export default function OnlineLobbyPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* 邀请配置弹窗 */}
+      <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5 text-blue-500" /> 对局邀请设置
+            </DialogTitle>
+            <DialogDescription>
+              向 <span className="text-foreground font-bold">{invitingPlayer?.name}</span> 发起挑战。
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <div className="space-y-3">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">棋盘尺寸</Label>
+              <Tabs value={selectedSize} onValueChange={setSelectedSize} className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="9">9 x 9</TabsTrigger>
+                  <TabsTrigger value="13">13 x 13</TabsTrigger>
+                  <TabsTrigger value="19">19 x 19</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">指定对方棋子颜色</Label>
+              <RadioGroup 
+                value={opponentColor} 
+                onValueChange={(val) => setOpponentColor(val as 'black' | 'white')}
+                className="grid grid-cols-2 gap-4"
+              >
+                <div>
+                  <RadioGroupItem value="black" id="opponent-black" className="peer sr-only" />
+                  <Label
+                    htmlFor="opponent-black"
+                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-blue-500 [&:has([data-state=checked])]:border-blue-500"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-black border-2 border-white mb-2" />
+                    <span className="text-xs font-bold">对方执黑</span>
+                  </Label>
+                </div>
+                <div>
+                  <RadioGroupItem value="white" id="opponent-white" className="peer sr-only" />
+                  <Label
+                    htmlFor="opponent-white"
+                    className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-blue-500 [&:has([data-state=checked])]:border-blue-500"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-white border-2 border-black mb-2" />
+                    <span className="text-xs font-bold">对方执白</span>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+
+          <DialogFooter className="sm:justify-between">
+            <Button variant="ghost" onClick={() => setInvitingPlayer(null)}>取消</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white font-bold" onClick={confirmInvite}>
+              发送邀请挑战
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
