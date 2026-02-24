@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useCallback } from 'react';
@@ -26,6 +25,12 @@ export function usePracticeGame(boardSize: number = 19) {
     return { success: false, error: result.error };
   }, [board, currentTurn, history]);
 
+  const pass = useCallback(() => {
+    setHistory(prev => [...prev, board]);
+    setMoveHistory(prev => [...prev, { r: -1, c: -1, player: currentTurn }]);
+    setCurrentTurn(prev => prev === 'black' ? 'white' : 'black');
+  }, [board, currentTurn]);
+
   const undo = () => {
     if (history.length > 0) {
       const prevBoard = history[history.length - 1];
@@ -48,6 +53,7 @@ export function usePracticeGame(boardSize: number = 19) {
     currentTurn,
     moveHistory,
     makeMove,
+    pass,
     undo,
     reset
   };

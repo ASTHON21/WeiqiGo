@@ -5,15 +5,16 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Book, PlayCircle, Radio } from 'lucide-react';
+import { Users, Swords, Loader2, Book, Radio } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useEffect, useState } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 export default function OnlineGamePage() {
   const params = useParams();
@@ -26,10 +27,8 @@ export default function OnlineGamePage() {
 
   const [rules, setRules] = useState("");
   
-  // 实时订阅游戏文档
-  const { data: game, isLoading: loadingGame } = useDoc(roomId ? doc(db, "games", roomId) as any : null);
+  const { data: game, isLoading: loadingGame } = useDoc(roomId ? doc(db, "games", roomId) : null);
 
-  // 实时订阅步数
   const movesQuery = useMemoFirebase(() => 
     query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")), 
     [db, roomId]
@@ -40,7 +39,6 @@ export default function OnlineGamePage() {
     getRulesContent().then(setRules);
   }, []);
 
-  // 根据当前步数计算棋盘
   const board = (() => {
     if (!game) return createEmptyBoard(19);
     let tempBoard = createEmptyBoard(game.boardSize || 19);
@@ -58,15 +56,14 @@ export default function OnlineGamePage() {
     (game.currentTurn === 'black' && user.uid === game.playerBlackId) ||
     (game.currentTurn === 'white' && user.uid === game.playerWhiteId)
   );
-  const canMove = !isSpectating && isPlayer && game?.status === 'in-progress' && isMyTurn;
+  const canMove = !isSpectating && isPlayer && game?.status !== 'finished' && isMyTurn;
 
   const handleMove = async (r: number, c: number) => {
     if (!canMove || !user || !game) return;
 
     const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
-    
-    // 逻辑验证（本地）
     const logicResult = GoLogic.processMove(board, r, c, playerColor, []);
+    
     if (!logicResult.success) {
       toast({
         variant: "destructive",
@@ -76,7 +73,6 @@ export default function OnlineGamePage() {
       return;
     }
 
-    // 写入数据库
     try {
       await addDoc(collection(db, `games/${roomId}/moves`), {
         gameId: roomId,
@@ -85,12 +81,11 @@ export default function OnlineGamePage() {
         coordinatesY: c,
         moveNumber: (moves?.length || 0) + 1,
         timestamp: serverTimestamp(),
-        evaluation: 0.5, // 占位
-        playerBlackId: game.playerBlackId, // 用于安全规则校验
+        evaluation: 0.5,
+        playerBlackId: game.playerBlackId,
         playerWhiteId: game.playerWhiteId,
       });
 
-      // 更新游戏状态
       const nextTurn = playerColor === 'black' ? 'white' : 'black';
       await setDoc(doc(db, "games", roomId), {
         currentTurn: nextTurn,
@@ -99,6 +94,37 @@ export default function OnlineGamePage() {
 
     } catch (err) {
       console.error("落子失败", err);
+    }
+  };
+
+  const handlePass = async () => {
+    if (!canMove || !user || !game) return;
+    const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
+
+    try {
+      await addDoc(collection(db, `games/${roomId}/moves`), {
+        gameId: roomId,
+        playerColor,
+        coordinatesX: -1,
+        coordinatesY: -1,
+        moveNumber: (moves?.length || 0) + 1,
+        timestamp: serverTimestamp(),
+        evaluation: 0.5,
+        playerBlackId: game.playerBlackId,
+        playerWhiteId: game.playerWhiteId,
+      });
+
+      const nextTurn = playerColor === 'black' ? 'white' : 'black';
+      await setDoc(doc(db, "games", roomId), {
+        currentTurn: nextTurn,
+      }, { merge: true });
+
+      toast({
+        title: "已弃权",
+        description: `${playerColor === 'black' ? '黑方' : '白方'}选择了弃权`,
+      });
+    } catch (err) {
+      console.error("弃权失败", err);
     }
   };
 
@@ -177,10 +203,10 @@ export default function OnlineGamePage() {
 
           <div className="p-4 bg-muted/50 rounded-lg border-2 text-center">
             <p className="text-xs text-muted-foreground uppercase font-bold mb-1">当前回合</p>
-            <p className="text-lg font-black flex items-center justify-center gap-2">
+            <div className="text-lg font-black flex items-center justify-center gap-2">
               <div className={cn("w-3 h-3 rounded-full border", game?.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
               {game?.currentTurn === 'black' ? '黑方落子' : '白方落子'}
-            </p>
+            </div>
           </div>
 
           <Sheet>
@@ -206,7 +232,7 @@ export default function OnlineGamePage() {
             </SheetContent>
           </Sheet>
 
-          <ToolPanel showChat={true} />
+          <ToolPanel onPass={handlePass} showChat={true} />
         </div>
       </div>
     </div>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useSearchParams } from 'next/navigation';
@@ -86,6 +85,7 @@ export default function PracticePage() {
             onUndo={practice.undo} 
             onReset={practice.reset} 
             onScore={handleScore}
+            onPass={practice.pass}
           />
 
           <Sheet>
@@ -128,7 +128,7 @@ export default function PracticePage() {
                       <span className="text-muted-foreground w-4 font-mono">{i + 1}.</span>
                       <div className={cn("w-2 h-2 rounded-full", m.player === 'black' ? 'bg-black' : 'bg-white border')} />
                       <span className="font-mono font-bold">
-                        {String.fromCharCode(m.c + 97).toUpperCase()}{size - m.r}
+                        {m.r === -1 ? 'PASS' : `${String.fromCharCode(m.c + 97).toUpperCase()}${size - m.r}`}
                       </span>
                     </div>
                   ))}

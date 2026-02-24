@@ -1,19 +1,19 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Undo2, Swords, MessageCircle, RefreshCw, Calculator } from "lucide-react";
+import { Undo2, Swords, MessageCircle, RefreshCw, Calculator, SkipForward } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ToolPanelProps {
   onUndo?: () => void;
   onAnalysis?: () => void;
   onReset?: () => void;
-  onScore?: () => void; // 新增：数子功能回调
+  onScore?: () => void;
+  onPass?: () => void; // 新增：弃权回调
   showChat?: boolean;
 }
 
-export function ToolPanel({ onUndo, onAnalysis, onReset, onScore, showChat }: ToolPanelProps) {
+export function ToolPanel({ onUndo, onAnalysis, onReset, onScore, onPass, showChat }: ToolPanelProps) {
   return (
     <Card className="border-2">
       <CardHeader className="py-3 bg-muted/30 border-b">
@@ -23,6 +23,11 @@ export function ToolPanel({ onUndo, onAnalysis, onReset, onScore, showChat }: To
         {onUndo && (
           <Button variant="outline" className="w-full justify-start gap-2" onClick={onUndo}>
             <Undo2 className="h-4 w-4" /> 悔棋 (Undo)
+          </Button>
+        )}
+        {onPass && (
+          <Button variant="outline" className="w-full justify-start gap-2" onClick={onPass}>
+            <SkipForward className="h-4 w-4" /> 弃权 (Pass)
           </Button>
         )}
         {onScore && (

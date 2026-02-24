@@ -15,6 +15,16 @@ export const GoLogic = {
         boardHistory: BoardState[] = []
     ) => {
         const size = board.length;
+        
+        // 处理弃权 (Pass)
+        if (r === -1 || c === -1) {
+            return { 
+                success: true, 
+                newBoard: board, 
+                capturedCount: 0 
+            };
+        }
+
         if (board[r][c] !== null) return { success: false, error: 'occupied' };
 
         let newBoard = board.map(row => [...row]);
@@ -38,7 +48,6 @@ export const GoLogic = {
         }
 
         // 2. 检查自杀 (禁着点 Rule 2.3)
-        // 如果提子后自己依然没气，则是禁着点
         if (GoLogic.calculateLiberties(newBoard, r, c) === 0) {
             return { success: false, error: 'suicide' };
         }
@@ -77,7 +86,7 @@ export const GoLogic = {
             }
         }
 
-        // 2. 统计归属领地 (BFS 寻找空点及其边界)
+        // 2. 统计归属领地
         let blackTerritory = 0;
         let whiteTerritory = 0;
 
@@ -94,9 +103,7 @@ export const GoLogic = {
 
         const blackTotal = blackStones + blackTerritory;
         const whiteTotal = whiteStones + whiteTerritory;
-        
-        // 中国规则判定：黑棋需超过 (180.5 + 3.75) = 184.25 子
-        const diff = blackTotal - whiteTotal - (KOMI * 2); // 简化计算：黑 - (白 + 2*贴子)
+        const diff = blackTotal - whiteTotal - (KOMI * 2); 
         const winner = diff > 0 ? 'black' : 'white';
 
         return {
@@ -104,7 +111,7 @@ export const GoLogic = {
             whiteTotal,
             komi: KOMI,
             winner,
-            diff: Math.abs(diff) / 2 // 转换为目数展示
+            diff: Math.abs(diff) / 2
         };
     },
 
@@ -134,12 +141,11 @@ export const GoLogic = {
             });
         }
 
-        // 如果空点只被一种颜色的棋子包围，则属于该方领地
         let owner: Player | 'seki' | null = null;
         if (owners.size === 1) {
             owner = Array.from(owners)[0];
         } else if (owners.size > 1) {
-            owner = 'seki'; // 公活或中立
+            owner = 'seki'; 
         }
 
         return { points, owner };
