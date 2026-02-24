@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp, setDoc, doc, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +28,10 @@ export default function OnlineLobbyPage() {
   const [selectedSize, setSelectedSize] = useState<string>("19");
   const [opponentColor, setOpponentColor] = useState<'black' | 'white'>('white');
 
+  // 接收到的邀请状态
+  const [receivedInvite, setReceivedInvite] = useState<any>(null);
+
+  // 1. 初始化/更新用户 Profile
   useEffect(() => {
     if (user && db) {
       const userRef = doc(db, "userProfiles", user.uid);
@@ -41,12 +45,38 @@ export default function OnlineLobbyPage() {
     }
   }, [user, db, acceptInvites]);
 
+  // 2. 监听在线棋手
   const usersQuery = useMemoFirebase(() => query(collection(db, "userProfiles")), [db]);
   const { data: onlinePlayers, isLoading: loadingPlayers } = useCollection(usersQuery);
 
+  // 3. 监听实时对局（观战用）
   const liveGamesQuery = useMemoFirebase(() => 
     query(collection(db, "games"), where("status", "==", "in-progress")), [db]);
   const { data: liveGames, isLoading: loadingGames } = useCollection(liveGamesQuery);
+
+  // 4. 监听针对我的挂起邀请 (Pending Invites)
+  const myInvitesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(
+      collection(db, "games"), 
+      where("status", "==", "pending")
+    );
+  }, [db, user]);
+
+  const { data: allPendingGames } = useCollection(myInvitesQuery);
+
+  // 过滤出真正属于我的邀请（作为黑方或白方，且我不是发起者 - 简化逻辑：只要是针对我的 ID 且我是被动加入方）
+  useEffect(() => {
+    if (allPendingGames && user) {
+      const activeInvite = allPendingGames.find(g => 
+        (g.playerBlackId === user.uid || g.playerWhiteId === user.uid) && 
+        g.createdBy !== user.uid // 确保不是我自己发起的
+      );
+      if (activeInvite && (!receivedInvite || activeInvite.id !== receivedInvite.id)) {
+        setReceivedInvite(activeInvite);
+      }
+    }
+  }, [allPendingGames, user, receivedInvite]);
 
   const handleInviteClick = (id: string, name: string, isAccepting: boolean) => {
     if (!isAccepting) {
@@ -80,6 +110,8 @@ export default function OnlineLobbyPage() {
         startedAt: serverTimestamp(),
         komi: 7.5,
         handicap: 0,
+        createdBy: user.uid, // 标记发起者
+        challengerName: user.displayName
       });
       
       toast({
@@ -95,6 +127,35 @@ export default function OnlineLobbyPage() {
         title: "邀请失败",
         description: "无法发起对局邀请，请稍后重试。",
       });
+    }
+  };
+
+  const handleAcceptInvite = async () => {
+    if (!receivedInvite || !db) return;
+    try {
+      await updateDoc(doc(db, "games", receivedInvite.id), {
+        status: 'in-progress',
+        startedAt: serverTimestamp()
+      });
+      const inviteId = receivedInvite.id;
+      setReceivedInvite(null);
+      router.push(`/game/online/${inviteId}`);
+    } catch (err) {
+      console.error("接受邀请失败", err);
+    }
+  };
+
+  const handleDeclineInvite = async () => {
+    if (!receivedInvite || !db) return;
+    try {
+      await updateDoc(doc(db, "games", receivedInvite.id), {
+        status: 'finished',
+        reason: 'declined'
+      });
+      setReceivedInvite(null);
+      toast({ title: "已拒绝邀请" });
+    } catch (err) {
+      console.error("拒绝邀请失败", err);
     }
   };
 
@@ -224,6 +285,7 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
+      {/* 发起邀请配置弹窗 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -282,6 +344,58 @@ export default function OnlineLobbyPage() {
             <Button variant="ghost" onClick={() => setInvitingPlayer(null)}>取消</Button>
             <Button className="bg-blue-600 hover:bg-blue-700 text-white font-bold" onClick={confirmInvite}>
               发送邀请挑战
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 收到邀请弹窗 */}
+      <Dialog open={!!receivedInvite} onOpenChange={(open) => !open && handleDeclineInvite()}>
+        <DialogContent className="sm:max-w-md border-4 border-blue-500 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl text-blue-600">
+              <BellRing className="h-6 w-6 animate-bounce" /> 收到新对局挑战！
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-6 space-y-6">
+            <div className="flex items-center gap-4 bg-muted/50 p-4 rounded-xl border">
+               <Avatar className="h-14 w-14 border-2 border-blue-500">
+                 <AvatarFallback className="bg-blue-500 text-white text-xl font-bold">
+                   {receivedInvite?.challengerName?.[0] || '?'}
+                 </AvatarFallback>
+               </Avatar>
+               <div>
+                 <p className="text-sm text-muted-foreground">来自棋手的挑战</p>
+                 <h3 className="text-xl font-black">{receivedInvite?.challengerName}</h3>
+               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3 border rounded-lg text-center space-y-1 bg-background">
+                <p className="text-[10px] font-bold uppercase text-muted-foreground">棋盘尺寸</p>
+                <p className="text-lg font-black">{receivedInvite?.boardSize} x {receivedInvite?.boardSize}</p>
+              </div>
+              <div className="p-3 border rounded-lg text-center space-y-1 bg-background">
+                <p className="text-[10px] font-bold uppercase text-muted-foreground">您的角色</p>
+                <div className="flex items-center justify-center gap-2">
+                  <div className={cn("w-3 h-3 rounded-full border", receivedInvite?.playerBlackId === user?.uid ? "bg-black" : "bg-white")} />
+                  <p className="text-lg font-black">{receivedInvite?.playerBlackId === user?.uid ? '执黑' : '执白'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-xs text-center text-muted-foreground bg-blue-50 p-2 rounded italic">
+              * 接受挑战后将立即进入对局房间，遵循中国围棋规则。
+            </div>
+          </div>
+
+          <DialogFooter className="grid grid-cols-2 gap-4">
+            <Button variant="outline" className="h-12 text-lg font-bold" onClick={handleDeclineInvite}>
+              婉言拒绝
+            </Button>
+            <Button className="h-12 text-lg font-bold bg-blue-600 hover:bg-blue-700 text-white" onClick={handleAcceptInvite}>
+              接受对局
             </Button>
           </DialogFooter>
         </DialogContent>
