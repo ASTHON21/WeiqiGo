@@ -28,7 +28,6 @@ export default function OnlineLobbyPage() {
   const [selectedSize, setSelectedSize] = useState<string>("19");
   const [opponentColor, setOpponentColor] = useState<'black' | 'white'>('white');
 
-  // 接收到的邀请状态
   const [receivedInvite, setReceivedInvite] = useState<any>(null);
 
   // 1. 初始化/更新用户 Profile
@@ -54,7 +53,7 @@ export default function OnlineLobbyPage() {
     query(collection(db, "games"), where("status", "==", "in-progress")), [db]);
   const { data: liveGames, isLoading: loadingGames } = useCollection(liveGamesQuery);
 
-  // 4. 监听针对我的挂起邀请 (Pending Invites)
+  // 4. 监听针对我的挂起邀请
   const myInvitesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -65,12 +64,11 @@ export default function OnlineLobbyPage() {
 
   const { data: allPendingGames } = useCollection(myInvitesQuery);
 
-  // 过滤出真正属于我的邀请（作为黑方或白方，且我不是发起者 - 简化逻辑：只要是针对我的 ID 且我是被动加入方）
   useEffect(() => {
     if (allPendingGames && user) {
       const activeInvite = allPendingGames.find(g => 
         (g.playerBlackId === user.uid || g.playerWhiteId === user.uid) && 
-        g.createdBy !== user.uid // 确保不是我自己发起的
+        g.createdBy !== user.uid
       );
       if (activeInvite && (!receivedInvite || activeInvite.id !== receivedInvite.id)) {
         setReceivedInvite(activeInvite);
@@ -110,7 +108,7 @@ export default function OnlineLobbyPage() {
         startedAt: serverTimestamp(),
         komi: 7.5,
         handicap: 0,
-        createdBy: user.uid, // 标记发起者
+        createdBy: user.uid,
         challengerName: user.displayName
       });
       
@@ -175,10 +173,12 @@ export default function OnlineLobbyPage() {
             <Swords className="h-10 w-10" /> 竞技大厅
           </h1>
           <div className="text-muted-foreground italic flex items-center flex-wrap gap-2 mt-1">
-            <span>您当前的临时身份: <span className="text-foreground font-bold">{user?.displayName}</span></span>
-            <Badge variant={acceptInvites ? "outline" : "destructive"}>
-              {acceptInvites ? "接受邀请中" : "拒绝邀请中"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <span>您当前的临时身份: <span className="text-foreground font-bold">{user?.displayName}</span></span>
+              <Badge variant={acceptInvites ? "outline" : "destructive"}>
+                {acceptInvites ? "接受邀请中" : "拒绝邀请中"}
+              </Badge>
+            </div>
           </div>
         </div>
         <Button variant="outline" onClick={() => router.push('/')}>返回主页</Button>
@@ -285,7 +285,7 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
-      {/* 发起邀请配置弹窗 */}
+      {/* 邀请配置弹窗 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
