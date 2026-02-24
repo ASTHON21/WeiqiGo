@@ -82,7 +82,6 @@ export default function PracticePage() {
 
         <div className="space-y-6">
           <ToolPanel 
-            onUndo={practice.undo} 
             onReset={practice.reset} 
             onScore={handleScore}
             onPass={practice.pass}
