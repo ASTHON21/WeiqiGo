@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -9,7 +8,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback } from "@/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -183,7 +182,6 @@ export default function OnlineLobbyPage() {
         </TabsContent>
 
         <TabsContent value="games">
-          {/* ... 保持原有观战列表代码不变 ... */}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {loadingGames ? (
               <div className="col-span-full flex justify-center py-12">
@@ -226,7 +224,6 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
-      {/* 邀请配置弹窗保持不变 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
