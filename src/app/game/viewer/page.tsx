@@ -13,14 +13,29 @@ import { useSgfViewer } from '@/hooks/useSgfViewer';
 import { FileUp, BookOpen, RotateCcw, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
 
 export default function SgfViewerPage() {
   const [gameData, setGameData] = useState<LevelData | null>(null);
   const router = useRouter();
+  const { toast } = useToast();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // 限制文件大小为 99kB
+    const MAX_SIZE = 99 * 1024;
+    if (file.size > MAX_SIZE) {
+      toast({
+        variant: "destructive",
+        title: "文件过大",
+        description: "为了保证加载速度，SGF 棋谱文件不能超过 99kB。",
+      });
+      // 清空 input 以便下次选择
+      e.target.value = '';
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -28,8 +43,17 @@ export default function SgfViewerPage() {
       try {
         const data = SgfProcessor.parse("uploaded", content);
         setGameData(data);
+        toast({
+          title: "导入成功",
+          description: "棋谱已成功加载并适配棋盘。",
+        });
       } catch (err) {
         console.error("SGF 解析失败:", err);
+        toast({
+          variant: "destructive",
+          title: "解析失败",
+          description: "该 SGF 文件格式可能已损坏，请重试。",
+        });
       }
     };
     reader.readAsText(file);
@@ -43,6 +67,7 @@ export default function SgfViewerPage() {
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold font-headline">SGF 棋谱查看器</h1>
           <p className="text-muted-foreground">上传您的 .sgf 文件，支持步进查看与多尺寸棋盘自动适配。</p>
+          <p className="text-[10px] text-muted-foreground/60">最大支持文件大小: 99kB</p>
         </div>
         
         <Card className="w-full max-w-md border-2 border-dashed bg-muted/20 hover:bg-muted/30 transition-colors cursor-pointer relative">
@@ -82,12 +107,14 @@ export default function SgfViewerPage() {
 
       <div className="grid lg:grid-cols-[1fr_350px] gap-8 items-start">
         <div className="space-y-6 flex flex-col items-center">
-          <GoBoard 
-            board={viewer.currentBoard} 
-            size={gameData.boardSize} 
-            readOnly={true} // 严格锁定，禁止交互
-            lastMove={viewer.lastMove}
-          />
+          <div className="relative w-full max-w-[80vh]">
+            <GoBoard 
+              board={viewer.currentBoard} 
+              size={gameData.boardSize} 
+              readOnly={true}
+              lastMove={viewer.lastMove}
+            />
+          </div>
           <Card className="w-full max-w-[80vh] border-2">
             <CardContent className="p-4">
               <NavControls 
