@@ -113,12 +113,12 @@ export default function OnlineLobbyPage() {
           <h1 className="text-4xl font-bold font-headline tracking-tight text-blue-500 flex items-center gap-3">
             <Swords className="h-10 w-10" /> 竞技大厅
           </h1>
-          <p className="text-muted-foreground italic">
-            您当前的临时身份: <span className="text-foreground font-bold">{user?.displayName}</span>
-            <Badge variant={acceptInvites ? "outline" : "destructive"} className="ml-2">
+          <div className="text-muted-foreground italic flex items-center flex-wrap gap-2 mt-1">
+            <span>您当前的临时身份: <span className="text-foreground font-bold">{user?.displayName}</span></span>
+            <Badge variant={acceptInvites ? "outline" : "destructive"}>
               {acceptInvites ? "接受邀请中" : "拒绝邀请中"}
             </Badge>
-          </p>
+          </div>
         </div>
         <Button variant="outline" onClick={() => router.push('/')}>返回主页</Button>
       </div>
