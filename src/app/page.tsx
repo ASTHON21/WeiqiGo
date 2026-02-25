@@ -8,14 +8,16 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages } from 'lucide-react';
+import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages, Moon, Sun } from 'lucide-react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
+import { useTheme } from '@/context/theme-context';
 
 export default function HomePage() {
   const router = useRouter();
   const { language, setLanguage, t } = useLanguage();
+  const { theme, toggleTheme } = useTheme();
   const [practiceSize, setPracticeSize] = useState("19");
   const [practiceRule, setPracticeRule] = useState("chinese");
   const [acceptingInvites, setAcceptingInvites] = useState(true);
@@ -39,8 +41,19 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[url('https://images.unsplash.com/photo-1529697210530-8c4bb1358ce5?q=80&w=2070')] bg-cover bg-center">
-      {/* Top Right Language Toggle */}
-      <div className="absolute top-4 right-4 z-50">
+      {/* Top Right Controls */}
+      <div className="absolute top-4 right-4 z-50 flex gap-2">
+        {/* Theme Toggle */}
+        <Button 
+          variant="outline" 
+          onClick={toggleTheme}
+          className="rounded-full px-4 h-10 border-2 bg-background/80 backdrop-blur-sm gap-2 hover:bg-background transition-all"
+        >
+          {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+          <span className="font-bold text-xs">{theme === 'dark' ? 'BK' : 'WH'}</span>
+        </Button>
+
+        {/* Language Toggle */}
         <Button 
           variant="outline" 
           onClick={toggleLanguage}
