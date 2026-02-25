@@ -104,6 +104,9 @@ export default function OnlineGamePage() {
     if (!canMove || !user || !game) return;
     const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
 
+    const lastMove = moves?.[moves.length - 1];
+    const isConsecutivePass = lastMove && lastMove.coordinatesX === -1 && lastMove.coordinatesY === -1;
+
     try {
       await addDoc(collection(db, `games/${roomId}/moves`), {
         gameId: roomId,
@@ -117,15 +120,27 @@ export default function OnlineGamePage() {
         playerWhiteId: game.playerWhiteId,
       });
 
-      const nextTurn = playerColor === 'black' ? 'white' : 'black';
-      await setDoc(doc(db, "games", roomId), {
-        currentTurn: nextTurn,
-      }, { merge: true });
+      if (isConsecutivePass) {
+        await setDoc(doc(db, "games", roomId), {
+          status: 'finished',
+          finishedAt: serverTimestamp()
+        }, { merge: true });
 
-      toast({
-        title: "已弃权",
-        description: `${playerColor === 'black' ? '黑方' : '白方'}选择了弃权`,
-      });
+        toast({
+          title: "对局结束",
+          description: "双方连续弃权，对局已完成。",
+        });
+      } else {
+        const nextTurn = playerColor === 'black' ? 'white' : 'black';
+        await setDoc(doc(db, "games", roomId), {
+          currentTurn: nextTurn,
+        }, { merge: true });
+
+        toast({
+          title: "已弃权",
+          description: `${playerColor === 'black' ? '黑方' : '白方'}选择了弃权`,
+        });
+      }
     } catch (err) {
       console.error("弃权失败", err);
     }
@@ -151,8 +166,8 @@ export default function OnlineGamePage() {
          </h1>
          <div className="flex items-center gap-3">
            <Badge variant="outline">{game?.boardSize}x{game?.boardSize}</Badge>
-           <Badge variant={game?.status === 'in-progress' ? 'default' : 'secondary'} className="flex items-center gap-1">
-             {game?.status === 'in-progress' ? '对局中' : '等待中'}
+           <Badge variant={game?.status === 'in-progress' ? 'default' : (game?.status === 'finished' ? 'secondary' : 'outline')} className="flex items-center gap-1">
+             {game?.status === 'in-progress' ? '对局中' : (game?.status === 'finished' ? '已结束' : '等待中')}
            </Badge>
          </div>
       </div>
@@ -174,6 +189,15 @@ export default function OnlineGamePage() {
                   <div className="text-center space-y-4">
                      <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto" />
                      <p className="text-muted-foreground font-bold">等待对手进入房间...</p>
+                  </div>
+               </div>
+            )}
+            {game?.status === 'finished' && (
+               <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg">
+                  <div className="bg-background p-6 rounded-xl border-4 border-blue-500 shadow-2xl text-center space-y-4">
+                     <Calculator className="h-10 w-10 text-blue-500 mx-auto" />
+                     <h2 className="text-2xl font-black">对局已结束</h2>
+                     <p className="text-sm text-muted-foreground">双方连续弃权，请根据棋面进行人工或辅助数子。</p>
                   </div>
                </div>
             )}
@@ -205,13 +229,15 @@ export default function OnlineGamePage() {
             </CardContent>
           </Card>
 
-          <div className="p-4 bg-muted/50 rounded-lg border-2 text-center">
-            <p className="text-xs text-muted-foreground uppercase font-bold mb-1">当前回合</p>
-            <div className="text-lg font-black flex items-center justify-center gap-2">
-              <div className={cn("w-3 h-3 rounded-full border", game?.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
-              {game?.currentTurn === 'black' ? '黑方落子' : '白方落子'}
+          {game?.status !== 'finished' && (
+            <div className="p-4 bg-muted/50 rounded-lg border-2 text-center">
+              <p className="text-xs text-muted-foreground uppercase font-bold mb-1">当前回合</p>
+              <div className="text-lg font-black flex items-center justify-center gap-2">
+                <div className={cn("w-3 h-3 rounded-full border", game?.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
+                {game?.currentTurn === 'black' ? '黑方落子' : '白方落子'}
+              </div>
             </div>
-          </div>
+          )}
 
           <Sheet>
             <SheetTrigger asChild>

@@ -60,7 +60,6 @@ export default function PracticePage() {
     if (ruleType === 'chinese') {
       result = GoLogic.calculateChineseScore(practice.board);
     } else {
-      // 日韩规则：传入实时的提子统计
       result = GoLogic.calculateJapaneseScore(practice.board, practice.prisoners.black, practice.prisoners.white);
     }
     
@@ -68,6 +67,22 @@ export default function PracticePage() {
       ...result,
       ruleName: ruleType === 'chinese' ? '中国规则' : '日韩规则'
     });
+  };
+
+  const handlePass = () => {
+    const isGameOver = practice.pass();
+    if (isGameOver) {
+      toast({
+        title: "对局结束",
+        description: "双方连续弃权，正在进入结算...",
+      });
+      handleScore();
+    } else {
+      toast({
+        title: "已弃权",
+        description: `${practice.currentTurn === 'black' ? '黑方' : '白方'}选择了弃权`,
+      });
+    }
   };
 
   return (
@@ -108,12 +123,11 @@ export default function PracticePage() {
           <ToolPanel 
             onReset={practice.reset} 
             onScore={handleScore}
-            onPass={practice.pass}
+            onPass={handlePass}
             moveSetting={moveSetting}
             onMoveSettingChange={setMoveSetting}
           />
 
-          {/* 实时状态统计 */}
           <Card className="border-2 border-primary/20 bg-primary/5">
             <CardHeader className="py-3 border-b">
               <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">

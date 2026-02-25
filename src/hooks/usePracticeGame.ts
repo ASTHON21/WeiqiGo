@@ -39,14 +39,15 @@ export function usePracticeGame(boardSize: number = 19) {
   }, [board, currentTurn, history]);
 
   const pass = useCallback(() => {
+    const lastMove = moveHistory[moveHistory.length - 1];
+    const isConsecutivePass = lastMove && lastMove.r === -1 && lastMove.c === -1;
+
     setHistory(prev => [...prev, board]);
     setMoveHistory(prev => [...prev, { r: -1, c: -1, player: currentTurn }]);
     setCurrentTurn(prev => prev === 'black' ? 'white' : 'black');
-  }, [board, currentTurn]);
 
-  const undo = () => {
-    // 移除悔棋逻辑
-  };
+    return isConsecutivePass; // 返回是否为连续弃权
+  }, [board, currentTurn, moveHistory]);
 
   const reset = () => {
     setBoard(createEmptyBoard(boardSize));
@@ -63,7 +64,6 @@ export function usePracticeGame(boardSize: number = 19) {
     prisoners,
     makeMove,
     pass,
-    undo,
     reset
   };
 }
