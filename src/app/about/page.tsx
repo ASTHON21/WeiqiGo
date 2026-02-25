@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -81,7 +80,7 @@ export default function AboutPage() {
               <h3 className="text-foreground font-bold mt-6 mb-2">核心特性</h3>
               <ul className="list-disc pl-5 space-y-1">
                 <li><strong>名局阅览</strong>：支持标准的 SGF 格式导入，线性复刻历史名局。</li>
-                <li><strong>中国规则</strong>：严格遵循《中国围棋竞赛规则 (v2.0)》，支持自动数子结算。</li>
+                <li><strong>双重规则</strong>：全面支持**中国规则**（数子法）与**日韩规则**（数目法），内置自动化结算引擎。</li>
                 <li><strong>会话身份</strong>：无需注册，基于 SessionStorage 的一次性身份，即开即弈。</li>
                 <li><strong>竞技大厅</strong>：实时在线匹配与观战系统。</li>
               </ul>
