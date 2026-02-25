@@ -199,39 +199,41 @@ export default function PracticePage() {
             <AlertDialogTitle className="flex items-center gap-2 text-xl">
               <Calculator className="h-6 w-6 text-blue-500" /> {scoreResult?.ruleName} 结算结果
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-lg bg-black/5 border text-center space-y-1">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground">黑方总点数</p>
-                  <p className="text-3xl font-black">{scoreResult?.blackTotal.toFixed(1)}</p>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 pt-4 text-sm text-muted-foreground">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg bg-black/5 border text-center space-y-1">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">黑方总点数</p>
+                    <p className="text-3xl font-black">{scoreResult?.blackTotal.toFixed(1)}</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-black/5 border text-center space-y-1">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">白方总点数</p>
+                    <p className="text-3xl font-black">{scoreResult?.whiteTotal.toFixed(1)}</p>
+                  </div>
                 </div>
-                <div className="p-4 rounded-lg bg-black/5 border text-center space-y-1">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground">白方总点数</p>
-                  <p className="text-3xl font-black">{scoreResult?.whiteTotal.toFixed(1)}</p>
-                </div>
-              </div>
 
-              {scoreResult?.details && (
-                <div className="bg-muted/30 p-4 rounded-lg space-y-2">
-                   <p className="text-xs font-bold border-b pb-1 flex items-center gap-1">
-                     <Info className="h-3 w-3" /> 数目详情 (Territory Calculation)
-                   </p>
-                   <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[11px]">
-                      <div className="flex justify-between"><span>黑方围空:</span> <span>{scoreResult.details.blackTerritory}目</span></div>
-                      <div className="flex justify-between"><span>白方围空:</span> <span>{scoreResult.details.whiteTerritory}目</span></div>
-                      <div className="flex justify-between text-red-500"><span>黑被提子:</span> <span>-{scoreResult.details.blackPrisoners}子</span></div>
-                      <div className="flex justify-between text-red-500"><span>白被提子:</span> <span>-{scoreResult.details.whitePrisoners}子</span></div>
-                      <div className="flex justify-between text-red-600"><span>黑棋死子:</span> <span>-{scoreResult.details.blackDeadOnBoard}子</span></div>
-                      <div className="flex justify-between text-red-600"><span>白棋死子:</span> <span>-{scoreResult.details.whiteDeadOnBoard}子</span></div>
-                   </div>
-                </div>
-              )}
+                {scoreResult?.details && (
+                  <div className="bg-muted/30 p-4 rounded-lg space-y-2 text-foreground">
+                    <p className="text-xs font-bold border-b pb-1 flex items-center gap-1">
+                      <Info className="h-3 w-3" /> 数目详情 (Territory Calculation)
+                    </p>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[11px]">
+                        <div className="flex justify-between"><span>黑方围空:</span> <span>{scoreResult.details.blackTerritory}目</span></div>
+                        <div className="flex justify-between"><span>白方围空:</span> <span>{scoreResult.details.whiteTerritory}目</span></div>
+                        <div className="flex justify-between text-red-500"><span>黑被提子:</span> <span>-{scoreResult.details.blackPrisoners}子</span></div>
+                        <div className="flex justify-between text-red-500"><span>白被提子:</span> <span>-{scoreResult.details.whitePrisoners}子</span></div>
+                        <div className="flex justify-between text-red-600"><span>黑棋死子:</span> <span>-{scoreResult.details.blackDeadOnBoard}子</span></div>
+                        <div className="flex justify-between text-red-600"><span>白棋死子:</span> <span>-{scoreResult.details.whiteDeadOnBoard}子</span></div>
+                    </div>
+                  </div>
+                )}
 
-              <div className="p-4 rounded-lg bg-blue-500/5 border-2 border-blue-500/20 text-center">
-                <p className="text-sm font-bold text-blue-600 mb-1">胜负判定 (含贴目 {scoreResult?.komi})</p>
-                <h3 className="text-2xl font-black text-blue-700">
-                  {scoreResult?.winner === 'black' ? '黑方胜' : '白方胜'} {scoreResult?.diff.toFixed(1)} 目
-                </h3>
+                <div className="p-4 rounded-lg bg-blue-500/5 border-2 border-blue-500/20 text-center">
+                  <p className="text-sm font-bold text-blue-600 mb-1">胜负判定 (含贴目 {scoreResult?.komi})</p>
+                  <h3 className="text-2xl font-black text-blue-700">
+                    {scoreResult?.winner === 'black' ? '黑方胜' : '白方胜'} {scoreResult?.diff.toFixed(1)} 目
+                  </h3>
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
