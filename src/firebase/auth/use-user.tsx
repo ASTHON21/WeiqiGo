@@ -13,8 +13,8 @@ export interface SessionUser {
 }
 
 /**
- * React hook to manage a one-time player identity using Firebase Anonymous Auth and sessionStorage.
- * This ensures backend security rules work while maintaining the "no-login" UX.
+ * React hook to manage a persistent player identity using Firebase Anonymous Auth and localStorage.
+ * This ensures backend security rules work while maintaining the "no-login" UX across browser restarts.
  */
 export function useUser() {
   const { auth } = useFirebase();
@@ -27,12 +27,12 @@ export function useUser() {
     // 监听身份变化
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
-        // 获取存储的昵称，如果没有则生成
-        let displayName = sessionStorage.getItem('tempDisplayName');
+        // 获取持久化存储的昵称，如果没有则生成
+        let displayName = localStorage.getItem('tempDisplayName');
         if (!displayName) {
           const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
           displayName = `棋手-${randomSuffix}`;
-          sessionStorage.setItem('tempDisplayName', displayName);
+          localStorage.setItem('tempDisplayName', displayName);
         }
         
         setUser({ 

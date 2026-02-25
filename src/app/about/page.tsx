@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -21,8 +20,8 @@ export default function AboutPage() {
       setClickCount(0);
       const password = prompt("请输入项目经理管理员密码：");
       if (password === "ShadowGoAdmin888") {
-        sessionStorage.setItem('tempPlayerId', 'PM-EXCLUSIVE-ID');
-        sessionStorage.setItem('tempDisplayName', 'ASTHON SAM JUN AN (PM)');
+        localStorage.setItem('tempPlayerId', 'PM-EXCLUSIVE-ID');
+        localStorage.setItem('tempDisplayName', 'ASTHON SAM JUN AN (PM)');
         toast({
           title: "专属身份已激活",
           description: "欢迎回来，项目经理。正在重启会话...",
@@ -82,7 +81,7 @@ export default function AboutPage() {
               <ul className="list-disc pl-5 space-y-1">
                 <li><strong>名局阅览</strong>：支持标准的 SGF 格式导入，线性复刻历史名局。</li>
                 <li><strong>双重规则</strong>：全面支持**中国规则**（数子法）与**日韩规则**（数目法），内置自动化结算引擎。</li>
-                <li><strong>会话身份</strong>：无需注册，基于 SessionStorage 的一次性身份，即开即弈。</li>
+                <li><strong>持久身份</strong>：基于 LocalStorage 的本地身份标识，重启浏览器亦可延续博弈。</li>
                 <li><strong>竞技大厅</strong>：实时在线匹配与观战系统。</li>
               </ul>
             </div>
@@ -91,7 +90,7 @@ export default function AboutPage() {
               <div className="flex flex-col items-center p-4 rounded-lg bg-muted/30">
                 <Globe className="h-6 w-6 text-accent mb-2" />
                 <span className="text-xs font-bold">版本</span>
-                <span className="text-sm">v2.0.0</span>
+                <span className="text-sm">v2.1.0</span>
               </div>
               <div className="flex flex-col items-center p-4 rounded-lg bg-muted/30">
                 <Github className="h-6 w-6 text-accent mb-2" />
