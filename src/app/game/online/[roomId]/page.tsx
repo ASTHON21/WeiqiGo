@@ -43,8 +43,12 @@ export default function OnlineGamePage() {
   const { data: moves } = useCollection(movesQuery);
 
   useEffect(() => {
-    getRulesContent().then(setRules);
-  }, []);
+    if (game?.rules) {
+      getRulesContent(game.rules as 'chinese' | 'territory').then(setRules);
+    } else {
+      getRulesContent().then(setRules);
+    }
+  }, [game?.rules]);
 
   const board = (() => {
     if (!game) return createEmptyBoard(19);
@@ -172,7 +176,7 @@ export default function OnlineGamePage() {
         blackName: game.playerBlackName,
         whiteName: game.playerWhiteName,
         komi: game.komi?.toString(),
-        rules: "中国规则"
+        rules: game.rules === 'chinese' ? '中国规则' : '日韩规则'
       }
     };
 
@@ -213,6 +217,7 @@ export default function OnlineGamePage() {
          </h1>
          <div className="flex items-center gap-3">
            <Badge variant="outline">{game?.boardSize}x{game?.boardSize}</Badge>
+           <Badge variant="secondary">{game?.rules === 'chinese' ? '中国规则' : '日韩规则'}</Badge>
            <Badge variant={game?.status === 'in-progress' ? 'default' : (game?.status === 'finished' ? 'secondary' : 'outline')} className="flex items-center gap-1">
              {game?.status === 'in-progress' ? '对局中' : (game?.status === 'finished' ? '已结束' : '等待中')}
            </Badge>
@@ -334,7 +339,7 @@ export default function OnlineGamePage() {
             </SheetTrigger>
             <SheetContent side="right" className="w-[400px] sm:w-[540px]">
               <SheetHeader>
-                <SheetTitle>中国围棋竞赛规则</SheetTitle>
+                <SheetTitle>{game?.rules === 'chinese' ? '中国围棋竞赛规则' : '日韩规则目数计算法'}</SheetTitle>
               </SheetHeader>
               <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
                 <div className="prose prose-sm dark:prose-invert">

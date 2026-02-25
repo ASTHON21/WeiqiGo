@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, ShieldCheck, Book } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +27,7 @@ export default function OnlineLobbyPage() {
 
   const [invitingPlayer, setInvitingPlayer] = useState<{ id: string, name: string } | null>(null);
   const [selectedSize, setSelectedSize] = useState<string>("19");
+  const [selectedRule, setSelectedRule] = useState<string>("chinese");
   const [opponentColor, setOpponentColor] = useState<'black' | 'white'>('white');
 
   const [receivedInvite, setReceivedInvite] = useState<any>(null);
@@ -112,9 +113,10 @@ export default function OnlineLobbyPage() {
         playerWhiteName,
         status: 'pending',
         boardSize: parseInt(selectedSize),
+        rules: selectedRule,
         currentTurn: 'black',
         startedAt: serverTimestamp(),
-        komi: 7.5,
+        komi: selectedRule === 'chinese' ? 7.5 : 6.5,
         handicap: 0,
         createdBy: user.uid,
         challengerName: user.displayName
@@ -318,6 +320,16 @@ export default function OnlineLobbyPage() {
             </div>
 
             <div className="space-y-3">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">竞技规则</Label>
+              <Tabs value={selectedRule} onValueChange={setSelectedRule} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="chinese" className="gap-1"><ShieldCheck className="h-3 w-3" /> 中国规则</TabsTrigger>
+                  <TabsTrigger value="territory" className="gap-1"><Book className="h-3 w-3" /> 日韩规则</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            <div className="space-y-3">
               <Label className="text-xs font-bold uppercase text-muted-foreground">指定对方棋子颜色</Label>
               <RadioGroup 
                 value={opponentColor} 
@@ -379,22 +391,26 @@ export default function OnlineLobbyPage() {
                </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <div className="p-3 border rounded-lg text-center space-y-1 bg-background">
-                <p className="text-[10px] font-bold uppercase text-muted-foreground">棋盘尺寸</p>
-                <p className="text-lg font-black">{receivedInvite?.boardSize} x {receivedInvite?.boardSize}</p>
+                <p className="text-[9px] font-bold uppercase text-muted-foreground">棋盘尺寸</p>
+                <p className="text-sm font-black">{receivedInvite?.boardSize} x {receivedInvite?.boardSize}</p>
               </div>
               <div className="p-3 border rounded-lg text-center space-y-1 bg-background">
-                <p className="text-[10px] font-bold uppercase text-muted-foreground">您的角色</p>
+                <p className="text-[9px] font-bold uppercase text-muted-foreground">您的角色</p>
                 <div className="flex items-center justify-center gap-2">
-                  <div className={cn("w-3 h-3 rounded-full border", receivedInvite?.playerBlackId === user?.uid ? "bg-black" : "bg-white")} />
-                  <p className="text-lg font-black">{receivedInvite?.playerBlackId === user?.uid ? '执黑' : '执白'}</p>
+                  <div className={cn("w-2 h-2 rounded-full border", receivedInvite?.playerBlackId === user?.uid ? "bg-black" : "bg-white")} />
+                  <p className="text-sm font-black">{receivedInvite?.playerBlackId === user?.uid ? '执黑' : '执白'}</p>
                 </div>
+              </div>
+              <div className="p-3 border rounded-lg text-center space-y-1 bg-background">
+                <p className="text-[9px] font-bold uppercase text-muted-foreground">规则</p>
+                <p className="text-sm font-black">{receivedInvite?.rules === 'chinese' ? '中国规则' : '日韩规则'}</p>
               </div>
             </div>
 
             <div className="text-xs text-center text-muted-foreground bg-blue-50 p-2 rounded italic">
-              * 接受挑战后将立即进入对局房间，遵循中国围棋规则。
+              * 接受挑战后将立即进入对局房间。
             </div>
           </div>
 
