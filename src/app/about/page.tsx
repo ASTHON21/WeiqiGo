@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -46,7 +47,7 @@ export default function AboutPage() {
           <Button variant="ghost" onClick={() => router.push('/')} className="gap-2">
             <ArrowLeft className="h-4 w-4" /> 返回首页
           </Button>
-          <h1 className="text-2xl font-bold font-headline">关于 SHADOW GO</h1>
+          <h1 className="text-2xl font-bold font-headline">关于 WEIQI GO</h1>
         </div>
 
         <Card className="border-2 shadow-xl">
@@ -56,7 +57,7 @@ export default function AboutPage() {
           <CardContent className="space-y-6 pt-4">
             <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed">
               <p>
-                <strong>SHADOW GO (影中弈)</strong> 是一款专为围棋爱好者打造的现代化交互平台。
+                <strong>WEIQI GO (弈道)</strong> 是一款专为围棋爱好者打造的现代化交互平台。
                 我们致力于通过简洁、优雅的设计，结合强大的实时交互技术，为棋手提供一个纯粹的博弈空间。
               </p>
               
@@ -74,7 +75,7 @@ export default function AboutPage() {
               <h3 className="text-foreground font-bold mt-6 mb-2">项目初衷</h3>
               <p>
                 在快节奏的数字化时代，我们希望回归棋盘本身的宁静。无论是本地的潜心研磨，还是跨越网络的实时博弈，
-                SHADOW GO 都旨在提供最流畅、最符合直觉的操作体验。
+                WEIQI GO 都旨在提供最流畅、最符合直觉的操作体验。
               </p>
 
               <h3 className="text-foreground font-bold mt-6 mb-2">核心特性</h3>

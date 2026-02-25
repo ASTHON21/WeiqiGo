@@ -37,7 +37,7 @@ export default function HomePage() {
       <div className="min-h-screen w-full bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6">
         <div className="max-w-6xl w-full space-y-12">
           <div className="text-center space-y-4">
-            <h1 className="text-7xl font-bold font-headline tracking-tighter text-primary">SHADOW GO</h1>
+            <h1 className="text-7xl font-bold font-headline tracking-tighter text-primary">WEIQI GO</h1>
             <p className="text-muted-foreground text-xl italic font-medium">
               “博弈之间，见天地，见众生。”
             </p>
@@ -170,7 +170,7 @@ export default function HomePage() {
           </div>
 
           <div className="text-xs text-center text-muted-foreground opacity-50">
-            Go Master Hub v2.0 · Powered by Firebase Studio
+            Weiqi Go Hub v2.0 · Powered by Firebase Studio
           </div>
         </div>
       </div>

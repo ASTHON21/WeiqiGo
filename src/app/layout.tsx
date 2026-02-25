@@ -14,7 +14,7 @@ import { Menu, History, Home, Info } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Shadow Go',
+  title: 'Weiqi Go',
   description: 'An elegant Go game with an AI opponent.',
 };
 
