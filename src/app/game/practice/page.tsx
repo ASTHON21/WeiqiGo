@@ -8,7 +8,7 @@ import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info } from 'lucide-react';
+import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -39,12 +39,14 @@ export default function PracticePage() {
   const [rules, setRules] = useState("");
   const [scoreResult, setScoreResult] = useState<any>(null);
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
+  const [isGameOver, setIsGameOver] = useState(false);
 
   useEffect(() => {
     getRulesContent(ruleType).then(setRules);
   }, [ruleType]);
 
   const handleMove = (r: number, c: number) => {
+    if (isGameOver) return;
     const result = practice.makeMove(r, c);
     if (!result.success) {
       toast({
@@ -70,11 +72,13 @@ export default function PracticePage() {
   };
 
   const handlePass = () => {
-    const isGameOver = practice.pass();
-    if (isGameOver) {
+    if (isGameOver) return;
+    const isConsecutivePass = practice.pass();
+    if (isConsecutivePass) {
+      setIsGameOver(true);
       toast({
         title: "对局结束",
-        description: "双方连续弃权，正在进入结算...",
+        description: "双方连续弃权，对局已锁定并进入结算。",
       });
       handleScore();
     } else {
@@ -85,20 +89,29 @@ export default function PracticePage() {
     }
   };
 
+  const handleReset = () => {
+    practice.reset();
+    setIsGameOver(false);
+    setScoreResult(null);
+  };
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
          <div className="space-y-1">
            <h1 className="text-2xl font-bold flex items-center gap-2 text-primary">
              <Swords className="h-6 w-6" /> 本地练棋模式
+             {isGameOver && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 已锁定</Badge>}
            </h1>
            <p className="text-xs text-muted-foreground italic">当前规则：{ruleType === 'chinese' ? '中国规则 (数子法)' : '日韩规则 (数目法)'}</p>
          </div>
          <div className="flex flex-wrap items-center gap-3">
-           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border">
-             <div className={cn("w-3 h-3 rounded-full border transition-colors", practice.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
-             <span className="text-sm font-bold">{practice.currentTurn === 'black' ? '黑方' : '白方'}</span>
-           </div>
+           {!isGameOver && (
+             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border">
+               <div className={cn("w-3 h-3 rounded-full border transition-colors", practice.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
+               <span className="text-sm font-bold">{practice.currentTurn === 'black' ? '黑方' : '白方'}</span>
+             </div>
+           )}
            <Badge variant="outline" className="font-mono">{size}x{size}</Badge>
            <Badge variant="secondary" className="gap-1">
               {ruleType === 'chinese' ? <ShieldCheck className="h-3 w-3" /> : <Book className="h-3 w-3" />}
@@ -114,6 +127,7 @@ export default function PracticePage() {
             size={size} 
             onMove={handleMove}
             currentPlayer={practice.currentTurn}
+            readOnly={isGameOver}
             lastMove={practice.moveHistory.length > 0 ? practice.moveHistory[practice.moveHistory.length - 1] : null}
             moveSetting={moveSetting}
           />
@@ -121,10 +135,10 @@ export default function PracticePage() {
 
         <div className="space-y-6">
           <ToolPanel 
-            onReset={practice.reset} 
+            onReset={handleReset} 
             onScore={handleScore}
-            onPass={handlePass}
-            moveSetting={moveSetting}
+            onPass={isGameOver ? undefined : handlePass}
+            moveSetting={isGameOver ? undefined : moveSetting}
             onMoveSettingChange={setMoveSetting}
           />
 
@@ -251,8 +265,13 @@ export default function PracticePage() {
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setScoreResult(null)}>确认</AlertDialogAction>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto" onClick={() => setScoreResult(null)}>
+              继续查看棋盘
+            </AlertDialogCancel>
+            <AlertDialogAction className="w-full sm:w-auto" onClick={handleReset}>
+              重置对局
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

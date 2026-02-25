@@ -1,14 +1,15 @@
 
 "use client";
 
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Book, Radio } from 'lucide-react';
+import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, ArrowLeft } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -21,6 +22,7 @@ import { MoveSetting } from '@/lib/types';
 export default function OnlineGamePage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const roomId = params.roomId as string;
   const isSpectating = searchParams.get('mode') === 'spectate';
   const { user, loading: loadingUser } = useUser();
@@ -29,6 +31,7 @@ export default function OnlineGamePage() {
 
   const [rules, setRules] = useState("");
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
+  const [dismissGameOver, setDismissGameOver] = useState(false);
   
   const { data: game, isLoading: loadingGame } = useDoc(roomId ? doc(db, "games", roomId) : null);
 
@@ -60,6 +63,7 @@ export default function OnlineGamePage() {
     (game.currentTurn === 'white' && user.uid === game.playerWhiteId)
   );
   const canMove = !isSpectating && isPlayer && game?.status !== 'finished' && isMyTurn;
+  const isFinished = game?.status === 'finished';
 
   const handleMove = async (r: number, c: number) => {
     if (!canMove || !user || !game) return;
@@ -85,8 +89,6 @@ export default function OnlineGamePage() {
         moveNumber: (moves?.length || 0) + 1,
         timestamp: serverTimestamp(),
         evaluation: 0.5,
-        playerBlackId: game.playerBlackId,
-        playerWhiteId: game.playerWhiteId,
       });
 
       const nextTurn = playerColor === 'black' ? 'white' : 'black';
@@ -116,8 +118,6 @@ export default function OnlineGamePage() {
         moveNumber: (moves?.length || 0) + 1,
         timestamp: serverTimestamp(),
         evaluation: 0.5,
-        playerBlackId: game.playerBlackId,
-        playerWhiteId: game.playerWhiteId,
       });
 
       if (isConsecutivePass) {
@@ -163,6 +163,7 @@ export default function OnlineGamePage() {
          <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-500">
            {isSpectating ? <Radio className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
            {isSpectating ? "正在观战" : "在线对局"}
+           {isFinished && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局已结束</Badge>}
          </h1>
          <div className="flex items-center gap-3">
            <Badge variant="outline">{game?.boardSize}x{game?.boardSize}</Badge>
@@ -178,12 +179,14 @@ export default function OnlineGamePage() {
             <GoBoard 
               board={board} 
               size={game?.boardSize || 19} 
-              readOnly={!canMove}
+              readOnly={!canMove || isFinished}
               onMove={handleMove}
               currentPlayer={game?.currentTurn}
               lastMove={moves?.length ? { r: moves[moves.length-1].coordinatesX, c: moves[moves.length-1].coordinatesY, player: moves[moves.length-1].playerColor } : null}
               moveSetting={moveSetting}
             />
+            
+            {/* 状态层 */}
             {game?.status === 'pending' && !isSpectating && (
                <div className="absolute inset-0 z-50 bg-background/60 backdrop-blur-[2px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted">
                   <div className="text-center space-y-4">
@@ -192,16 +195,44 @@ export default function OnlineGamePage() {
                   </div>
                </div>
             )}
-            {game?.status === 'finished' && (
+            
+            {isFinished && !dismissGameOver && (
                <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg">
-                  <div className="bg-background p-6 rounded-xl border-4 border-blue-500 shadow-2xl text-center space-y-4">
-                     <Calculator className="h-10 w-10 text-blue-500 mx-auto" />
-                     <h2 className="text-2xl font-black">对局已结束</h2>
-                     <p className="text-sm text-muted-foreground">双方连续弃权，请根据棋面进行人工或辅助数子。</p>
-                  </div>
+                  <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl overflow-hidden">
+                    <CardHeader className="bg-blue-500 text-white py-4">
+                      <CardTitle className="flex items-center justify-center gap-2 text-xl">
+                        <Calculator className="h-6 w-6" /> 对局已结束
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6 text-center space-y-4">
+                       <h2 className="text-2xl font-black">对局圆满结束</h2>
+                       <p className="text-sm text-muted-foreground leading-relaxed">
+                         双方棋手已达成共识（连续弃权）。<br/>您可以选择保留在此页面继续查看棋局，或返回竞技大厅。
+                       </p>
+                    </CardContent>
+                    <CardFooter className="flex flex-col sm:flex-row gap-3 bg-muted/30 p-4">
+                       <Button variant="outline" className="flex-1 h-12 font-bold" onClick={() => setDismissGameOver(true)}>
+                         留在房内观摩
+                       </Button>
+                       <Button className="flex-1 h-12 font-bold bg-blue-600 hover:bg-blue-700" onClick={() => router.push('/game/online/lobby')}>
+                         离开返回大厅
+                       </Button>
+                    </CardFooter>
+                  </Card>
                </div>
             )}
           </div>
+          
+          {isFinished && dismissGameOver && (
+            <div className="mt-4 flex gap-4">
+               <Button variant="secondary" onClick={() => setDismissGameOver(false)} className="gap-2">
+                 <Calculator className="h-4 w-4" /> 重新唤起结算
+               </Button>
+               <Button variant="outline" onClick={() => router.push('/game/online/lobby')} className="gap-2">
+                 <ArrowLeft className="h-4 w-4" /> 退出对局
+               </Button>
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -229,7 +260,7 @@ export default function OnlineGamePage() {
             </CardContent>
           </Card>
 
-          {game?.status !== 'finished' && (
+          {!isFinished && (
             <div className="p-4 bg-muted/50 rounded-lg border-2 text-center">
               <p className="text-xs text-muted-foreground uppercase font-bold mb-1">当前回合</p>
               <div className="text-lg font-black flex items-center justify-center gap-2">
@@ -263,9 +294,9 @@ export default function OnlineGamePage() {
           </Sheet>
 
           <ToolPanel 
-            onPass={handlePass} 
+            onPass={canMove ? handlePass : undefined} 
             showChat={true} 
-            moveSetting={moveSetting}
+            moveSetting={canMove ? moveSetting : undefined}
             onMoveSettingChange={setMoveSetting}
           />
         </div>
