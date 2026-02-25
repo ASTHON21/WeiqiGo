@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages, Moon, Sun } from 'lucide-react';
+import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages, Moon, Sun, Bell } from 'lucide-react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -38,6 +38,30 @@ export default function HomePage() {
   const toggleLanguage = () => {
     setLanguage(language === 'zh' ? 'en' : 'zh');
   };
+
+  const announcements = [
+    {
+      date: '2024-03-15',
+      version: 'v2.1.0',
+      content: language === 'zh' 
+        ? '新增系统公告功能；优化在线对局的稳定性；修复了数子结算在部分极端局面下的偏差。' 
+        : 'Added Announcements feature; optimized online match stability; fixed minor scoring inaccuracies in edge cases.'
+    },
+    {
+      date: '2024-03-10',
+      version: 'v2.0.5',
+      content: language === 'zh' 
+        ? '全面适配日韩规则（数目法）；增加历史记录导出 SGF 功能；UI 细节调整。' 
+        : 'Full support for Japanese rules (Territory counting); added SGF export to history; UI polish.'
+    },
+    {
+      date: '2024-03-01',
+      version: 'v2.0.0',
+      content: language === 'zh' 
+        ? 'Weiqi Go 正式版发布。支持在线对弈、本地练棋及名局阅览模式。' 
+        : 'Weiqi Go Official Release. Supports Online, Practice, and Viewer modes.'
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-[url('https://images.unsplash.com/photo-1529697210530-8c4bb1358ce5?q=80&w=2070')] bg-cover bg-center">
@@ -171,11 +195,41 @@ export default function HomePage() {
             </Card>
           </div>
 
-          <div className="flex justify-center gap-8">
+          <div className="flex justify-center flex-wrap gap-8">
             <Button variant="ghost" onClick={() => router.push('/history')} className="gap-2">
               <History className="h-4 w-4" /> {t('home.history.btn')}
             </Button>
             
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" className="gap-2">
+                  <Bell className="h-4 w-4" /> {t('home.announcement.btn')}
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+                <SheetHeader>
+                  <SheetTitle className="flex items-center gap-2">
+                    <Bell className="h-5 w-5 text-primary" /> {t('home.announcement.title')}
+                  </SheetTitle>
+                </SheetHeader>
+                <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
+                  <div className="space-y-6">
+                    {announcements.map((item, idx) => (
+                      <div key={idx} className="p-4 rounded-lg bg-muted/30 border border-primary/10 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold text-primary">{item.version}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">{item.date}</span>
+                        </div>
+                        <p className="text-sm text-foreground leading-relaxed">
+                          {item.content}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </SheetContent>
+            </Sheet>
+
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="ghost" className="gap-2">
@@ -200,7 +254,7 @@ export default function HomePage() {
           </div>
 
           <div className="text-xs text-center text-muted-foreground opacity-50">
-            Weiqi Go Hub v2.0 · Powered by Firebase Studio
+            Weiqi Go Hub v2.1.0 · Powered by Firebase Studio
           </div>
         </div>
       </div>

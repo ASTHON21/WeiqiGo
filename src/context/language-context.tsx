@@ -34,6 +34,8 @@ const translations = {
     'home.online.start': '进入大厅',
     'home.rules.btn': '规则说明',
     'home.history.btn': '历史记录',
+    'home.announcement.btn': '系统公告',
+    'home.announcement.title': '版本更新说明',
     'rules.chinese': '中国规则',
     'rules.territory': '日韩规则',
   },
@@ -59,6 +61,8 @@ const translations = {
     'home.online.start': 'Enter Lobby',
     'home.rules.btn': 'Rule Guide',
     'home.history.btn': 'History',
+    'home.announcement.btn': 'Announcements',
+    'home.announcement.title': 'Release Notes',
     'rules.chinese': 'Chinese Rules',
     'rules.territory': 'Japanese Rules',
   }
