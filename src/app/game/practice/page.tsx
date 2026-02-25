@@ -8,7 +8,7 @@ import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock } from 'lucide-react';
+import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -25,7 +25,7 @@ import {
 import { useEffect, useState } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { GoLogic } from '@/lib/go-logic';
-import { MoveSetting } from '@/lib/types';
+import { MoveSetting, GameHistoryEntry } from '@/lib/types';
 
 export default function PracticePage() {
   const searchParams = useSearchParams();
@@ -40,6 +40,7 @@ export default function PracticePage() {
   const [scoreResult, setScoreResult] = useState<any>(null);
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [isGameOver, setIsGameOver] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
     getRulesContent(ruleType).then(setRules);
@@ -93,6 +94,43 @@ export default function PracticePage() {
     practice.reset();
     setIsGameOver(false);
     setScoreResult(null);
+    setIsSaved(false);
+  };
+
+  const saveToLocalHistory = () => {
+    if (!scoreResult || isSaved) return;
+
+    const entry: GameHistoryEntry = {
+      id: `practice-${Date.now()}`,
+      date: new Date().toISOString(),
+      mode: 'practice',
+      boardSize: size,
+      moveHistory: practice.moveHistory,
+      result: {
+        winner: scoreResult.winner,
+        reason: '双方连续弃权',
+        blackScore: scoreResult.blackTotal,
+        whiteScore: scoreResult.whiteTotal,
+        details: scoreResult.details,
+        komi: scoreResult.komi
+      }
+    };
+
+    try {
+      const existing = JSON.parse(localStorage.getItem('goMasterHistory') || '[]');
+      localStorage.setItem('goMasterHistory', JSON.stringify([entry, ...existing]));
+      setIsSaved(true);
+      toast({
+        title: "保存成功",
+        description: "本局记录已存入本地历史记录。",
+      });
+    } catch (e) {
+      toast({
+        title: "保存失败",
+        description: "本地存储空间不足或其他错误。",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -269,6 +307,9 @@ export default function PracticePage() {
             <AlertDialogCancel className="w-full sm:w-auto" onClick={() => setScoreResult(null)}>
               继续查看棋盘
             </AlertDialogCancel>
+            <Button variant="outline" className="w-full sm:w-auto gap-2 border-blue-500 text-blue-600 hover:bg-blue-50" onClick={saveToLocalHistory} disabled={isSaved}>
+              <Save className="h-4 w-4" /> {isSaved ? '记录已保存' : '保存棋谱到本地'}
+            </Button>
             <AlertDialogAction className="w-full sm:w-auto" onClick={handleReset}>
               重置对局
             </AlertDialogAction>

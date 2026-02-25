@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, ArrowLeft } from 'lucide-react';
+import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, ArrowLeft, Save } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { collection, query, orderBy, addDoc, serverTimestamp, doc, setDoc } from
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { MoveSetting } from '@/lib/types';
+import { MoveSetting, GameHistoryEntry } from '@/lib/types';
 
 export default function OnlineGamePage() {
   const params = useParams();
@@ -32,6 +32,7 @@ export default function OnlineGamePage() {
   const [rules, setRules] = useState("");
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [dismissGameOver, setDismissGameOver] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   
   const { data: game, isLoading: loadingGame } = useDoc(roomId ? doc(db, "games", roomId) : null);
 
@@ -51,8 +52,10 @@ export default function OnlineGamePage() {
     if (!moves) return tempBoard;
     
     moves.forEach(m => {
-      const result = GoLogic.processMove(tempBoard, m.coordinatesX, m.coordinatesY, m.playerColor, []);
-      if (result.success) tempBoard = result.newBoard;
+      if (m.coordinatesX !== -1) {
+        const result = GoLogic.processMove(tempBoard, m.coordinatesX, m.coordinatesY, m.playerColor, []);
+        if (result.success) tempBoard = result.newBoard;
+      }
     });
     return tempBoard;
   })();
@@ -146,6 +149,49 @@ export default function OnlineGamePage() {
     }
   };
 
+  const saveToLocalHistory = () => {
+    if (!game || !moves || isSaved) return;
+
+    const entry: GameHistoryEntry = {
+      id: `online-${roomId}-${Date.now()}`,
+      date: new Date().toISOString(),
+      mode: 'online',
+      boardSize: game.boardSize || 19,
+      moveHistory: moves.map(m => ({
+        r: m.coordinatesX,
+        c: m.coordinatesY,
+        player: m.playerColor
+      })),
+      result: {
+        winner: null, // 在线模式目前由玩家协商
+        reason: '双方连续弃权',
+        details: null
+      },
+      metadata: {
+        event: "在线对局",
+        blackName: game.playerBlackName,
+        whiteName: game.playerWhiteName,
+        komi: game.komi?.toString(),
+        rules: "中国规则"
+      }
+    };
+
+    try {
+      const existing = JSON.parse(localStorage.getItem('goMasterHistory') || '[]');
+      localStorage.setItem('goMasterHistory', JSON.stringify([entry, ...existing]));
+      setIsSaved(true);
+      toast({
+        title: "保存成功",
+        description: "本局记录已存入本地历史记录。",
+      });
+    } catch (e) {
+      toast({
+        title: "保存失败",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (loadingGame || loadingUser) {
     return (
       <div className="h-screen flex items-center justify-center bg-background/50 backdrop-blur-sm">
@@ -186,7 +232,6 @@ export default function OnlineGamePage() {
               moveSetting={moveSetting}
             />
             
-            {/* 状态层 */}
             {game?.status === 'pending' && !isSpectating && (
                <div className="absolute inset-0 z-50 bg-background/60 backdrop-blur-[2px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted">
                   <div className="text-center space-y-4">
@@ -207,15 +252,18 @@ export default function OnlineGamePage() {
                     <CardContent className="p-6 text-center space-y-4">
                        <h2 className="text-2xl font-black">对局圆满结束</h2>
                        <p className="text-sm text-muted-foreground leading-relaxed">
-                         双方棋手已达成共识（连续弃权）。<br/>您可以选择保留在此页面继续查看棋局，或返回竞技大厅。
+                         双方棋手已达成共识（连续弃权）。<br/>您可以选择保存记录或留在页面继续查看棋局。
                        </p>
                     </CardContent>
                     <CardFooter className="flex flex-col sm:flex-row gap-3 bg-muted/30 p-4">
                        <Button variant="outline" className="flex-1 h-12 font-bold" onClick={() => setDismissGameOver(true)}>
                          留在房内观摩
                        </Button>
+                       <Button variant="secondary" className="flex-1 h-12 font-bold gap-2" onClick={saveToLocalHistory} disabled={isSaved}>
+                         <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存本局记录'}
+                       </Button>
                        <Button className="flex-1 h-12 font-bold bg-blue-600 hover:bg-blue-700" onClick={() => router.push('/game/online/lobby')}>
-                         离开返回大厅
+                         返回大厅
                        </Button>
                     </CardFooter>
                   </Card>
@@ -227,6 +275,9 @@ export default function OnlineGamePage() {
             <div className="mt-4 flex gap-4">
                <Button variant="secondary" onClick={() => setDismissGameOver(false)} className="gap-2">
                  <Calculator className="h-4 w-4" /> 重新唤起结算
+               </Button>
+               <Button variant="outline" className="gap-2" onClick={saveToLocalHistory} disabled={isSaved}>
+                 <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存记录'}
                </Button>
                <Button variant="outline" onClick={() => router.push('/game/online/lobby')} className="gap-2">
                  <ArrowLeft className="h-4 w-4" /> 退出对局
