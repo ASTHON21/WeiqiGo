@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useCallback } from 'react';
@@ -12,6 +13,9 @@ export function usePracticeGame(boardSize: number = 19) {
   const [history, setHistory] = useState<BoardState[]>([]);
   const [moveHistory, setMoveHistory] = useState<Move[]>([]);
   const [currentTurn, setCurrentTurn] = useState<Player>('black');
+  
+  // 提子统计
+  const [prisoners, setPrisoners] = useState({ black: 0, white: 0 });
 
   const makeMove = useCallback((r: number, c: number) => {
     const result = GoLogic.processMove(board, r, c, currentTurn, history);
@@ -19,6 +23,15 @@ export function usePracticeGame(boardSize: number = 19) {
       setHistory(prev => [...prev, board]);
       setBoard(result.newBoard);
       setMoveHistory(prev => [...prev, { r, c, player: currentTurn }]);
+      
+      // 更新提子统计 (如果是黑方下子提掉的是白子)
+      if (result.capturedCount > 0) {
+        setPrisoners(prev => ({
+          ...prev,
+          [currentTurn === 'black' ? 'black' : 'white']: prev[currentTurn === 'black' ? 'black' : 'white'] + result.capturedCount
+        }));
+      }
+      
       setCurrentTurn(prev => prev === 'black' ? 'white' : 'black');
       return { success: true };
     }
@@ -32,13 +45,7 @@ export function usePracticeGame(boardSize: number = 19) {
   }, [board, currentTurn]);
 
   const undo = () => {
-    if (history.length > 0) {
-      const prevBoard = history[history.length - 1];
-      setBoard(prevBoard);
-      setHistory(prev => prev.slice(0, -1));
-      setMoveHistory(prev => prev.slice(0, -1));
-      setCurrentTurn(prev => prev === 'black' ? 'white' : 'black');
-    }
+    // 移除悔棋逻辑
   };
 
   const reset = () => {
@@ -46,12 +53,14 @@ export function usePracticeGame(boardSize: number = 19) {
     setHistory([]);
     setMoveHistory([]);
     setCurrentTurn('black');
+    setPrisoners({ black: 0, white: 0 });
   };
 
   return {
     board,
     currentTurn,
     moveHistory,
+    prisoners,
     makeMove,
     pass,
     undo,

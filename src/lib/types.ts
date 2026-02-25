@@ -67,6 +67,16 @@ export interface GameResult {
   reason: string;
   blackScore?: number;
   whiteScore?: number;
+  // 详细得分数据
+  details?: {
+    blackTerritory: number;
+    whiteTerritory: number;
+    blackPrisoners: number;
+    whitePrisoners: number;
+    blackDeadOnBoard: number;
+    whiteDeadOnBoard: number;
+    komi: number;
+  };
 }
 
 export interface GameHistoryEntry {

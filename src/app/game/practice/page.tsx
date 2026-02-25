@@ -8,7 +8,7 @@ import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { History, Swords, Book, Calculator, ShieldCheck } from 'lucide-react';
+import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -35,13 +35,11 @@ export default function PracticePage() {
   const practice = usePracticeGame(size);
   const { toast } = useToast();
   
-  // 规则在进入对局后固定
   const [ruleType] = useState<'chinese' | 'territory'>(initialRule);
   const [rules, setRules] = useState("");
   const [scoreResult, setScoreResult] = useState<any>(null);
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
 
-  // 加载初始选定的规则文档
   useEffect(() => {
     getRulesContent(ruleType).then(setRules);
   }, [ruleType]);
@@ -58,8 +56,14 @@ export default function PracticePage() {
   };
 
   const handleScore = () => {
-    // 目前逻辑主要基于中国规则数子
-    const result = GoLogic.calculateScore(practice.board);
+    let result;
+    if (ruleType === 'chinese') {
+      result = GoLogic.calculateChineseScore(practice.board);
+    } else {
+      // 日韩规则：传入实时的提子统计
+      result = GoLogic.calculateJapaneseScore(practice.board, practice.prisoners.black, practice.prisoners.white);
+    }
+    
     setScoreResult({
       ...result,
       ruleName: ruleType === 'chinese' ? '中国规则' : '日韩规则'
@@ -109,6 +113,25 @@ export default function PracticePage() {
             onMoveSettingChange={setMoveSetting}
           />
 
+          {/* 实时状态统计 */}
+          <Card className="border-2 border-primary/20 bg-primary/5">
+            <CardHeader className="py-3 border-b">
+              <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                <Trophy className="h-3 w-3" /> 对局统计
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 grid grid-cols-2 gap-4">
+              <div className="text-center">
+                <p className="text-[10px] text-muted-foreground font-bold uppercase">黑方提子</p>
+                <p className="text-xl font-black">{practice.prisoners.black}</p>
+              </div>
+              <div className="text-center border-l">
+                <p className="text-[10px] text-muted-foreground font-bold uppercase">白方提子</p>
+                <p className="text-xl font-black">{practice.prisoners.white}</p>
+              </div>
+            </CardContent>
+          </Card>
+
           <Sheet>
             <SheetTrigger asChild>
               <Card className="border-2 cursor-pointer hover:bg-muted/50 transition-colors group">
@@ -140,7 +163,7 @@ export default function PracticePage() {
             </SheetContent>
           </Sheet>
 
-          <Card className="border-2 h-[320px] flex flex-col">
+          <Card className="border-2 h-[220px] flex flex-col">
             <CardHeader className="py-3 bg-muted/30 border-b">
               <CardTitle className="text-sm flex items-center gap-2">
                 <History className="h-4 w-4 text-primary" /> 棋谱记录
@@ -179,23 +202,37 @@ export default function PracticePage() {
             <AlertDialogDescription className="space-y-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-lg bg-black/5 border text-center space-y-1">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground">黑方总得点</p>
-                  <p className="text-3xl font-black">{scoreResult?.blackTotal}</p>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground">黑方总点数</p>
+                  <p className="text-3xl font-black">{scoreResult?.blackTotal.toFixed(1)}</p>
                 </div>
                 <div className="p-4 rounded-lg bg-black/5 border text-center space-y-1">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground">白方总得点</p>
-                  <p className="text-3xl font-black">{scoreResult?.whiteTotal}</p>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground">白方总点数</p>
+                  <p className="text-3xl font-black">{scoreResult?.whiteTotal.toFixed(1)}</p>
                 </div>
               </div>
+
+              {scoreResult?.details && (
+                <div className="bg-muted/30 p-4 rounded-lg space-y-2">
+                   <p className="text-xs font-bold border-b pb-1 flex items-center gap-1">
+                     <Info className="h-3 w-3" /> 数目详情 (Territory Calculation)
+                   </p>
+                   <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[11px]">
+                      <div className="flex justify-between"><span>黑方围空:</span> <span>{scoreResult.details.blackTerritory}目</span></div>
+                      <div className="flex justify-between"><span>白方围空:</span> <span>{scoreResult.details.whiteTerritory}目</span></div>
+                      <div className="flex justify-between text-red-500"><span>黑被提子:</span> <span>-{scoreResult.details.blackPrisoners}子</span></div>
+                      <div className="flex justify-between text-red-500"><span>白被提子:</span> <span>-{scoreResult.details.whitePrisoners}子</span></div>
+                      <div className="flex justify-between text-red-600"><span>黑棋死子:</span> <span>-{scoreResult.details.blackDeadOnBoard}子</span></div>
+                      <div className="flex justify-between text-red-600"><span>白棋死子:</span> <span>-{scoreResult.details.whiteDeadOnBoard}子</span></div>
+                   </div>
+                </div>
+              )}
+
               <div className="p-4 rounded-lg bg-blue-500/5 border-2 border-blue-500/20 text-center">
                 <p className="text-sm font-bold text-blue-600 mb-1">胜负判定 (含贴目 {scoreResult?.komi})</p>
                 <h3 className="text-2xl font-black text-blue-700">
-                  {scoreResult?.winner === 'black' ? '黑方胜' : '白方胜'} {scoreResult?.diff} 目
+                  {scoreResult?.winner === 'black' ? '黑方胜' : '白方胜'} {scoreResult?.diff.toFixed(1)} 目
                 </h3>
               </div>
-              <p className="text-[10px] text-muted-foreground text-center italic">
-                * 本次结算采用中国数子规则。{ruleType === 'territory' && '数目法请参考侧边栏手动核算。'}
-              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
