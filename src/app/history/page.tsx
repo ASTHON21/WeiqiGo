@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { GameHistoryEntry } from '@/lib/types';
 import { format } from 'date-fns';
-import { Download, Trash2, ShieldQuestion, Cloud, Monitor, Swords, Disc, BookOpen, ArrowLeft, History } from 'lucide-react';
+import { Download, Trash2, Cloud, Monitor, Swords, Disc, BookOpen, ArrowLeft, History } from 'lucide-react';
 import { exportToSGF } from '@/lib/sgf';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { cn } from '@/lib/utils';
 import { Icons } from '@/components/icons';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
@@ -31,6 +31,7 @@ export default function HistoryPage() {
   const router = useRouter();
   const [localHistory, setLocalHistory] = useState<GameHistoryEntry[]>([]);
   const { toast } = useToast();
+  const { user } = useUser();
   const db = useFirestore();
 
   // Load from LocalStorage
@@ -46,11 +47,23 @@ export default function HistoryPage() {
   }, []);
 
   // REAL USE: Load from Firestore (Optional Cloud Sync)
-  const gamesQuery = useMemoFirebase(() => query(collection(db, "games"), orderBy("date", "desc")), [db]);
-  const { data: cloudHistory, isLoading: isCloudLoading } = useCollection<GameHistoryEntry>(gamesQuery);
+  // Only execute query when user is authenticated to avoid permission errors
+  const gamesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, "games"), orderBy("startedAt", "desc"));
+  }, [db, user]);
+  
+  const { data: cloudHistory, isLoading: isCloudLoading } = useCollection<any>(gamesQuery);
 
-  // 合并并去重历史记录，优先展示本地
-  const displayHistory = [...localHistory, ...(cloudHistory || [])].sort((a, b) => 
+  // Map cloud games to history entry format if needed and merge
+  const displayHistory = [
+    ...localHistory, 
+    ...(cloudHistory || []).map(g => ({
+      ...g,
+      date: g.startedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      mode: 'online' as const
+    }))
+  ].sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
@@ -140,7 +153,7 @@ export default function HistoryPage() {
         </AlertDialog>
       </div>
 
-      {isCloudLoading && displayHistory.length === 0 ? (
+      {(isCloudLoading || (user === null)) && displayHistory.length === 0 ? (
         <div className="flex justify-center p-24">
           <Icons.Logo className="animate-spin h-10 w-10 text-accent" />
         </div>

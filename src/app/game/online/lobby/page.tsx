@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -44,13 +45,20 @@ export default function OnlineLobbyPage() {
     }
   }, [user, db, acceptInvites]);
 
-  // 2. 监听在线棋手
-  const usersQuery = useMemoFirebase(() => query(collection(db, "userProfiles")), [db]);
+  // 2. 监听在线棋手 - 添加身份验证门控
+  const usersQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, "userProfiles"));
+  }, [db, user]);
+  
   const { data: onlinePlayers, isLoading: loadingPlayers } = useCollection(usersQuery);
 
-  // 3. 监听实时对局（观战用）
-  const liveGamesQuery = useMemoFirebase(() => 
-    query(collection(db, "games"), where("status", "==", "in-progress")), [db]);
+  // 3. 监听实时对局（观战用） - 添加身份验证门控
+  const liveGamesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, "games"), where("status", "==", "in-progress"));
+  }, [db, user]);
+  
   const { data: liveGames, isLoading: loadingGames } = useCollection(liveGamesQuery);
 
   // 4. 监听针对我的挂起邀请
@@ -196,7 +204,7 @@ export default function OnlineLobbyPage() {
 
         <TabsContent value="players">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {loadingPlayers ? (
+            {(loadingPlayers || !user) ? (
               Array(6).fill(0).map((_, i) => (
                 <Card key={i} className="animate-pulse bg-muted/20 border-2">
                   <div className="p-6 h-24" />
@@ -244,7 +252,7 @@ export default function OnlineLobbyPage() {
 
         <TabsContent value="games">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {loadingGames ? (
+            {(loadingGames || !user) ? (
               <div className="col-span-full flex justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
               </div>
