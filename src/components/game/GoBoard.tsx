@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -128,7 +127,6 @@ export function GoBoard({
                   {lastMove?.c === c && lastMove?.r === r && (
                     <div className="absolute h-1/4 w-1/4 rounded-full bg-red-500/60 animate-pulse z-20"/>
                   )}
-                  {/* 提示即将落子的预览 */}
                   {!isInteractionDisabled && ((hoveredCell?.r === r && hoveredCell?.c === c) || isSelected) && !cell && (
                     <Icons.Stone
                         className={cn(
@@ -146,16 +144,16 @@ export function GoBoard({
       </div>
 
       <AlertDialog open={!!pendingMove} onOpenChange={(open) => !open && setPendingMove(null)}>
-        <AlertDialogContent className="max-w-xs">
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认落子？</AlertDialogTitle>
-            <AlertDialogDescription>
+        <AlertDialogContent className="max-w-[280px] translate-y-0 top-auto bottom-10 left-[50%] -translate-x-1/2 p-4 shadow-2xl border-2">
+          <AlertDialogHeader className="space-y-1">
+            <AlertDialogTitle className="text-base text-center">确认落子？</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-center">
               确定要在该位置下子吗？
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row gap-2">
-            <AlertDialogCancel className="mt-0 flex-1">取消</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmMove} className="flex-1">确认</AlertDialogAction>
+          <AlertDialogFooter className="flex-row gap-2 mt-2 sm:justify-center">
+            <AlertDialogCancel className="mt-0 flex-1 h-8 text-xs">取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMove} className="flex-1 h-8 text-xs">确认</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
