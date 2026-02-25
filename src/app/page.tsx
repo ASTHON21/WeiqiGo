@@ -41,21 +41,21 @@ export default function HomePage() {
 
   const announcements = [
     {
-      date: '2024-03-15',
+      date: '2026-02-25',
       version: 'v2.1.0',
       content: language === 'zh' 
         ? '新增系统公告功能；优化在线对局的稳定性；修复了数子结算在部分极端局面下的偏差。' 
         : 'Added Announcements feature; optimized online match stability; fixed minor scoring inaccuracies in edge cases.'
     },
     {
-      date: '2024-03-10',
+      date: '2026-02-10',
       version: 'v2.0.5',
       content: language === 'zh' 
         ? '全面适配日韩规则（数目法）；增加历史记录导出 SGF 功能；UI 细节调整。' 
         : 'Full support for Japanese rules (Territory counting); added SGF export to history; UI polish.'
     },
     {
-      date: '2024-03-01',
+      date: '2026-02-01',
       version: 'v2.0.0',
       content: language === 'zh' 
         ? 'Weiqi Go 正式版发布。支持在线对弈、本地练棋及名局阅览模式。' 
