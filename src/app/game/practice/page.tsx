@@ -8,7 +8,7 @@ import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { History, Swords, Book, Calculator } from 'lucide-react';
+import { History, Swords, Book, Calculator, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -26,19 +26,23 @@ import { useEffect, useState } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { GoLogic } from '@/lib/go-logic';
 import { MoveSetting } from '@/lib/types';
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function PracticePage() {
   const searchParams = useSearchParams();
   const size = parseInt(searchParams.get('size') || '19');
   const practice = usePracticeGame(size);
   const { toast } = useToast();
+  
+  const [ruleType, setRuleType] = useState<'chinese' | 'territory'>('chinese');
   const [rules, setRules] = useState("");
   const [scoreResult, setScoreResult] = useState<any>(null);
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
 
+  // 当规则类型改变时加载文档
   useEffect(() => {
-    getRulesContent().then(setRules);
-  }, []);
+    getRulesContent(ruleType).then(setRules);
+  }, [ruleType]);
 
   const handleMove = (r: number, c: number) => {
     const result = practice.makeMove(r, c);
@@ -52,23 +56,39 @@ export default function PracticePage() {
   };
 
   const handleScore = () => {
+    // 目前逻辑主要基于中国规则数子，数目法主要展示文档指引
     const result = GoLogic.calculateScore(practice.board);
-    setScoreResult(result);
+    setScoreResult({
+      ...result,
+      ruleName: ruleType === 'chinese' ? '中国规则' : '日韩规则'
+    });
   };
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
-      <div className="flex items-center justify-between">
-         <h1 className="text-2xl font-bold flex items-center gap-2 text-primary">
-           <Swords className="h-6 w-6" /> 本地练棋模式
-         </h1>
-         <div className="flex items-center gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+         <div className="space-y-1">
+           <h1 className="text-2xl font-bold flex items-center gap-2 text-primary">
+             <Swords className="h-6 w-6" /> 本地练棋模式
+           </h1>
+           <p className="text-xs text-muted-foreground italic">当前使用：{ruleType === 'chinese' ? '中国规则 (数子法)' : '日韩规则 (数目法)'}</p>
+         </div>
+         <div className="flex flex-wrap items-center gap-3">
+           <Tabs value={ruleType} onValueChange={(v) => setRuleType(v as any)} className="bg-muted/50 p-1 rounded-lg border">
+              <TabsList className="h-8">
+                <TabsTrigger value="chinese" className="text-xs gap-1">
+                  <ShieldCheck className="h-3 w-3" /> 中国规则
+                </TabsTrigger>
+                <TabsTrigger value="territory" className="text-xs gap-1">
+                  <Book className="h-3 w-3" /> 日韩规则
+                </TabsTrigger>
+              </TabsList>
+           </Tabs>
            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border">
              <div className={cn("w-3 h-3 rounded-full border transition-colors", practice.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
-             <span className="text-sm font-bold">{practice.currentTurn === 'black' ? '黑方回合' : '白方回合'}</span>
+             <span className="text-sm font-bold">{practice.currentTurn === 'black' ? '黑方' : '白方'}</span>
            </div>
            <Badge variant="outline" className="font-mono">{size}x{size}</Badge>
-           <Badge variant="secondary" className="font-mono">MOVE {practice.moveHistory.length}</Badge>
          </div>
       </div>
 
@@ -99,21 +119,26 @@ export default function PracticePage() {
                 <CardContent className="p-4 flex items-center justify-between">
                    <div className="flex items-center gap-2">
                       <Book className="h-4 w-4 text-accent group-hover:scale-110 transition-transform" />
-                      <span className="text-sm font-bold">查阅竞赛规则</span>
+                      <span className="text-sm font-bold">查看当前规则指南</span>
                    </div>
-                   <Badge variant="outline" className="text-[10px]">中国规则</Badge>
+                   <Badge variant="secondary" className="text-[10px]">
+                     {ruleType === 'chinese' ? 'Area Scoring' : 'Territory Based'}
+                   </Badge>
                 </CardContent>
               </Card>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+            <SheetContent side="right" className="w-[400px] sm:w-[640px]">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  <Book className="h-5 w-5 text-accent" /> 中国围棋竞赛规则
+                  <Book className="h-5 w-5 text-accent" /> 
+                  {ruleType === 'chinese' ? '中国围棋竞赛规则 (v2.0)' : '日韩规则目数计算法指南'}
                 </SheetTitle>
               </SheetHeader>
               <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
                 <div className="prose prose-sm dark:prose-invert">
-                   <pre className="whitespace-pre-wrap font-sans text-sm p-4 bg-muted/30 rounded-lg border">{rules}</pre>
+                   <div className="p-4 bg-muted/30 rounded-lg border font-sans text-sm whitespace-pre-wrap leading-relaxed">
+                     {rules}
+                   </div>
                 </div>
               </ScrollArea>
             </SheetContent>
@@ -153,7 +178,7 @@ export default function PracticePage() {
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-xl">
-              <Calculator className="h-6 w-6 text-blue-500" /> 数子结算结果
+              <Calculator className="h-6 w-6 text-blue-500" /> {scoreResult?.ruleName} 结算结果
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
@@ -173,7 +198,7 @@ export default function PracticePage() {
                 </h3>
               </div>
               <p className="text-[10px] text-muted-foreground text-center italic">
-                * 根据中国规则，黑棋贴 3.75 子（7.5 目）。
+                * 本次结算采用中国数子规则。{ruleType === 'territory' && '数目法请参考侧边栏手动核算。'}
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>

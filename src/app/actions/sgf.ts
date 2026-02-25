@@ -28,11 +28,15 @@ export async function getPresetGame(id: string): Promise<LevelData> {
 }
 
 /**
- * 获取围棋规则
+ * 获取特定规则文件内容
  */
-export async function getRulesContent(): Promise<string> {
+export async function getRulesContent(type: 'chinese' | 'territory'): Promise<string> {
   try {
-    const filePath = path.join(process.cwd(), 'GoRules.md');
+    const fileName = type === 'chinese' ? 'AreaScoring.md' : 'TerritoryBasedCounting.md';
+    const filePath = path.join(process.cwd(), fileName);
+    if (!fs.existsSync(filePath)) {
+      return `找不到规则文件: ${fileName}`;
+    }
     const content = fs.readFileSync(filePath, 'utf8');
     return content;
   } catch (error) {
