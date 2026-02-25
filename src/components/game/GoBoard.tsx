@@ -154,8 +154,10 @@ export function GoBoard({
       </div>
 
       <AlertDialog open={!!pendingMove} onOpenChange={(open) => !open && setPendingMove(null)}>
-        {/* 使用无背景样式的自定义 content */}
         <AlertDialogContent className="max-w-[280px] translate-y-0 top-auto bottom-10 left-[50%] -translate-x-1/2 p-4 shadow-2xl border-2 bg-background/95 backdrop-blur-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="sr-only">确认落子</AlertDialogTitle>
+          </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-3 mt-0 sm:justify-center">
             <AlertDialogCancel className="mt-0 flex-1 h-10 text-sm font-bold border-2">取消</AlertDialogCancel>
             <AlertDialogAction onClick={confirmMove} className="flex-1 h-10 text-sm font-bold bg-accent hover:bg-accent/90">确认落子</AlertDialogAction>
