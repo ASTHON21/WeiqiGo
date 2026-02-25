@@ -101,7 +101,7 @@ export default function AboutPage() {
               <div className="flex flex-col items-center p-4 rounded-lg bg-muted/30">
                 <Mail className="h-6 w-6 text-accent mb-2" />
                 <span className="text-xs font-bold">联系我们</span>
-                <span className="text-sm">support@shadowgo.io</span>
+                <span className="text-sm">pm1my1sv@gmail.com</span>
               </div>
             </div>
           </CardContent>
