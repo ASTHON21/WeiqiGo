@@ -52,8 +52,9 @@ export const GoLogic = {
         }
 
         if (boardHistory.length > 0) {
-            const lastBoard = boardHistory[boardHistory.length - 1];
-            if (GoLogic.isSameBoard(newBoard, lastBoard)) {
+            // 劫争校验 (超级劫争规则)
+            const isRepeat = boardHistory.some(prevBoard => GoLogic.isSameBoard(newBoard, prevBoard));
+            if (isRepeat) {
                 return { success: false, error: 'ko' };
             }
         }
@@ -66,40 +67,40 @@ export const GoLogic = {
     },
 
     /**
-     * 中国规则数子法 (Rule 5.2)
+     * 中国规则数子法 (Area Counting)
+     * 黑胜 ⇔ B ≥ T/2 + K
      */
     calculateChineseScore: (board: BoardState) => {
         const size = board.length;
-        const KOMI = 3.75; 
+        const totalPoints = size * size;
+        const KOMI = 3.75; // 中国规则通常以“子”为单位，3.75子等于7.5目
         
         let blackStones = 0;
-        let whiteStones = 0;
         let visited = new Set<string>();
         
+        // 1. 数活子
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
                 if (board[r][c] === 'black') blackStones++;
-                if (board[r][c] === 'white') whiteStones++;
             }
         }
 
+        // 2. 数围空
         let blackTerritory = 0;
-        let whiteTerritory = 0;
-
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
                 const key = `${r},${c}`;
                 if (board[r][c] === null && !visited.has(key)) {
                     const { points, owner } = GoLogic.getAreaInfo(board, r, c, visited);
                     if (owner === 'black') blackTerritory += points.length;
-                    if (owner === 'white') whiteTerritory += points.length;
+                    else if (owner === 'seki') blackTerritory += points.length / 2; // 中国规则公气各计一半
                 }
             }
         }
 
         const blackTotal = blackStones + blackTerritory;
-        const whiteTotal = whiteStones + whiteTerritory;
-        const diff = blackTotal - whiteTotal - (KOMI * 2); 
+        const whiteTotal = totalPoints - blackTotal;
+        const diff = blackTotal - (totalPoints / 2 + KOMI);
         const winner = diff > 0 ? 'black' : 'white';
 
         return {
@@ -107,27 +108,28 @@ export const GoLogic = {
             whiteTotal,
             komi: KOMI,
             winner,
-            diff: Math.abs(diff) / 2
+            diff: Math.abs(diff)
         };
     },
 
     /**
      * 日韩规则数目法 (Territory Based Counting)
+     * 胜负 = (黑方围空 - 白方提子 - 黑方死子) - (白方围空 - 黑方提子 - 白方死子) - 贴目
      */
-    calculateJapaneseScore: (board: BoardState, blackPrisoners: number, whitePrisoners: number) => {
+    calculateJapaneseScore: (board: BoardState, blackStonesCapturedByBlack: number, whiteStonesCapturedByWhite: number) => {
         const size = board.length;
         const KOMI = 6.5; 
 
-        // 1. 识别死活 (简单自动化判定：少于2个真眼且非双活则视为死子)
-        const groups = GoLogic.getAllGroups(board);
+        // 1. 自动死活分析
+        const allGroups = GoLogic.getAllGroups(board);
         const deadStones = { black: 0, white: 0 };
         const liveBoard = board.map(row => [...row]);
 
-        groups.forEach(group => {
+        allGroups.forEach(group => {
             if (!GoLogic.isGroupAlive(board, group)) {
                 group.positions.forEach(([r, c]) => {
                     deadStones[group.player as 'black' | 'white']++;
-                    liveBoard[r][c] = null; // 在计算领地时移除死子
+                    liveBoard[r][c] = null; // 围空计算时移除死子
                 });
             }
         });
@@ -144,44 +146,50 @@ export const GoLogic = {
                     const { points, owner } = GoLogic.getAreaInfo(liveBoard, r, c, visited);
                     if (owner === 'black') blackTerritory += points.length;
                     if (owner === 'white') whiteTerritory += points.length;
+                    // owner === 'seki' 时公气计为0，符合日韩规则
                 }
             }
         }
 
-        // 3. 计算目数 (目数 = 围空 - 对方提子 - 己方死子)
-        // 注意：whitePrisoners 是白方提掉的黑子
-        const blackFinal = blackTerritory - whitePrisoners - deadStones.black;
-        const whiteFinal = whiteTerritory - blackPrisoners - deadStones.white;
+        // 3. 计算目数
+        // blackStonesCapturedByBlack 实际上是黑方提掉的白子数量 (Prisoners held by Black)
+        // whiteStonesCapturedByWhite 实际上是白方提掉的黑子数量 (Prisoners held by White)
+        const blackFinal = blackTerritory - whiteStonesCapturedByWhite - deadStones.black;
+        const whiteFinal = whiteTerritory - blackStonesCapturedByBlack - deadStones.white;
 
-        const diff = blackFinal - whiteFinal - KOMI;
+        const diff = blackFinal - (whiteFinal + KOMI);
         const winner = diff > 0 ? 'black' : 'white';
 
         return {
             blackTotal: blackFinal,
-            whiteTotal: whiteFinal,
+            whiteTotal: whiteFinal + KOMI,
             komi: KOMI,
             winner,
             diff: Math.abs(diff),
             details: {
                 blackTerritory,
                 whiteTerritory,
-                blackPrisoners: whitePrisoners,
-                whitePrisoners: blackPrisoners,
+                blackPrisoners: whiteStonesCapturedByWhite,
+                whitePrisoners: blackStonesCapturedByBlack,
                 blackDeadOnBoard: deadStones.black,
-                whiteDeadOnBoard: deadStones.white
+                whiteDeadOnBoard: deadStones.white,
+                komi: KOMI
             }
         };
     },
 
     /**
-     * 判断棋块是否活棋
+     * 判断棋块是否活棋 (两眼或双活)
      */
     isGroupAlive: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
+        const size = board.length;
         const eyes = GoLogic.findEyes(board, group);
         const realEyes = eyes.filter(eye => GoLogic.isRealEye(board, eye, group.player));
         
-        // 条件：有2个及以上真眼，或者处于双活状态
+        // 条件：有2个及以上真眼
         if (realEyes.length >= 2) return true;
+        
+        // 条件：双活 (Seki)
         if (GoLogic.isSeki(board, group)) return true;
         
         return false;
@@ -190,15 +198,15 @@ export const GoLogic = {
     findEyes: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
         const size = board.length;
         const eyes: [number, number][] = [];
-        const visited = new Set<string>();
+        const checkedEmpty = new Set<string>();
 
         group.positions.forEach(([r, c]) => {
             [[r-1, c], [r+1, c], [r, c-1], [r, c+1]].forEach(([nr, nc]) => {
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === null) {
                     const key = `${nr},${nc}`;
-                    if (!visited.has(key)) {
-                        visited.add(key);
-                        // 检查该空点是否被该块包围
+                    if (!checkedEmpty.has(key)) {
+                        checkedEmpty.add(key);
+                        // 检查该空点是否被该块完全包围 (眼)
                         const neighbors = [[nr-1, nc], [nr+1, nc], [nr, nc-1], [nr, nc+1]];
                         const isSurrounded = neighbors.every(([nnr, nnc]) => {
                             if (nnr < 0 || nnr >= size || nnc < 0 || nnc >= size) return true;
@@ -217,38 +225,40 @@ export const GoLogic = {
         const [r, c] = eye;
         const corners = [[r-1, c-1], [r-1, c+1], [r+1, c-1], [r+1, c+1]];
         let friendlyCorners = 0;
-        let availableCorners = 0;
+        let diagonalInBoard = 0;
 
         corners.forEach(([cr, cc]) => {
             if (cr >= 0 && cr < size && cc >= 0 && cc < size) {
-                availableCorners++;
+                diagonalInBoard++;
                 if (board[cr][cc] === player) friendlyCorners++;
             }
         });
 
-        // 边角眼规则
-        if (availableCorners === 1) return friendlyCorners >= 1; // 棋盘角
-        if (availableCorners === 2) return friendlyCorners >= 2; // 棋盘边
-        return friendlyCorners >= 3; // 棋盘中央
+        // 日韩规则真眼标准：
+        // 棋盘中央 (4个对角点)：至少3个己方棋子
+        // 棋盘边 (2个对角点)：至少2个己方棋子
+        // 棋盘角 (1个对角点)：至少1个己方棋子
+        if (diagonalInBoard === 4) return friendlyCorners >= 3;
+        if (diagonalInBoard === 2) return friendlyCorners >= 2;
+        if (diagonalInBoard === 1) return friendlyCorners >= 1;
+        return false;
     },
 
     isSeki: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
-        // 简化版双活判定：如果有公气且双方都只有1气
-        const liberties = GoLogic.calculateLiberties(board, group.positions[0][0], group.positions[0][1]);
-        if (liberties === 1) {
-            const opponent = group.player === 'black' ? 'white' : 'black';
-            // 查找相邻的敌方块
+        const libs = GoLogic.calculateLiberties(board, group.positions[0][0], group.positions[0][1]);
+        // 简单双活判定：公气且双方均无法提子
+        if (libs >= 1) {
             const size = board.length;
-            let foundSeki = false;
+            let adjacentOpponentFound = false;
             group.positions.forEach(([r, c]) => {
                 [[r-1, c], [r+1, c], [r, c-1], [r, c+1]].forEach(([nr, nc]) => {
-                    if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === opponent) {
-                        const oppLibs = GoLogic.calculateLiberties(board, nr, nc);
-                        if (oppLibs === 1) foundSeki = true;
+                    if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] !== null && board[nr][nc] !== group.player) {
+                        adjacentOpponentFound = true;
                     }
                 });
             });
-            return foundSeki;
+            // 在实际复杂局面上可能需要更深层的搜索，此处为简化版
+            return adjacentOpponentFound && libs <= 2;
         }
         return false;
     },
@@ -308,9 +318,9 @@ export const GoLogic = {
     },
 
     calculateLiberties: (board: BoardState, r: number, c: number): number => {
-        const size = board.length;
         const group = GoLogic.getGroup(board, r, c);
         const liberties = new Set<string>();
+        const size = board.length;
         group.forEach(([gr, gc]) => {
             [[gr - 1, gc], [gr + 1, gc], [gr, gc - 1], [gr, gc + 1]].forEach(([nr, nc]) => {
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === null) {
@@ -322,9 +332,9 @@ export const GoLogic = {
     },
 
     getGroup: (board: BoardState, r: number, c: number): [number, number][] => {
-        const size = board.length;
         const player = board[r][c];
         if (!player) return [];
+        const size = board.length;
         const group: [number, number][] = [];
         const queue: [number, number][] = [[r, c]];
         const visited = new Set<string>([`${r},${c}`]);
