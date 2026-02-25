@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { GameHistoryEntry } from '@/lib/types';
 import { format } from 'date-fns';
-import { Download, Trash2, ShieldQuestion, Cloud, Monitor, Swords, Disc, BookOpen, ArrowLeft } from 'lucide-react';
+import { Download, Trash2, ShieldQuestion, Cloud, Monitor, Swords, Disc, BookOpen, ArrowLeft, History } from 'lucide-react';
 import { exportToSGF } from '@/lib/sgf';
 import { useToast } from '@/hooks/use-toast';
 import {
