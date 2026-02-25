@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -9,7 +10,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -99,6 +99,7 @@ export function GoBoard({
             Array.from({ length: size }).map((_, c) => {
               const cell = board[r]?.[c];
               const isSelected = lastClicked && lastClicked.r === r && lastClicked.c === c;
+              const isPending = pendingMove?.r === r && pendingMove?.c === c;
 
               return (
                 <div
@@ -124,10 +125,19 @@ export function GoBoard({
                       )}
                     />
                   )}
+                  {/* 待确认落子的虚影态 */}
+                  {isPending && !cell && (
+                    <Icons.Stone
+                      className={cn(
+                        "absolute h-[90%] w-[90%] opacity-40 animate-pulse z-20",
+                        currentPlayer === 'black' ? "fill-black" : "fill-white stroke-black/40 stroke-[1px]",
+                      )}
+                    />
+                  )}
                   {lastMove?.c === c && lastMove?.r === r && (
                     <div className="absolute h-1/4 w-1/4 rounded-full bg-red-500/60 animate-pulse z-20"/>
                   )}
-                  {!isInteractionDisabled && ((hoveredCell?.r === r && hoveredCell?.c === c) || isSelected) && !cell && (
+                  {!isInteractionDisabled && ((hoveredCell?.r === r && hoveredCell?.c === c) || isSelected) && !cell && !isPending && (
                     <Icons.Stone
                         className={cn(
                             "absolute h-[90%] w-[90%] z-10",
@@ -144,16 +154,11 @@ export function GoBoard({
       </div>
 
       <AlertDialog open={!!pendingMove} onOpenChange={(open) => !open && setPendingMove(null)}>
-        <AlertDialogContent className="max-w-[280px] translate-y-0 top-auto bottom-10 left-[50%] -translate-x-1/2 p-4 shadow-2xl border-2">
-          <AlertDialogHeader className="space-y-1">
-            <AlertDialogTitle className="text-base text-center">确认落子？</AlertDialogTitle>
-            <AlertDialogDescription className="text-xs text-center">
-              确定要在该位置下子吗？
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row gap-2 mt-2 sm:justify-center">
-            <AlertDialogCancel className="mt-0 flex-1 h-8 text-xs">取消</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmMove} className="flex-1 h-8 text-xs">确认</AlertDialogAction>
+        {/* 使用无背景样式的自定义 content */}
+        <AlertDialogContent className="max-w-[280px] translate-y-0 top-auto bottom-10 left-[50%] -translate-x-1/2 p-4 shadow-2xl border-2 bg-background/95 backdrop-blur-md">
+          <AlertDialogFooter className="flex-row gap-3 mt-0 sm:justify-center">
+            <AlertDialogCancel className="mt-0 flex-1 h-10 text-sm font-bold border-2">取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMove} className="flex-1 h-10 text-sm font-bold bg-accent hover:bg-accent/90">确认落子</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
