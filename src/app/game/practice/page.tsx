@@ -214,7 +214,7 @@ export default function PracticePage() {
                 </CardContent>
               </Card>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[400px] sm:w-[640px]">
+            <SheetContent side="right" className="w-full md:max-w-[90vw] lg:max-w-[1200px]">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
                   <Book className="h-5 w-5 text-accent" /> 
@@ -222,8 +222,8 @@ export default function PracticePage() {
                 </SheetTitle>
               </SheetHeader>
               <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
-                <div className="prose prose-sm dark:prose-invert">
-                   <div className="p-4 bg-muted/30 rounded-lg border font-sans text-sm whitespace-pre-wrap leading-relaxed">
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                   <div className="p-4 md:p-8 bg-muted/30 rounded-lg border font-sans text-sm whitespace-pre-wrap leading-relaxed break-words">
                      {rules}
                    </div>
                 </div>

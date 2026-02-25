@@ -208,7 +208,7 @@ export default function HomePage() {
                   <Bell className="h-4 w-4" /> {t('home.announcement.btn')}
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+              <SheetContent side="right" className="w-full sm:max-w-[540px]">
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2">
                     <Bell className="h-5 w-5 text-primary" /> {t('home.announcement.title')}
@@ -238,7 +238,7 @@ export default function HomePage() {
                   <Info className="h-4 w-4" /> {t('home.rules.btn')}
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[400px] sm:w-[640px]">
+              <SheetContent side="right" className="w-full md:max-w-[90vw] lg:max-w-[1200px]">
                 <SheetHeader className="space-y-4">
                   <SheetTitle className="flex items-center gap-2">
                     <Book className="h-5 w-5 text-accent" /> {t('home.rules.btn')}
@@ -254,9 +254,9 @@ export default function HomePage() {
                     </TabsList>
                   </Tabs>
                 </SheetHeader>
-                <ScrollArea className="h-[calc(100vh-140px)] mt-4 pr-4">
-                  <div className="prose prose-sm dark:prose-invert">
-                    <pre className="whitespace-pre-wrap font-sans text-sm p-4 bg-muted/30 rounded-lg border">
+                <ScrollArea className="h-[calc(100vh-160px)] mt-4 pr-4">
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <pre className="whitespace-pre-wrap font-sans text-sm p-4 md:p-8 bg-muted/30 rounded-lg border leading-relaxed break-words">
                       {rules || "Loading..."}
                     </pre>
                   </div>

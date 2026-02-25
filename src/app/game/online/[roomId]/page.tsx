@@ -339,13 +339,13 @@ export default function OnlineGamePage() {
                 </CardContent>
               </Card>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+            <SheetContent side="right" className="w-full md:max-w-[90vw] lg:max-w-[1200px]">
               <SheetHeader>
                 <SheetTitle>{game?.rules === 'chinese' ? '中国围棋竞赛规则' : '日韩规则目数计算法'}</SheetTitle>
               </SheetHeader>
               <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
-                <div className="prose prose-sm dark:prose-invert">
-                   <pre className="whitespace-pre-wrap font-sans text-sm">{rules}</pre>
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                   <pre className="whitespace-pre-wrap font-sans text-sm p-4 md:p-8 bg-muted/30 rounded-lg border leading-relaxed break-words">{rules}</pre>
                 </div>
               </ScrollArea>
             </SheetContent>
