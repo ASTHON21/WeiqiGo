@@ -8,13 +8,14 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react';
+import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages } from 'lucide-react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { cn } from '@/lib/utils';
-import { Label } from '@/components/ui/label';
+import { useLanguage } from '@/context/language-context';
 
 export default function HomePage() {
   const router = useRouter();
+  const { language, setLanguage, t } = useLanguage();
   const [practiceSize, setPracticeSize] = useState("19");
   const [practiceRule, setPracticeRule] = useState("chinese");
   const [acceptingInvites, setAcceptingInvites] = useState(true);
@@ -32,14 +33,30 @@ export default function HomePage() {
     router.push(`/game/online/lobby?acceptInvites=${acceptingInvites}`);
   };
 
+  const toggleLanguage = () => {
+    setLanguage(language === 'zh' ? 'en' : 'zh');
+  };
+
   return (
     <div className="min-h-screen bg-[url('https://images.unsplash.com/photo-1529697210530-8c4bb1358ce5?q=80&w=2070')] bg-cover bg-center">
+      {/* Top Right Language Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <Button 
+          variant="outline" 
+          onClick={toggleLanguage}
+          className="rounded-full px-4 h-10 border-2 bg-background/80 backdrop-blur-sm gap-2 hover:bg-background transition-all"
+        >
+          <Languages className="h-4 w-4" />
+          <span className="font-bold text-xs">{language === 'zh' ? 'EN' : 'ZH'}</span>
+        </Button>
+      </div>
+
       <div className="min-h-screen w-full bg-background/90 backdrop-blur-sm flex flex-col items-center justify-center p-6">
         <div className="max-w-6xl w-full space-y-12">
           <div className="text-center space-y-4">
-            <h1 className="text-7xl font-bold font-headline tracking-tighter text-primary">WEIQI GO</h1>
+            <h1 className="text-7xl font-bold font-headline tracking-tighter text-primary">{t('home.title')}</h1>
             <p className="text-muted-foreground text-xl italic font-medium">
-              “博弈之间，见天地，见众生。”
+              {t('home.subtitle')}
             </p>
           </div>
 
@@ -50,12 +67,12 @@ export default function HomePage() {
                 <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
                   <Play className="h-8 w-8 text-primary" />
                 </div>
-                <CardTitle className="text-2xl">本地练棋 (Practice)</CardTitle>
-                <CardDescription>一人分饰两角，研磨定式，探索棋道变化。</CardDescription>
+                <CardTitle className="text-2xl">{t('home.practice.title')}</CardTitle>
+                <CardDescription>{t('home.practice.desc')}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 mt-auto">
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground text-center">选择棋盘尺寸</p>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground text-center">{t('home.practice.size')}</p>
                   <Tabs value={practiceSize} onValueChange={setPracticeSize} className="w-full">
                     <TabsList className="grid w-full grid-cols-3 h-9">
                       <TabsTrigger value="9" className="text-xs">9 x 9</TabsTrigger>
@@ -65,14 +82,14 @@ export default function HomePage() {
                   </Tabs>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground text-center">选择竞技规则</p>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground text-center">{t('home.practice.rule')}</p>
                   <Tabs value={practiceRule} onValueChange={setPracticeRule} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 h-9">
                       <TabsTrigger value="chinese" className="text-xs gap-1">
-                        <ShieldCheck className="h-3 w-3" /> 中国规则
+                        <ShieldCheck className="h-3 w-3" /> {t('rules.chinese')}
                       </TabsTrigger>
                       <TabsTrigger value="territory" className="text-xs gap-1">
-                        <Book className="h-3 w-3" /> 日韩规则
+                        <Book className="h-3 w-3" /> {t('rules.territory')}
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
@@ -80,7 +97,7 @@ export default function HomePage() {
               </CardContent>
               <CardFooter>
                 <Button className="w-full h-12 text-lg font-bold" onClick={handleStartPractice}>
-                  开始对局
+                  {t('home.practice.start')}
                 </Button>
               </CardFooter>
             </Card>
@@ -91,17 +108,17 @@ export default function HomePage() {
                 <div className="mx-auto w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mb-4">
                   <FileUp className="h-8 w-8 text-accent" />
                 </div>
-                <CardTitle className="text-2xl">SGF 导入 (Viewer)</CardTitle>
-                <CardDescription>上传 SGF 棋谱文件，线性查看对局进程，锁定交互。</CardDescription>
+                <CardTitle className="text-2xl">{t('home.viewer.title')}</CardTitle>
+                <CardDescription>{t('home.viewer.desc')}</CardDescription>
               </CardHeader>
               <CardContent className="flex-1 flex items-center justify-center p-6">
                 <p className="text-sm text-center text-muted-foreground">
-                  支持 .sgf 格式。支持步进控制与重置，纯净阅览无干预。
+                  {t('home.viewer.info')}
                 </p>
               </CardContent>
               <CardFooter>
                 <Button variant="outline" className="w-full h-12 text-lg font-bold border-accent text-accent hover:bg-accent hover:text-white" onClick={() => router.push('/game/viewer')}>
-                  进入阅览
+                  {t('home.viewer.start')}
                 </Button>
               </CardFooter>
             </Card>
@@ -112,8 +129,8 @@ export default function HomePage() {
                 <div className="mx-auto w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
                   <Users className="h-8 w-8 text-blue-500" />
                 </div>
-                <CardTitle className="text-2xl">竞技大厅 (Lobby)</CardTitle>
-                <CardDescription>查看实时在线玩家，发起对局挑战，或观摩名手对弈。</CardDescription>
+                <CardTitle className="text-2xl">{t('home.online.title')}</CardTitle>
+                <CardDescription>{t('home.online.desc')}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 mt-auto">
                 <div className="grid grid-cols-2 gap-3">
@@ -122,20 +139,20 @@ export default function HomePage() {
                     className={cn("gap-2 h-11", acceptingInvites && "bg-green-600 hover:bg-green-700")}
                     onClick={() => setAcceptingInvites(true)}
                   >
-                    <CheckCircle2 className="h-4 w-4" /> 接受邀请
+                    <CheckCircle2 className="h-4 w-4" /> {t('home.online.accept')}
                   </Button>
                   <Button 
                     variant={!acceptingInvites ? "default" : "outline"} 
                     className={cn("gap-2 h-11", !acceptingInvites && "bg-red-600 hover:bg-red-700")}
                     onClick={() => setAcceptingInvites(false)}
                   >
-                    <XCircle className="h-4 w-4" /> 不接受邀请
+                    <XCircle className="h-4 w-4" /> {t('home.online.decline')}
                   </Button>
                 </div>
               </CardContent>
               <CardFooter>
                 <Button variant="secondary" className="w-full h-12 text-lg font-bold" onClick={handleEnterLobby}>
-                  进入大厅
+                  {t('home.online.start')}
                 </Button>
               </CardFooter>
             </Card>
@@ -143,25 +160,25 @@ export default function HomePage() {
 
           <div className="flex justify-center gap-8">
             <Button variant="ghost" onClick={() => router.push('/history')} className="gap-2">
-              <History className="h-4 w-4" /> 历史记录
+              <History className="h-4 w-4" /> {t('home.history.btn')}
             </Button>
             
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="ghost" className="gap-2">
-                  <Info className="h-4 w-4" /> 规则说明
+                  <Info className="h-4 w-4" /> {t('home.rules.btn')}
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[400px] sm:w-[540px]">
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2">
-                    <Book className="h-5 w-5 text-accent" /> 中国围棋竞赛规则
+                    <Book className="h-5 w-5 text-accent" /> {t('home.rules.btn')}
                   </SheetTitle>
                 </SheetHeader>
                 <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
                   <div className="prose prose-sm dark:prose-invert">
                     <pre className="whitespace-pre-wrap font-sans text-sm p-4 bg-muted/30 rounded-lg border">
-                      {rules || "正在加载规则..."}
+                      {rules || "Loading..."}
                     </pre>
                   </div>
                 </ScrollArea>
