@@ -28,15 +28,18 @@ export async function getPresetGame(id: string): Promise<LevelData> {
 }
 
 /**
- * 获取特定规则文件内容
+ * 获取特定规则文件内容 (默认返回中文版)
  */
-export async function getRulesContent(type: 'chinese' | 'territory'): Promise<string> {
+export async function getRulesContent(type: 'chinese' | 'territory' = 'chinese'): Promise<string> {
   try {
-    const fileName = type === 'chinese' ? 'AreaScoring.md' : 'TerritoryBasedCounting.md';
+    // 匹配项目中实际存在的规则文件名
+    const fileName = type === 'chinese' ? 'ZH-AS.md' : 'ZH-TBC.md';
     const filePath = path.join(process.cwd(), fileName);
+    
     if (!fs.existsSync(filePath)) {
       return `找不到规则文件: ${fileName}`;
     }
+    
     const content = fs.readFileSync(filePath, 'utf8');
     return content;
   } catch (error) {
