@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages, Moon, Sun, Bell } from 'lucide-react';
+import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages, Moon, Sun, Bell, Settings2 } from 'lucide-react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -21,11 +21,13 @@ export default function HomePage() {
   const [practiceSize, setPracticeSize] = useState("19");
   const [practiceRule, setPracticeRule] = useState("chinese");
   const [acceptingInvites, setAcceptingInvites] = useState(true);
+  
+  const [ruleViewType, setRuleViewType] = useState<'chinese' | 'territory'>('chinese');
   const [rules, setRules] = useState("");
 
   useEffect(() => {
-    getRulesContent().then(setRules);
-  }, []);
+    getRulesContent(ruleViewType).then(setRules);
+  }, [ruleViewType]);
 
   const handleStartPractice = () => {
     router.push(`/game/practice?size=${practiceSize}&rule=${practiceRule}`);
@@ -236,13 +238,23 @@ export default function HomePage() {
                   <Info className="h-4 w-4" /> {t('home.rules.btn')}
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[400px] sm:w-[540px]">
-                <SheetHeader>
+              <SheetContent side="right" className="w-[400px] sm:w-[640px]">
+                <SheetHeader className="space-y-4">
                   <SheetTitle className="flex items-center gap-2">
                     <Book className="h-5 w-5 text-accent" /> {t('home.rules.btn')}
                   </SheetTitle>
+                  <Tabs value={ruleViewType} onValueChange={(val) => setRuleViewType(val as 'chinese' | 'territory')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="chinese" className="gap-2">
+                        <ShieldCheck className="h-4 w-4" /> 中国规则 (ZH-AS)
+                      </TabsTrigger>
+                      <TabsTrigger value="territory" className="gap-2">
+                        <Book className="h-4 w-4" /> 日韩规则 (ZH-TBC)
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
                 </SheetHeader>
-                <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
+                <ScrollArea className="h-[calc(100vh-140px)] mt-4 pr-4">
                   <div className="prose prose-sm dark:prose-invert">
                     <pre className="whitespace-pre-wrap font-sans text-sm p-4 bg-muted/30 rounded-lg border">
                       {rules || "Loading..."}

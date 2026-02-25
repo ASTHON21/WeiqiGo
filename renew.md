@@ -44,20 +44,3 @@
  * Gemini 协作：在请求代码实现时，请明确指出代码所属的模式。
    * 示例：“请基于 useSgfViewer 的 currentIndex 逻辑，编写左/右导航按钮的 UI 组件。”
    * 示例：“请修改 GoLogic 以便在自对弈模式下能正确处理‘打劫’(Ko) 限制。”
-
-studio/
-src/app/actions/sgf.ts  # 服务端：解析用户上传的 SGF 文本 (元数据提取)
-src/app/game/viewer/   # 模式 1：SGF 名局阅览 (左右键控制，禁点棋盘)
-src/app/game/practice/         # 模式 2：自对弈/本地练棋 (自由落子)
-src/app/game/online/[roomId]/  # 模式 3：玩家连线 (Socket 同步)
-src/app/game/page.tsx     # 首页：功能入口选择
-src/components/game/GoBoard.tsx  # 核心棋盘：由 readonly 属性控制是否允许点击
-src/components/game/SgfHeader.tsx      # 显示 EV, RO, PB, PW 等 11 项信息
-src/components/game/NavControls.tsx    # 阅览器专用：左/右步进、重置
-src/components/game/ToolPanel.tsx      # 练棋/连线专用：悔棋、形势分析、聊天
-src/lib/ai/sgf-processor.ts   # 保持不变：SGF 字符串转 Move[] 逻辑
-src/lib/go-logic.ts            # 物理规则：处理落子、提子、判定 (三模式共用)
-src/lib/types.ts               # 类型定义：SgfMetadata, GameState 等
-src/hooks/useSgfViewer.ts        # 驱动阅览模式 (索引步进逻辑)
-src/hooks/usePracticeGame.ts      # 驱动练棋模式 (自由落子逻辑)
-src/hooks/useOnlineGame.ts        # 驱动连线模式 (Socket 同步逻辑)
