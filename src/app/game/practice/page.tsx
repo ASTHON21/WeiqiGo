@@ -175,7 +175,6 @@ export default function PracticePage() {
         <div className="space-y-6">
           <ToolPanel 
             onReset={handleReset} 
-            onScore={handleScore}
             onPass={isGameOver ? undefined : handlePass}
             moveSetting={isGameOver ? undefined : moveSetting}
             onMoveSettingChange={setMoveSetting}

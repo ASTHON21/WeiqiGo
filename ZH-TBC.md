@@ -1,967 +1,420 @@
-日韩规则目数计算法（Territory Based Counting）完整实现指南
+日韩围棋规则
 
-版本：v2.0 | 适用于日本规则·韩国规则 | 含19x19/13x13/9x9全尺寸
+版本：v2.1 | 面向围棋爱好者 | 基于日本棋院·韩国棋院官方规则
 
- 第一章：核心原理
+📋 第一部分：日韩规则概述
 
-1.1 目数计算基本公式
+1.1 什么是日韩规则？
+
+日本规则和韩国规则本质上是同一体系，通常称为"比目法"。与中国规则（数子法）不同，日韩规则只计算你围住的空点。
 
 ```yaml
-【核心公式】
-黑方最终目数 = 黑棋围的空点 - 白棋提过的黑子数量 - 黑方死子数量
-白方最终目数 = 白棋围的空点 - 黑棋提过的白子数量 - 白方死子数量
+核心原则:
+  你的得分 = (你围住的空点) - (你被对方提掉的棋子)
 
-胜负 = (黑方最终目数 - 白方最终目数 - 贴目)
-
-【等价形式】
-黑胜条件: 黑目 > 白目 + 贴目
-白胜条件: 黑目 < 白目 + 贴目
-和棋条件: 黑目 = 白目 + 贴目（仅日本规则）
+关键点: 棋盘上的棋子本身不直接计分——只有它们围住的空点才算数。
 ```
 
-1.2 计算要素图解
+1.2 哪些比赛使用这些规则？
+
+日本规则（日本棋院）:
+
+· 七大新闻棋战（棋圣战、名人战、本因坊战、十段战、天元战、王座战、碁圣战）
+· 所有日本国内职业赛事
+
+韩国规则（韩国棋院）:
+
+· 韩国围棋联赛
+· LG杯、三星杯（国际大赛）
+· GS加德士杯、KBS围棋王战
+· 所有韩国国内职业赛事
+
+🎯 第二部分：基本规则
+
+2.1 棋具
+
+```yaml
+棋盘:
+  标准: 19×19路（361个交叉点）
+  双方轮流落子
+
+棋子:
+  黑棋: 181枚
+  白棋: 180枚
+  黑方先行
+```
+
+2.2 棋子的死活
+
+```yaml
+气（呼吸点）:
+  - 每个棋子需要有直线相邻的空点（上、下、左、右）
+  - 斜角相连不算气
+  - 连在一起的棋子共享气
+
+提子:
+  当棋子或棋块的气为0时 → 立即从棋盘上移除
+  被移除的棋子成为"提子"（俘虏）
+
+禁止着法:
+  1. 自杀（落子后己方无气且不能提对方）
+  2. 劫（见2.4节详解）
+  3. 下在已有棋子的交叉点上
+```
+
+🔄 第三部分：劫争规则
+
+3.1 基本劫详解
+
+```yaml
+什么是劫？
+  黑方和白方可以无限循环地提走对方一个棋子的局面
+
+劫的规则:
+  ⚠️ 被提劫方不得立即回提 ⚠️
+  
+  示例:
+    1. 黑棋提走一颗白子
+    2. 白棋不能马上提回同一颗黑子
+    3. 白棋必须先 elsewhere 下一手（找"劫材"）
+    4. 如果黑棋应了劫材，白棋现在可以回提
+```
+
+3.2 特殊劫争情况
+
+```yaml
+多劫循环:
+  - 棋盘上同时存在多个劫
+  - 每个劫独立遵守基本劫规则
+  - 可能导致复杂的劫争
+
+三劫循环:
+  - 三个劫形成循环重复的局面
+  - 日韩规则: 判"无胜负" → 重赛
+
+长生劫:
+  - 极其罕见的重复局面
+  - 同样判"无胜负"
+```
+
+🏠 第四部分：死活与眼
+
+4.1 什么棋块算活棋？
+
+```yaml
+两眼活:
+  一块棋需要有两个独立且对方无法填入的空点
+
+为什么需要两眼？
+  - 对方无法填其中一眼（自杀禁止）
+  - 对方无法同时填两眼
+  - 因此这块棋永远不会被提掉
+
+真眼 vs 假眼:
+  真眼: 四个对角点都被己方控制（边角处规则相应调整）
+  假眼: 对角点控制不全 → 对方最终可以提掉
+```
+
+4.2 双活（公活）
+
+```yaml
+什么是双活？
+  双方互相包围的棋块共享气，谁也杀不死谁
+
+特征:
+  - 棋块相邻
+  - 之间有共享的空点（公气）
+  - 谁先在公气区域落子谁就死
+  - 因此双方保持存活至终局
+
+重要: 在日韩规则中，双活区域的共享空点**双方都不计分**
+```
+
+4.3 死棋
+
+```yaml
+终局时:
+  - 双方确认哪些棋块是死的
+  - 死棋被移除，当作提子处理
+  - 有争议的棋块继续下棋解决死活
+
+关键点: 不需要真的去提掉死棋——只需确认它们是死的就行
+```
+
+🧮 第五部分：计目法
+
+5.1 如何计算得分
+
+```yaml
+分步流程:
+
+1. 结束对局
+   双方连续弃权 → 对局停止
+
+2. 确认死棋
+   指出你认为死的棋块
+   移除双方同意的死棋（它们成为提子）
+
+3. 填目
+   拿出你提到的对方棋子
+   用它们填到对方的空里
+
+4. 数空
+   数你围住的剩余空点
+   这就是你的最终目数
+
+5. 加贴目
+   给白方加6.5目
+   比较最终目数
+```
+
+5.2 计算示例
+
+```yaml
+终局局面:
+
+黑棋围空: 45目
+白棋围空: 40目
+
+提子:
+  黑棋提白子: 3颗
+  白棋提黑子: 2颗
+
+填目:
+  黑棋用提到的3颗白子 → 填掉白棋3目
+  白棋用提到的2颗黑子 → 填掉黑棋2目
+
+最终目数:
+  黑棋: 45 - 2 = 43目
+  白棋: 40 - 3 = 37目
+
+加贴目: 白棋 37 + 6.5 = 43.5目
+
+结果: 白胜0.5目
+```
+
+5.3 计目图解
 
 ```text
-       棋盘状态
-           ↓
-    ┌──────┴──────┐
-    ↓              ↓
-  活棋           死棋
-    ↓              ↓
-┌───┴───┐      ┌──┴──┐
-↓       ↓      ↓     ↓
-围空   棋子  加入  填入
-(目)   (子)  提子  对方空
+填目前:
+┌─────────────────────┐
+│  ● ● ● . . ○ ○ ○    │
+│  ● . ● . . ○ . ○    │  ● = 黑棋
+│  ● ● ● . . ○ ○ ○    │  ○ = 白棋
+│  . . . . . . . .    │  . = 空点
+└─────────────────────┘
+黑空: 4目
+白空: 5目
+黑提白: 2子
+白提黑: 1子
+
+填目后:
+┌─────────────────────┐
+│  ● ● ● × . ○ ○ ○    │  × = 用提子填满
+│  ● . ● × . ○ × ○    │
+│  ● ● ● . . ○ ○ ○    │
+│  . . . . . . . .    │
+└─────────────────────┘
+黑最终: 4 - 1 = 3目
+白最终: 5 - 2 = 3目
+加贴目: 白 3 + 6.5 = 9.5目
 ```
 
- 第二章：数据结构设计
+📏 第六部分：贴目
 
-2.1 棋盘状态表示
-
-```typescript
-// types/go-types.ts
-
-export type Player = 'black' | 'white' | null;
-
-export interface Position {
-  row: number;
-  col: number;
-}
-
-export interface Stone {
-  player: Player;
-  position: Position;
-}
-
-export interface Group {
-  stones: Position[];
-  liberties: Position[];
-  player: Player;
-  isDead?: boolean;  // 终局后标记死棋
-}
-
-export interface BoardState {
-  size: 9 | 13 | 19;
-  grid: Player[][];           // 棋盘网格
-  groups: Group[];            // 所有棋子块
-  blackPrisoners: number;     // 黑棋提掉的白子数量
-  whitePrisoners: number;     // 白棋提掉的黑子数量
-  moveHistory: Move[];        // 落子历史
-  lastMove: Position | null;  // 上一步位置
-  consecutivePasses: number;  // 连续弃权次数
-}
-```
-
-2.2 计目专用数据结构
-
-```typescript
-// types/scoring-types.ts
-
-export interface Territory {
-  positions: Position[];
-  owner: Player | 'neutral';  // 'neutral' 表示双活公气
-}
-
-export interface ScoringState {
-  board: BoardState;
-  
-  // 终局确认的死子
-  deadStones: {
-    black: Position[];  // 黑方死子（将被白棋提掉）
-    white: Position[];  // 白方死子（将被黑棋提掉）
-  };
-  
-  // 活棋及其围空
-  liveGroups: {
-    black: Group[];
-    white: Group[];
-  };
-  
-  // 所有区域分类
-  territories: {
-    black: Territory[];    // 黑空
-    white: Territory[];    // 白空
-    neutral: Territory[];  // 双活公气
-    dame: Position[];      // 单官（最后下的公共点）
-  };
-  
-  // 最终目数
-  finalScore: {
-    black: number;
-    white: number;
-    komi: number;
-    result: 'black_win' | 'white_win' | 'jigo';
-    margin: number;  // 胜目数
-  };
-}
-```
-
- 第三章：死活判定算法
-
-3.1 终局状态检测
-
-```typescript
-// algorithms/life-death-detection.ts
-
-export class LifeDeathDetector {
-  /**
-   * 检测棋盘上所有棋块的死活
-   * 在双方Pass后调用
-   */
-  detectLifeDeath(board: BoardState): {
-    liveGroups: Group[];
-    deadGroups: Group[];
-  } {
-    const liveGroups: Group[] = [];
-    const deadGroups: Group[] = [];
-    
-    // 遍历所有棋子块
-    for (const group of board.groups) {
-      if (this.isGroupAlive(group, board)) {
-        liveGroups.push(group);
-      } else {
-        deadGroups.push(group);
-      }
-    }
-    
-    return { liveGroups, deadGroups };
-  }
-  
-  /**
-   * 判断单个棋子块是否活棋
-   * 活棋标准：有两个真眼 或 双活
-   */
-  private isGroupAlive(group: Group, board: BoardState): boolean {
-    // 条件1：有两个真眼
-    const eyes = this.findEyes(group, board);
-    const realEyes = eyes.filter(eye => this.isRealEye(eye, group.player, board));
-    
-    if (realEyes.length >= 2) {
-      return true;
-    }
-    
-    // 条件2：双活（公活）
-    if (this.isSeki(group, board)) {
-      return true;
-    }
-    
-    // 条件3：可以做出两眼（实战解决）
-    if (this.canMakeTwoEyes(group, board)) {
-      return true;
-    }
-    
-    return false;
-  }
-  
-  /**
-   * 查找棋子块的眼位
-   */
-  private findEyes(group: Group, board: BoardState): Position[] {
-    const eyes: Position[] = [];
-    const visited = new Set<string>();
-    
-    // 查找被该块包围的空点
-    for (const stone of group.stones) {
-      const neighbors = this.getNeighbors(stone, board.size);
-      
-      for (const pos of neighbors) {
-        const key = `${pos.row},${pos.col}`;
-        if (visited.has(key)) continue;
-        visited.add(key);
-        
-        // 如果空点被该块完全包围
-        if (this.isSurroundedByGroup(pos, group, board)) {
-          eyes.push(pos);
-        }
-      }
-    }
-    
-    return eyes;
-  }
-  
-  /**
-   * 判断是否为真眼
-   */
-  private isRealEye(eye: Position, player: Player, board: BoardState): boolean {
-    const corners = this.getEyeCorners(eye, board.size);
-    let friendlyCorners = 0;
-    
-    for (const corner of corners) {
-      if (!corner) {
-        // 边角缺失的角点算作"被己方占据"（眼位规则）
-        friendlyCorners++;
-        continue;
-      }
-      
-      const stone = board.grid[corner.row][corner.col];
-      if (stone === player) {
-        friendlyCorners++;
-      } else if (stone === null) {
-        // 空角点，假眼特征
-        continue;
-      }
-      // 对方棋子占据，不算
-    }
-    
-    // 角上眼需要1个己方角点
-    if (corners.length === 1) {
-      return friendlyCorners >= 1;
-    }
-    // 边上眼需要2个己方角点
-    if (corners.length === 2) {
-      return friendlyCorners >= 2;
-    }
-    // 中央眼需要3个己方角点
-    return friendlyCorners >= 3;
-  }
-  
-  /**
-   * 判断是否为双活
-   */
-  private isSeki(group: Group, board: BoardState): boolean {
-    // 双活特征：共享公气，谁先紧气谁死
-    const opponent = group.player === 'black' ? 'white' : 'black';
-    
-    // 查找相邻的对方棋子块
-    const adjacentGroups = this.findAdjacentGroups(group, board);
-    const opponentGroups = adjacentGroups.filter(g => g.player === opponent);
-    
-    if (opponentGroups.length === 0) return false;
-    
-    // 检查是否有共享公气
-    for (const oppGroup of opponentGroups) {
-      const sharedLiberties = this.findSharedLiberties(group, oppGroup);
-      if (sharedLiberties.length > 0) {
-        // 确认双方都无法杀死对方
-        if (this.isMutualLife(group, oppGroup, board)) {
-          return true;
-        }
-      }
-    }
-    
-    return false;
-  }
-  
-  /**
-   * 获取眼的角点
-   */
-  private getEyeCorners(eye: Position, size: number): (Position | null)[] {
-    const { row, col } = eye;
-    const corners: (Position | null)[] = [];
-    
-    // 四个角点
-    const cornerOffsets = [
-      [-1, -1], [-1, 1], [1, -1], [1, 1]
-    ];
-    
-    for (const [dr, dc] of cornerOffsets) {
-      const nr = row + dr;
-      const nc = col + dc;
-      
-      if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
-        corners.push({ row: nr, col: nc });
-      } else {
-        corners.push(null); // 边角缺失
-      }
-    }
-    
-    return corners;
-  }
-}
-```
-
- 第四章：围空识别算法
-
-4.1 区域划分算法
-
-```typescript
-// algorithms/territory-detection.ts
-
-export class TerritoryDetector {
-  /**
-   * 识别棋盘上的所有区域（黑空、白空、双活公气、单官）
-   */
-  detectTerritories(
-    board: BoardState,
-    liveGroups: { black: Group[]; white: Group[] }
-  ): ScoringState['territories'] {
-    const size = board.size;
-    const visited = new Set<string>();
-    
-    const territories = {
-      black: [],
-      white: [],
-      neutral: [],
-      dame: []
-    };
-    
-    // 遍历所有空点
-    for (let row = 0; row < size; row++) {
-      for (let col = 0; col < size; col++) {
-        const key = `${row},${col}`;
-        if (visited.has(key)) continue;
-        
-        if (board.grid[row][col] === null) {
-          // 发现空区域，进行泛洪填充
-          const region = this.floodFill(board, { row, col }, visited);
-          
-          // 判断区域归属
-          const owner = this.determineRegionOwner(region, liveGroups);
-          
-          switch (owner) {
-            case 'black':
-              territories.black.push({ positions: region, owner: 'black' });
-              break;
-            case 'white':
-              territories.white.push({ positions: region, owner: 'white' });
-              break;
-            case 'neutral':
-              territories.neutral.push({ positions: region, owner: 'neutral' });
-              break;
-            default:
-              territories.dame.push(...region);
-          }
-        }
-      }
-    }
-    
-    return territories;
-  }
-  
-  /**
-   * 泛洪填充找出连通空区域
-   */
-  private floodFill(
-    board: BoardState,
-    start: Position,
-    visited: Set<string>
-  ): Position[] {
-    const region: Position[] = [];
-    const queue: Position[] = [start];
-    const size = board.size;
-    
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      const key = `${current.row},${current.col}`;
-      
-      if (visited.has(key)) continue;
-      visited.add(key);
-      
-      // 只有空点才加入区域
-      if (board.grid[current.row][current.col] !== null) {
-        continue;
-      }
-      
-      region.push(current);
-      
-      // 检查四个方向
-      const neighbors = [
-        { row: current.row - 1, col: current.col },
-        { row: current.row + 1, col: current.col },
-        { row: current.row, col: current.col - 1 },
-        { row: current.row, col: current.col + 1 }
-      ];
-      
-      for (const n of neighbors) {
-        if (n.row >= 0 && n.row < size && n.col >= 0 && n.col < size) {
-          const nKey = `${n.row},${n.col}`;
-          if (!visited.has(nKey)) {
-            queue.push(n);
-          }
-        }
-      }
-    }
-    
-    return region;
-  }
-  
-  /**
-   * 判断空区域的归属
-   */
-  private determineRegionOwner(
-    region: Position[],
-    liveGroups: { black: Group[]; white: Group[] }
-  ): Player | 'neutral' {
-    const surroundingPlayers = new Set<Player>();
-    
-    // 检查区域边界相邻的棋子
-    for (const pos of region) {
-      const neighbors = this.getNeighbors(pos);
-      
-      for (const n of neighbors) {
-        const stone = this.getStoneAt(n);
-        if (stone) {
-          // 检查这个棋子是否属于活棋
-          if (this.isInLiveGroups(stone, liveGroups)) {
-            surroundingPlayers.add(stone);
-          }
-        }
-      }
-    }
-    
-    // 归属判断
-    if (surroundingPlayers.size === 1) {
-      const owner = Array.from(surroundingPlayers)[0];
-      return owner; // 单色包围 → 某方实地
-    } else if (surroundingPlayers.size === 2) {
-      return 'neutral'; // 双色包围 → 双活公气
-    } else {
-      return null; // 无包围 → 单官
-    }
-  }
-  
-  /**
-   * 检查棋子是否属于活棋
-   */
-  private isInLiveGroups(
-    player: Player,
-    liveGroups: { black: Group[]; white: Group[] }
-  ): boolean {
-    if (player === 'black') {
-      return liveGroups.black.length > 0;
-    } else {
-      return liveGroups.white.length > 0;
-    }
-  }
-}
-```
-
- 第五章：目数计算引擎
-
-5.1 完整计目流程
-
-```typescript
-// engines/japanese-scoring-engine.ts
-
-import { LifeDeathDetector } from '../algorithms/life-death-detection';
-import { TerritoryDetector } from '../algorithms/territory-detection';
-
-export class JapaneseScoringEngine {
-  private lifeDeathDetector: LifeDeathDetector;
-  private territoryDetector: TerritoryDetector;
-  
-  constructor() {
-    this.lifeDeathDetector = new LifeDeathDetector();
-    this.territoryDetector = new TerritoryDetector();
-  }
-  
-  /**
-   * 主入口：计算最终得分
-   */
-  calculateScore(
-    board: BoardState,
-    komi: number = 6.5,
-    allowJigo: boolean = true  // 日本规则允许和棋
-  ): ScoringState {
-    // 步骤1：检测死活
-    const { liveGroups, deadGroups } = this.lifeDeathDetector.detectLifeDeath(board);
-    
-    // 步骤2：分离黑白活棋
-    const liveBlack = liveGroups.filter(g => g.player === 'black');
-    const liveWhite = liveGroups.filter(g => g.player === 'white');
-    
-    // 步骤3：死子分类
-    const deadBlack = deadGroups.filter(g => g.player === 'black');
-    const deadWhite = deadGroups.filter(g => g.player === 'white');
-    
-    // 步骤4：识别区域
-    const territories = this.territoryDetector.detectTerritories(board, {
-      black: liveBlack,
-      white: liveWhite
-    });
-    
-    // 步骤5：计算目数
-    return this.computeFinalScore(
-      board,
-      {
-        black: deadBlack.flatMap(g => g.stones),
-        white: deadWhite.flatMap(g => g.stones)
-      },
-      {
-        black: liveBlack,
-        white: liveWhite
-      },
-      territories,
-      komi,
-      allowJigo
-    );
-  }
-  
-  /**
-   * 计算最终得分
-   */
-  private computeFinalScore(
-    board: BoardState,
-    deadStones: { black: Position[]; white: Position[] },
-    liveGroups: { black: Group[]; white: Group[] },
-    territories: ScoringState['territories'],
-    komi: number,
-    allowJigo: boolean
-  ): ScoringState {
-    
-    // 1. 计算各方的围空点数
-    const blackTerritory = territories.black.reduce(
-      (sum, t) => sum + t.positions.length, 0
-    );
-    const whiteTerritory = territories.white.reduce(
-      (sum, t) => sum + t.positions.length, 0
-    );
-    
-    // 2. 计算提子总数（棋盘上已提 + 死子）
-    const totalBlackPrisoners = board.blackPrisoners + deadStones.white.length;
-    const totalWhitePrisoners = board.whitePrisoners + deadStones.black.length;
-    
-    // 3. 最终目数（围空 - 对方提过的己方棋子）
-    const blackFinal = blackTerritory - totalWhitePrisoners;
-    const whiteFinal = whiteTerritory - totalBlackPrisoners;
-    
-    // 4. 计算胜负
-    const diff = blackFinal - whiteFinal - komi;
-    
-    let result: 'black_win' | 'white_win' | 'jigo';
-    let margin: number;
-    
-    if (Math.abs(diff) < 0.001) {  // 浮点数误差处理
-      if (allowJigo) {
-        result = 'jigo';
-        margin = 0;
-      } else {
-        // 韩国规则：贴目确保无和棋
-        result = diff > 0 ? 'black_win' : 'white_win';
-        margin = Math.abs(diff);
-      }
-    } else if (diff > 0) {
-      result = 'black_win';
-      margin = diff;
-    } else {
-      result = 'white_win';
-      margin = -diff;
-    }
-    
-    return {
-      board,
-      deadStones,
-      liveGroups,
-      territories,
-      finalScore: {
-        black: blackFinal,
-        white: whiteFinal,
-        komi,
-        result,
-        margin
-      }
-    };
-  }
-  
-  /**
-   * 生成胜负解释
-   */
-  generateExplanation(scoringState: ScoringState): string {
-    const { finalScore } = scoringState;
-    const { black, white, komi, result, margin } = finalScore;
-    
-    const lines = [
-      `【终局目数计算】`,
-      `黑棋围空: ${scoringState.territories.black.reduce((s,t) => s + t.positions.length, 0)}目`,
-      `白棋围空: ${scoringState.territories.white.reduce((s,t) => s + t.positions.length, 0)}目`,
-      `黑提白子: ${scoringState.board.blackPrisoners}子 + 白死子 ${scoringState.deadStones.white.length}子`,
-      `白提黑子: ${scoringState.board.whitePrisoners}子 + 黑死子 ${scoringState.deadStones.black.length}子`,
-      ``,
-      `黑棋最终: ${black}目`,
-      `白棋最终: ${white}目`,
-      `贴目: ${komi}目`,
-      `差值: ${black} - ${white} - ${komi} = ${(black - white - komi).toFixed(1)}`,
-      ``,
-      `结果: ${this.formatResult(result, margin)}`
-    ];
-    
-    return lines.join('\n');
-  }
-  
-  private formatResult(result: string, margin: number): string {
-    switch (result) {
-      case 'black_win': return `黑胜 ${margin.toFixed(1)}目`;
-      case 'white_win': return `白胜 ${margin.toFixed(1)}目`;
-      case 'jigo': return '和棋（持碁）';
-      default: return '未知';
-    }
-  }
-}
-```
-
- 第六章：韩国规则特殊处理
-
-6.1 棋盖规则适配
-
-```typescript
-// engines/korean-scoring-engine.ts
-
-import { JapaneseScoringEngine } from './japanese-scoring-engine';
-
-export class KoreanScoringEngine extends JapaneseScoringEngine {
-  /**
-   * 韩国规则：无和棋
-   */
-  calculateScore(
-    board: BoardState,
-    komi: number = 6.5,
-    allowJigo: boolean = false  // 韩国规则不允许和棋
-  ): ScoringState {
-    return super.calculateScore(board, komi, false);
-  }
-  
-  /**
-   * 棋盖规则检查（2026.7后生效）
-   */
-  checkStoneLidRule(
-    moveHistory: Move[],
-    stoneLidViolations: number
-  ): { penalty: number; warning: string } {
-    // 两次注意罚1目
-    if (stoneLidViolations >= 2) {
-      return {
-        penalty: 1,
-        warning: '警告：未将死子放入棋盖，罚1目'
-      };
-    }
-    
-    return {
-      penalty: 0,
-      warning: stoneLidViolations === 1 ? '注意：请将死子放入棋盖' : ''
-    };
-  }
-  
-  /**
-   * 应用棋盖罚目
-   */
-  applyLidPenalty(
-    scoringState: ScoringState,
-    stoneLidViolations: number
-  ): ScoringState {
-    const { penalty, warning } = this.checkStoneLidRule([], stoneLidViolations);
-    
-    if (penalty > 0) {
-      // 罚目从违规方扣除
-      // 假设黑方违规（实际需根据记录判断）
-      scoringState.finalScore.black -= penalty;
-      
-      // 重新计算胜负
-      const diff = scoringState.finalScore.black - 
-                   scoringState.finalScore.white - 
-                   scoringState.finalScore.komi;
-      
-      if (diff > 0) {
-        scoringState.finalScore.result = 'black_win';
-        scoringState.finalScore.margin = diff;
-      } else {
-        scoringState.finalScore.result = 'white_win';
-        scoringState.finalScore.margin = -diff;
-      }
-    }
-    
-    return scoringState;
-  }
-}
-```
-
- 第七章：测试用例
-
-7.1 单元测试
-
-```typescript
-// tests/japanese-scoring.test.ts
-
-describe('Japanese Scoring Engine', () => {
-  let engine: JapaneseScoringEngine;
-  
-  beforeEach(() => {
-    engine = new JapaneseScoringEngine();
-  });
-  
-  test('普通终局计目', () => {
-    // 构造一个简单终局局面
-    const board = createTestBoard();
-    const result = engine.calculateScore(board, 6.5);
-    
-    expect(result.finalScore.black).toBe(42);
-    expect(result.finalScore.white).toBe(36);
-    expect(result.finalScore.result).toBe('black_win');
-    expect(result.finalScore.margin).toBeCloseTo(0.5);
-  });
-  
-  test('双活不计目', () => {
-    // 构造双活局面
-    const board = createSekiBoard();
-    const result = engine.calculateScore(board, 6.5);
-    
-    // 双活区域的空点应为 neutral，不计入任何一方目数
-    const neutralTerritory = result.territories.neutral;
-    expect(neutralTerritory.length).toBeGreaterThan(0);
-    
-    // 这些空点不计入目数
-    const blackTerritoryTotal = result.territories.black
-      .reduce((sum, t) => sum + t.positions.length, 0);
-    expect(blackTerritoryTotal).toBeLessThan(20);
-  });
-  
-  test('死子处理', () => {
-    const board = createBoardWithDeadStones();
-    const result = engine.calculateScore(board, 6.5);
-    
-    // 死子应加入提子计数
-    expect(result.deadStones.black.length).toBe(2);
-    expect(result.deadStones.white.length).toBe(1);
-    
-    // 最终目数应扣除对方提子
-    const explanation = engine.generateExplanation(result);
-    expect(explanation).toContain('黑提白子');
-    expect(explanation).toContain('白提黑子');
-  });
-  
-  test('日本规则允许和棋', () => {
-    // 构造平局局面
-    const board = createJigoBoard();
-    const result = engine.calculateScore(board, 6.5, true);
-    
-    expect(result.finalScore.result).toBe('jigo');
-    expect(result.finalScore.margin).toBe(0);
-  });
-});
-
-describe('Korean Scoring Engine', () => {
-  let engine: KoreanScoringEngine;
-  
-  beforeEach(() => {
-    engine = new KoreanScoringEngine();
-  });
-  
-  test('韩国规则无和棋', () => {
-    const board = createJigoBoard();  // 理论平局
-    const result = engine.calculateScore(board, 6.5, false);
-    
-    // 6.5贴目确保不会和棋
-    expect(result.finalScore.result).not.toBe('jigo');
-  });
-  
-  test('棋盖罚目', () => {
-    const board = createTestBoard();
-    let result = engine.calculateScore(board, 6.5);
-    
-    // 两次违规
-    result = engine.applyLidPenalty(result, 2);
-    
-    // 应罚1目
-    expect(result.finalScore.margin).toBeLessThan(0.5);
-  });
-});
-```
-
- 第八章：SGF导入导出
-
-8.1 从SGF解析终局
-
-```typescript
-// parsers/sgf-scoring-parser.ts
-
-export class SGFScoringParser {
-  /**
-   * 从SGF文件解析终局状态
-   */
-  parseScoringFromSGF(sgfContent: string): {
-    board: BoardState;
-    deadStones?: { black: Position[]; white: Position[] };
-    result?: string;
-  } {
-    // 解析SGF基本内容
-    const parsed = parseSGF(sgfContent);
-    
-    // 重建棋盘
-    const board = this.reconstructBoard(parsed);
-    
-    // 检查是否有死子标注
-    const deadStones = this.extractDeadStones(parsed);
-    
-    // 获取结果
-    const result = parsed.metadata.RE;
-    
-    return { board, deadStones, result };
-  }
-  
-  /**
-   * 导出终局到SGF（包含死子标注）
-   */
-  exportToSGF(
-    scoringState: ScoringState,
-    players: { black: string; white: string },
-    event: string
-  ): string {
-    const lines: string[] = [];
-    
-    // 文件头
-    lines.push(`(;GM[1]FF[4]SZ[${scoringState.board.size}]`);
-    lines.push(`KM[${scoringState.finalScore.komi}]`);
-    lines.push(`RU[${scoringState.finalScore.result === 'jigo' ? 'Japanese' : 'Korean'}]`);
-    lines.push(`PB[${players.black}]`);
-    lines.push(`PW[${players.white}]`);
-    lines.push(`RE[${this.formatSGFResult(scoringState.finalScore)}]`);
-    lines.push(`DT[${new Date().toISOString().split('T')[0]}]`);
-    lines.push(`EV[${event}]`);
-    
-    // 落子序列
-    lines.push(...this.formatMoves(scoringState.board.moveHistory));
-    
-    // 死子标注（终局后确认）
-    if (scoringState.deadStones.black.length > 0) {
-      lines.push(`AB[${this.formatPositions(scoringState.deadStones.black)}]`);
-    }
-    if (scoringState.deadStones.white.length > 0) {
-      lines.push(`AW[${this.formatPositions(scoringState.deadStones.white)}]`);
-    }
-    
-    lines.push(')');
-    return lines.join('\n');
-  }
-  
-  private formatSGFResult(finalScore: ScoringState['finalScore']): string {
-    switch (finalScore.result) {
-      case 'black_win':
-        return `B+${finalScore.margin.toFixed(1)}`;
-      case 'white_win':
-        return `W+${finalScore.margin.toFixed(1)}`;
-      case 'jigo':
-        return 'Jigo';
-    }
-  }
-  
-  private formatPositions(positions: Position[]): string {
-    return positions
-      .map(p => this.positionToSGF(p))
-      .join('');
-  }
-  
-  private positionToSGF(pos: Position): string {
-    const col = String.fromCharCode(97 + pos.col);  // a-s
-    const row = String.fromCharCode(97 + pos.row);  // a-s
-    return `[${col}${row}]`;
-  }
-}
-```
-
- 第九章：AI实现要点总结
-
-9.1 关键函数清单
-
-```typescript
-// 必须实现的核心函数
-
-interface MustImplement {
-  // 死活检测
-  'findGroups()': '识别所有连通块',
-  'countLiberties()': '计算气数',
-  'isGroupAlive()': '判断死活（两眼/双活）',
-  'findEyes()': '查找眼位',
-  'isRealEye()': '判断真眼',
-  
-  // 区域识别
-  'floodFill()': '泛洪填充空区域',
-  'determineRegionOwner()': '判断区域归属',
-  'findSharedLiberties()': '查找共享公气',
-  
-  // 计目计算
-  'calculateBlackTerritory()': '计算黑空',
-  'calculateWhiteTerritory()': '计算白空',
-  'applyPrisoners()': '应用提子填目',
-  'applyKomi()': '应用贴目',
-  
-  // 胜负判定
-  'determineWinner()': '判定胜负（含和棋）',
-  'generateExplanation()': '生成解释文本'
-}
-```
-
-9.2 常见陷阱与解决方案
+6.1 标准贴目值
 
 ```yaml
-陷阱1: 双活区域计目
-  错误: 把双活公气计入某一方目数
-  正确: 标记为neutral，不计入任何一方
+19×19棋盘:
+  贴目: 6.5目
+  为什么有0.5？ → 确保大多数比赛不会和棋
+  注: 日本规则理论上允许和棋，但6.5目使和棋极其罕见
 
-陷阱2: 假眼识别
-  错误: 把所有空点都当作眼
-  正确: 检查眼位的角点占有率
+13×13棋盘:
+  官方: 6.5目（与19×19相同）
+  说明: 部分业余比赛会调整为5.5目，但职业赛事保持6.5目
 
-陷阱3: 死子重复计算
-  错误: 既在提子中计算，又在围空中扣除
-  正确: 死子只影响提子计数，不影响围空统计
-
-陷阱4: 浮点数精度
-  错误: 直接比较浮点数相等
-  正确: 使用误差范围 Math.abs(diff) < 0.001
-
-陷阱5: 单官处理
-  错误: 把单官当作目数
-  正确: 单官是必须下的公共点，不计目
+9×9棋盘:
+  官方: 6.5目（有争议但为标准）
+  争议: 很多棋手认为9路棋盘5.5目更公平
 ```
 
-9.3 性能优化建议
+6.2 为什么要有贴目
 
-```typescript
-// 性能优化技巧
+```yaml
+黑棋的优势:
+  - 黑棋先走
+  - 研究显示先手优势约6-7目
+  - 贴目平衡了这个优势
 
-class OptimizedScoringEngine {
-  /**
-   * 1. 缓存连通块计算结果
-   */
-  private groupCache: Map<string, Group[]> = new Map();
+历史演变:
+  - 古棋: 无贴目（黑棋强）
+  - 现代: 5.5目 → 6.5目（随着布局理论发展）
+  - 未来: 如果AI证明黑棋优势更大，贴目可能增加
+```
+
+🏁 第七部分：终局
+
+7.1 如何结束对局
+
+```yaml
+正常终局:
+  1. 甲方弃权
+  2. 乙方弃权
+  3. 双方同意对局结束
+
+重要: 日韩规则中，弃权前必须下完所有**单官**
+  - 单官 = 双方棋块之间的公共空点
+  - 它们不影响得分但必须填上
+  - 例外: 如果双方同意，可以提前弃权
+
+两次弃权后:
+  - 进入计目阶段
+  - 确认死棋
+  - 数空
+```
+
+7.2 计目时的争议
+
+```yaml
+如果双方对死棋有争议:
+  1. 从争议局面开始继续下
+  2. 下到死活明确为止
+  3. 重新计目
+
+注: 提出争议的一方在续弈中先行
+     （这是对提出争议的"惩罚"）
+```
+
+🇰🇷 第八部分：韩国规则特别说明
+
+8.1 棋盖规则（2026年更新）
+
+```yaml
+新规内容:
+  从2026年7月起，韩国规则要求:
+
+  "棋手必须将提掉的死子放在自己的棋盖里"
+  （棋盖 = 装棋子的容器的盖子）
+
+罚则:
+  第一次违规: "注意"（口头警告）
+  第二次违规: "警告" + 罚1目
+  更多违规: 裁判酌情处理
+
+为什么有这个规则？
+  - 防止棋手混淆提子数量
+  - 让计目更清晰公平
+  - 避免关于提子数量的争议
+```
+
+8.2 韩国规则无和棋
+
+```yaml
+与日本规则的关键区别:
+  韩国规则**不允许和棋**
+  贴目的0.5目确保必分胜负
+  三劫循环仍判"无胜负"（重赛）
+```
+
+📊 第九部分：快速参考
+
+9.1 规则速查卡
+
+```yaml
+┌─────────────────────────────────────────────────┐
+│             日韩规则速查表                        │
+├─────────────────────────────────────────────────┤
+│                                                  │
+│  📍 计目法: 围空 + 提子                          │
+│     你的得分 = 你的围空 - 对方提掉你的棋子数       │
+│                                                  │
+│  🎯 贴目: 白方得6.5目                            │
+│                                                  │
+│  ⚔️  双活: 公气双方都不计                          │
+│                                                  │
+│  🏁 终局: 下完单官后双方弃权                      │
+│                                                  │
+│  🔄 劫争: 不能立即回提                            │
+│                                                  │
+│  💀 死棋: 计目前必须双方确认                      │
+│                                                  │
+├─────────────────────────────────────────────────┤
+│  棋盘规格: 19×19（标准）                         │
+│               13×13（训练/快棋）                  │
+│               9×9  （初学者/超快棋）              │
+└─────────────────────────────────────────────────┘
+```
+
+9.2 常见错误避免
+
+```yaml
+错误1: 数棋盘上的棋子
+  ❌ "我有50颗子，我要赢了"
+  ✅ "我填完提子后有30目空"
+
+错误2: 忘记填单官
+  ❌ 提前弃权，漏掉公共空点
+  ✅ 弃权前下完所有单官
+
+错误3: 双活计目错误
+  ❌ 把双活公气算给自己
+  ✅ 双活公气双方都不计
+
+错误4: 劫争混淆
+  ❌ 被提劫后马上回提
+  ✅ 先 elsewhere 找劫材，再回提
+
+错误5: 计目时忘记提子
+  ❌ 只数围空
+  ✅ 围空 - 对方提掉你的子数 = 最终目数
+```
+
+🌏 第十部分：日韩规则对比
+
+方面 日本规则 韩国规则 实际差异？
+基本计目 比目法 比目法 无
+贴目 6.5 6.5 无
+允许和棋？ 是（理论上） 否 实际极少出现
+棋盖规则 无 有（2026年起） 仅影响行棋习惯
+三劫循环 无胜负 无胜负 相同
+规则文本风格 法理型 规程型 不影响下棋
+
+结论: 对棋手来说，日本规则和韩国规则实际操作完全一样。唯一区别是韩国规则对程序细节规定更严格（如棋盖规则）。
+
+🎓 第十一部分：给棋手的建议
+
+11.1 如果你先学了中国规则
+
+```yaml
+改用日韩规则时需要调整:
+
+1. 计目方式不同
+   中国: 子数 = 棋盘上棋子 + 围空
+   日本: 目数 = 围空 - 对方提子
   
-  /**
-   * 2. 增量更新（对弈过程中）
-   */
-  incrementalUpdate(
-    previousState: ScoringState,
-    newMove: Move
-  ): ScoringState {
-    // 只重新计算受影响的局部区域
-    const affectedArea = this.getAffectedArea(newMove);
-    return this.recalculateLocal(previousState, affectedArea);
-  }
-  
-  /**
-   * 3. 并行处理（大型棋盘）
-   */
-  async parallelScoring(
-    board: BoardState
-  ): Promise<ScoringState> {
-    // 将棋盘分成4个象限并行计算
-    const quadrants = this.splitBoard(board);
-    const results = await Promise.all(
-      quadrants.map(q => this.calculateQuadrant(q))
-    );
-    return this.mergeQuadrantResults(results);
-  }
-}
+   同一局面示例:
+     中国: 黑棋185子 → 黑胜
+     日本: 黑棋43目（填目后）+ 6.5贴目 → 白胜
+
+2. 必须下完单官
+   中国: 可以不下单官
+   日本: 必须填完所有公共空点
+
+3. 双活处理
+   中国: 双活公气各得半子
+   日本: 双活公气不计目
+```
+
+11.2 记住这句口诀
+
+```
+"中国规则数子法，一子一目要分清。
+ 日韩规则比目法，只数围空减提子。
+ 双活公气都不算，单官一定要下完。
+ 贴目记住六点五，白棋半目优势定。"
 ```
 
 ---
 
-注：本实现完全遵循日本规则和韩国规则的核心原则。日韩规则本质相同，仅在和棋处理、棋盖管理上存在差异。所有尺寸（9x9/13x13/19x19）均适用同一套算法。
+最后说明: 无论是在东京还是首尔下棋，规则感受是一样的。韩国的棋盖规则（2026年）是几十年来首次重大差异，但它只影响如何处理提子——不影响棋本身。享受对局！

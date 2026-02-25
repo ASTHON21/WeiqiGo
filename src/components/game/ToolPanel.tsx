@@ -10,7 +10,6 @@ import { MoveSetting } from "@/lib/types";
 interface ToolPanelProps {
   onAnalysis?: () => void;
   onReset?: () => void;
-  onScore?: () => void;
   onPass?: () => void;
   showChat?: boolean;
   moveSetting?: MoveSetting;
@@ -20,7 +19,6 @@ interface ToolPanelProps {
 export function ToolPanel({ 
   onAnalysis, 
   onReset, 
-  onScore, 
   onPass, 
   showChat,
   moveSetting = 'direct',
@@ -54,11 +52,6 @@ export function ToolPanel({
           {onPass && (
             <Button variant="outline" className="w-full justify-start gap-2 h-9 text-xs" onClick={onPass}>
               <SkipForward className="h-4 w-4" /> 弃权 (Pass)
-            </Button>
-          )}
-          {onScore && (
-            <Button variant="outline" className="w-full justify-start gap-2 text-blue-600 border-blue-200 hover:bg-blue-50 h-9 text-xs" onClick={onScore}>
-              <Calculator className="h-4 w-4" /> 数子结算 (Score)
             </Button>
           )}
           {onAnalysis && (
