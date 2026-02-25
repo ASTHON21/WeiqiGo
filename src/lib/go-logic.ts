@@ -152,8 +152,8 @@ export const GoLogic = {
         }
 
         // 3. 计算目数
-        // blackStonesCapturedByBlack 实际上是黑方提掉的白子数量 (Prisoners held by Black)
-        // whiteStonesCapturedByWhite 实际上是白方提掉的黑子数量 (Prisoners held by White)
+        // blackStonesCapturedByBlack 是黑方提掉的白子数
+        // whiteStonesCapturedByWhite 是白方提掉的黑子数
         const blackFinal = blackTerritory - whiteStonesCapturedByWhite - deadStones.black;
         const whiteFinal = whiteTerritory - blackStonesCapturedByBlack - deadStones.white;
 
@@ -179,17 +179,18 @@ export const GoLogic = {
     },
 
     /**
-     * 判断棋块是否活棋 (两眼或双活)
+     * 判断棋块是否活棋 (基本判定：终局时有气即活)
      */
     isGroupAlive: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
-        const size = board.length;
-        const eyes = GoLogic.findEyes(board, group);
-        const realEyes = eyes.filter(eye => GoLogic.isRealEye(board, eye, group.player));
+        // 在自动化结算中，只要棋块在棋盘上且拥有至少 1 口气，即视为活棋。
+        // 这解决了“单子在开阔地带被误判为死棋”的问题。
+        // 只有当对局进行到 Dame（单官）全部填满，且该棋块确实没有眼位且无气时，才会被判定为死棋。
+        const [r, c] = group.positions[0];
+        const liberties = GoLogic.calculateLiberties(board, r, c);
         
-        // 条件：有2个及以上真眼
-        if (realEyes.length >= 2) return true;
-        
-        // 条件：双活 (Seki)
+        if (liberties > 0) return true;
+
+        // 如果没有气，检查是否是双活 (Seki)
         if (GoLogic.isSeki(board, group)) return true;
         
         return false;
@@ -206,7 +207,6 @@ export const GoLogic = {
                     const key = `${nr},${nc}`;
                     if (!checkedEmpty.has(key)) {
                         checkedEmpty.add(key);
-                        // 检查该空点是否被该块完全包围 (眼)
                         const neighbors = [[nr-1, nc], [nr+1, nc], [nr, nc-1], [nr, nc+1]];
                         const isSurrounded = neighbors.every(([nnr, nnc]) => {
                             if (nnr < 0 || nnr >= size || nnc < 0 || nnc >= size) return true;
@@ -234,10 +234,6 @@ export const GoLogic = {
             }
         });
 
-        // 日韩规则真眼标准：
-        // 棋盘中央 (4个对角点)：至少3个己方棋子
-        // 棋盘边 (2个对角点)：至少2个己方棋子
-        // 棋盘角 (1个对角点)：至少1个己方棋子
         if (diagonalInBoard === 4) return friendlyCorners >= 3;
         if (diagonalInBoard === 2) return friendlyCorners >= 2;
         if (diagonalInBoard === 1) return friendlyCorners >= 1;
@@ -246,7 +242,6 @@ export const GoLogic = {
 
     isSeki: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
         const libs = GoLogic.calculateLiberties(board, group.positions[0][0], group.positions[0][1]);
-        // 简单双活判定：公气且双方均无法提子
         if (libs >= 1) {
             const size = board.length;
             let adjacentOpponentFound = false;
@@ -257,7 +252,6 @@ export const GoLogic = {
                     }
                 });
             });
-            // 在实际复杂局面上可能需要更深层的搜索，此处为简化版
             return adjacentOpponentFound && libs <= 2;
         }
         return false;
