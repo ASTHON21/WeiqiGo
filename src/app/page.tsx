@@ -26,8 +26,8 @@ export default function HomePage() {
   const [rules, setRules] = useState("");
 
   useEffect(() => {
-    getRulesContent(ruleViewType).then(setRules);
-  }, [ruleViewType]);
+    getRulesContent(ruleViewType, language).then(setRules);
+  }, [ruleViewType, language]);
 
   const handleStartPractice = () => {
     router.push(`/game/practice?size=${practiceSize}&rule=${practiceRule}`);
@@ -246,10 +246,10 @@ export default function HomePage() {
                   <Tabs value={ruleViewType} onValueChange={(val) => setRuleViewType(val as 'chinese' | 'territory')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="chinese" className="gap-2">
-                        <ShieldCheck className="h-4 w-4" /> 中国规则 (ZH-AS)
+                        <ShieldCheck className="h-4 w-4" /> {language === 'zh' ? '中国规则 (ZH-AS)' : 'Chinese Rules (EN-AS)'}
                       </TabsTrigger>
                       <TabsTrigger value="territory" className="gap-2">
-                        <Book className="h-4 w-4" /> 日韩规则 (ZH-TBC)
+                        <Book className="h-4 w-4" /> {language === 'zh' ? '日韩规则 (ZH-TBC)' : 'Japanese Rules (EN-TBC)'}
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>

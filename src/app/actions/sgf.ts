@@ -28,12 +28,15 @@ export async function getPresetGame(id: string): Promise<LevelData> {
 }
 
 /**
- * 获取特定规则文件内容 (默认返回中文版)
+ * 获取特定规则文件内容
+ * @param type 规则类型 ('chinese' | 'territory')
+ * @param lang 语言代码 ('zh' | 'en')
  */
-export async function getRulesContent(type: 'chinese' | 'territory' = 'chinese'): Promise<string> {
+export async function getRulesContent(type: 'chinese' | 'territory' = 'chinese', lang: string = 'zh'): Promise<string> {
   try {
-    // 匹配项目中实际存在的规则文件名
-    const fileName = type === 'chinese' ? 'ZH-AS.md' : 'ZH-TBC.md';
+    // 匹配项目中实际存在的规则文件名 (ZH-AS.md, EN-AS.md 等)
+    const prefix = lang === 'en' ? 'EN' : 'ZH';
+    const fileName = type === 'chinese' ? `${prefix}-AS.md` : `${prefix}-TBC.md`;
     const filePath = path.join(process.cwd(), fileName);
     
     if (!fs.existsSync(filePath)) {

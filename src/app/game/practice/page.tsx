@@ -27,6 +27,7 @@ import { useEffect, useState } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { GoLogic } from '@/lib/go-logic';
 import { MoveSetting, GameHistoryEntry } from '@/lib/types';
+import { useLanguage } from '@/context/language-context';
 
 export default function PracticePage() {
   const searchParams = useSearchParams();
@@ -35,6 +36,7 @@ export default function PracticePage() {
   
   const practice = usePracticeGame(size);
   const { toast } = useToast();
+  const { language } = useLanguage();
   
   const [ruleType] = useState<'chinese' | 'territory'>(initialRule);
   const [rules, setRules] = useState("");
@@ -44,8 +46,8 @@ export default function PracticePage() {
   const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
-    getRulesContent(ruleType).then(setRules);
-  }, [ruleType]);
+    getRulesContent(ruleType, language).then(setRules);
+  }, [ruleType, language]);
 
   const handleMove = (r: number, c: number) => {
     if (isGameOver) return;

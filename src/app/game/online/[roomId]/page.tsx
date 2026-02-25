@@ -18,6 +18,7 @@ import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { MoveSetting, GameHistoryEntry } from '@/lib/types';
+import { useLanguage } from '@/context/language-context';
 
 export default function OnlineGamePage() {
   const params = useParams();
@@ -28,6 +29,7 @@ export default function OnlineGamePage() {
   const { user, loading: loadingUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
+  const { language } = useLanguage();
 
   const [rules, setRules] = useState("");
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
@@ -44,11 +46,11 @@ export default function OnlineGamePage() {
 
   useEffect(() => {
     if (game?.rules) {
-      getRulesContent(game.rules as 'chinese' | 'territory').then(setRules);
+      getRulesContent(game.rules as 'chinese' | 'territory', language).then(setRules);
     } else {
-      getRulesContent().then(setRules);
+      getRulesContent('chinese', language).then(setRules);
     }
-  }, [game?.rules]);
+  }, [game?.rules, language]);
 
   const board = (() => {
     if (!game) return createEmptyBoard(19);
