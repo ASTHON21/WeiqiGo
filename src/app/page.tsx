@@ -8,13 +8,15 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle } from 'lucide-react';
+import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { cn } from '@/lib/utils';
+import { Label } from '@/components/ui/label';
 
 export default function HomePage() {
   const router = useRouter();
   const [practiceSize, setPracticeSize] = useState("19");
+  const [practiceRule, setPracticeRule] = useState("chinese");
   const [acceptingInvites, setAcceptingInvites] = useState(true);
   const [rules, setRules] = useState("");
 
@@ -23,7 +25,7 @@ export default function HomePage() {
   }, []);
 
   const handleStartPractice = () => {
-    router.push(`/game/practice?size=${practiceSize}`);
+    router.push(`/game/practice?size=${practiceSize}&rule=${practiceRule}`);
   };
 
   const handleEnterLobby = () => {
@@ -51,14 +53,27 @@ export default function HomePage() {
                 <CardTitle className="text-2xl">本地练棋 (Practice)</CardTitle>
                 <CardDescription>一人分饰两角，研磨定式，探索棋道变化。</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4 mt-auto">
+              <CardContent className="space-y-6 mt-auto">
                 <div className="space-y-2">
-                  <p className="text-xs font-bold uppercase text-muted-foreground text-center">选择棋盘尺寸</p>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground text-center">选择棋盘尺寸</p>
                   <Tabs value={practiceSize} onValueChange={setPracticeSize} className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="9">9 x 9</TabsTrigger>
-                      <TabsTrigger value="13">13 x 13</TabsTrigger>
-                      <TabsTrigger value="19">19 x 19</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-3 h-9">
+                      <TabsTrigger value="9" className="text-xs">9 x 9</TabsTrigger>
+                      <TabsTrigger value="13" className="text-xs">13 x 13</TabsTrigger>
+                      <TabsTrigger value="19" className="text-xs">19 x 19</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground text-center">选择竞技规则</p>
+                  <Tabs value={practiceRule} onValueChange={setPracticeRule} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 h-9">
+                      <TabsTrigger value="chinese" className="text-xs gap-1">
+                        <ShieldCheck className="h-3 w-3" /> 中国规则
+                      </TabsTrigger>
+                      <TabsTrigger value="territory" className="text-xs gap-1">
+                        <Book className="h-3 w-3" /> 日韩规则
+                      </TabsTrigger>
                     </TabsList>
                   </Tabs>
                 </div>

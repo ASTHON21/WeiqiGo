@@ -26,20 +26,22 @@ import { useEffect, useState } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { GoLogic } from '@/lib/go-logic';
 import { MoveSetting } from '@/lib/types';
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function PracticePage() {
   const searchParams = useSearchParams();
   const size = parseInt(searchParams.get('size') || '19');
+  const initialRule = (searchParams.get('rule') as 'chinese' | 'territory') || 'chinese';
+  
   const practice = usePracticeGame(size);
   const { toast } = useToast();
   
-  const [ruleType, setRuleType] = useState<'chinese' | 'territory'>('chinese');
+  // 规则在进入对局后固定
+  const [ruleType] = useState<'chinese' | 'territory'>(initialRule);
   const [rules, setRules] = useState("");
   const [scoreResult, setScoreResult] = useState<any>(null);
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
 
-  // 当规则类型改变时加载文档
+  // 加载初始选定的规则文档
   useEffect(() => {
     getRulesContent(ruleType).then(setRules);
   }, [ruleType]);
@@ -56,7 +58,7 @@ export default function PracticePage() {
   };
 
   const handleScore = () => {
-    // 目前逻辑主要基于中国规则数子，数目法主要展示文档指引
+    // 目前逻辑主要基于中国规则数子
     const result = GoLogic.calculateScore(practice.board);
     setScoreResult({
       ...result,
@@ -71,24 +73,18 @@ export default function PracticePage() {
            <h1 className="text-2xl font-bold flex items-center gap-2 text-primary">
              <Swords className="h-6 w-6" /> 本地练棋模式
            </h1>
-           <p className="text-xs text-muted-foreground italic">当前使用：{ruleType === 'chinese' ? '中国规则 (数子法)' : '日韩规则 (数目法)'}</p>
+           <p className="text-xs text-muted-foreground italic">当前规则：{ruleType === 'chinese' ? '中国规则 (数子法)' : '日韩规则 (数目法)'}</p>
          </div>
          <div className="flex flex-wrap items-center gap-3">
-           <Tabs value={ruleType} onValueChange={(v) => setRuleType(v as any)} className="bg-muted/50 p-1 rounded-lg border">
-              <TabsList className="h-8">
-                <TabsTrigger value="chinese" className="text-xs gap-1">
-                  <ShieldCheck className="h-3 w-3" /> 中国规则
-                </TabsTrigger>
-                <TabsTrigger value="territory" className="text-xs gap-1">
-                  <Book className="h-3 w-3" /> 日韩规则
-                </TabsTrigger>
-              </TabsList>
-           </Tabs>
            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border">
              <div className={cn("w-3 h-3 rounded-full border transition-colors", practice.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
              <span className="text-sm font-bold">{practice.currentTurn === 'black' ? '黑方' : '白方'}</span>
            </div>
            <Badge variant="outline" className="font-mono">{size}x{size}</Badge>
+           <Badge variant="secondary" className="gap-1">
+              {ruleType === 'chinese' ? <ShieldCheck className="h-3 w-3" /> : <Book className="h-3 w-3" />}
+              {ruleType === 'chinese' ? '中国规则' : '日韩规则'}
+           </Badge>
          </div>
       </div>
 
@@ -119,10 +115,10 @@ export default function PracticePage() {
                 <CardContent className="p-4 flex items-center justify-between">
                    <div className="flex items-center gap-2">
                       <Book className="h-4 w-4 text-accent group-hover:scale-110 transition-transform" />
-                      <span className="text-sm font-bold">查看当前规则指南</span>
+                      <span className="text-sm font-bold">查看规则指南</span>
                    </div>
-                   <Badge variant="secondary" className="text-[10px]">
-                     {ruleType === 'chinese' ? 'Area Scoring' : 'Territory Based'}
+                   <Badge variant="outline" className="text-[10px]">
+                     Manual
                    </Badge>
                 </CardContent>
               </Card>
