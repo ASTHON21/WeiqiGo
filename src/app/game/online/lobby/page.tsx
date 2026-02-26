@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -12,10 +13,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, Book, User } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, Book, User, Wifi, WifiOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
+/**
+ * @file OnlineLobbyPage - 竞技大厅
+ * 当前连线技术：Firebase Firestore 实时同步 (onSnapshot) + 轮询心跳 (Heartbeat)
+ */
 export default function OnlineLobbyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -29,28 +34,37 @@ export default function OnlineLobbyPage() {
   const [selectedRule, setSelectedRule] = useState<string>("chinese");
   const [opponentColor, setOpponentColor] = useState<'black' | 'white'>('white');
   const [receivedInvite, setReceivedInvite] = useState<any>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
-  // 1. 心跳机制 (Presence System)
+  // 1. 心跳与存在感知系统 (Heartbeat Presence System)
   useEffect(() => {
     if (!user || !db) return;
 
-    const heartbeat = setInterval(() => {
+    const updateStatus = async () => {
       const userRef = doc(db, "userProfiles", user.uid);
-      updateDoc(userRef, {
-        lastSeen: serverTimestamp(),
-        acceptingInvites: acceptInvites
-      }).catch(() => {});
-    }, 30000);
+      try {
+        await updateDoc(userRef, {
+          lastSeen: serverTimestamp(),
+          acceptingInvites: acceptInvites
+        });
+        setIsConnected(true);
+      } catch (e) {
+        setIsConnected(false);
+      }
+    };
 
-    updateDoc(doc(db, "userProfiles", user.uid), {
-      lastSeen: serverTimestamp(),
-      acceptingInvites: acceptInvites
-    }).catch(() => {});
+    // 初始更新
+    updateStatus();
 
-    return () => clearInterval(heartbeat);
+    // 每 30 秒发送一次心跳，告诉大厅“我还在线”
+    const heartbeat = setInterval(updateStatus, 30000);
+
+    return () => {
+      clearInterval(heartbeat);
+    };
   }, [user, db, acceptInvites]);
 
-  // 2. 监听活跃棋手 (只显示过去 5 分钟内活跃的用户)
+  // 2. 监听活跃棋手 (实时流)
   const usersQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "userProfiles"));
@@ -62,12 +76,13 @@ export default function OnlineLobbyPage() {
     if (p.id === user?.uid) return false;
     if (!p.lastSeen) return false;
     
+    // 逻辑：仅显示过去 5 分钟内有过心跳反馈的棋手，物理清除僵尸 ID
     const lastSeenDate = p.lastSeen.toDate ? p.lastSeen.toDate() : new Date(p.lastSeen);
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60000);
-    return lastSeenDate > fiveMinutesAgo;
+    const threshold = new Date(Date.now() - 5 * 60000);
+    return lastSeenDate > threshold;
   }) || [];
 
-  // 3. 监听实时对局
+  // 3. 监听实时正在进行的对局 (实时流)
   const liveGamesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "games"), where("status", "==", "in-progress"));
@@ -75,7 +90,7 @@ export default function OnlineLobbyPage() {
   
   const { data: liveGames, isLoading: loadingGames } = useCollection(liveGamesQuery);
 
-  // 4. 监听针对我的挂起邀请
+  // 4. 监听针对我的挂起挑战 (通过 onSnapshot 实时推送)
   useEffect(() => {
     if (!db || !user) return;
     const q = query(collection(db, "games"), where("status", "==", "pending"));
@@ -88,6 +103,9 @@ export default function OnlineLobbyPage() {
       if (activeInvite && (!receivedInvite || activeInvite.id !== receivedInvite.id)) {
         setReceivedInvite(activeInvite);
       }
+    }, (err) => {
+      // 捕获连接异常
+      setIsConnected(false);
     });
 
     return () => unsub();
@@ -164,7 +182,7 @@ export default function OnlineLobbyPage() {
     return (
       <div className="h-screen flex flex-col items-center justify-center space-y-4">
         <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
-        <p className="text-muted-foreground font-medium animate-pulse">正在验证设备指纹及身份...</p>
+        <p className="text-muted-foreground font-medium animate-pulse">正在握手棋手身份系统...</p>
       </div>
     );
   }
@@ -184,9 +202,15 @@ export default function OnlineLobbyPage() {
                 </span>
              </div>
 
-             <Badge variant={acceptInvites ? "outline" : "destructive"} className="h-7 px-3 border-2">
-                {acceptInvites ? "在线等待中" : "离线/忙碌"}
-             </Badge>
+             <div className="flex items-center gap-2">
+                <Badge variant={acceptInvites ? "outline" : "destructive"} className="h-7 px-3 border-2">
+                    {acceptInvites ? "在线等待中" : "离线/忙碌"}
+                </Badge>
+                <Badge variant="ghost" className={cn("h-7 gap-1.5", isConnected ? "text-green-500" : "text-red-500")}>
+                  {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                  {isConnected ? "实时同步已连接" : "网络连线异常"}
+                </Badge>
+             </div>
           </div>
         </div>
         <Button variant="outline" onClick={() => router.push('/')}>返回主页</Button>
