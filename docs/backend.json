@@ -38,6 +38,11 @@
           "type": "string",
           "description": "Timestamp of the user's last login.",
           "format": "date-time"
+        },
+        "lastSeen": {
+          "type": "string",
+          "description": "Timestamp of the user's last online heartbeat.",
+          "format": "date-time"
         }
       },
       "required": [
@@ -64,6 +69,14 @@
           "type": "string",
           "description": "Reference to the UserProfile ID of the player playing as black."
         },
+        "playerWhiteName": {
+          "type": "string",
+          "description": "Display name of the white player."
+        },
+        "playerBlackName": {
+          "type": "string",
+          "description": "Display name of the black player."
+        },
         "currentTurn": {
           "type": "string",
           "description": "Indicates whose turn it currently is. Expected values: 'white' or 'black'."
@@ -78,7 +91,11 @@
         },
         "komi": {
           "type": "number",
-          "description": "The komi value given to the second player (black)."
+          "description": "The komi value given to the second player (white)."
+        },
+        "rules": {
+          "type": "string",
+          "description": "The ruleset used (chinese or territory)."
         },
         "status": {
           "type": "string",
@@ -97,6 +114,10 @@
           "type": "string",
           "description": "Timestamp when the game concluded.",
           "format": "date-time"
+        },
+        "moveCount": {
+          "type": "number",
+          "description": "Total moves made in this game, including passes."
         }
       },
       "required": [
@@ -149,13 +170,6 @@
         "evaluation": {
           "type": "number",
           "description": "AI's win rate estimate."
-        },
-        "capturedStoneCoordinates": {
-          "type": "array",
-          "description": "An array of string representations (e.g., 'X,Y') for the coordinates of stones captured by this move.",
-          "items": {
-            "type": "string"
-          }
         }
       },
       "required": [
@@ -165,8 +179,7 @@
         "coordinatesX",
         "coordinatesY",
         "moveNumber",
-        "timestamp",
-        "evaluation"
+        "timestamp"
       ]
     }
   },

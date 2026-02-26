@@ -13,13 +13,46 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, Book, User, Wifi, WifiOff } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, Book, User, Wifi, WifiOff, Clock, Layers } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 /**
+ * 实时对局时长显示组件
+ */
+function LiveGameTimer({ startedAt }: { startedAt: any }) {
+  const [duration, setDuration] = useState("00:00");
+
+  useEffect(() => {
+    if (!startedAt) return;
+    const start = startedAt.toDate ? startedAt.toDate() : new Date(startedAt);
+    
+    const update = () => {
+      const now = new Date();
+      const diff = Math.floor((now.getTime() - start.getTime()) / 1000);
+      if (diff < 0) return;
+      
+      const h = Math.floor(diff / 3600);
+      const m = Math.floor((diff % 3600) / 60);
+      const s = diff % 60;
+      
+      if (h > 0) {
+        setDuration(`${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+      } else {
+        setDuration(`${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+      }
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+
+  return <span className="font-mono">{duration}</span>;
+}
+
+/**
  * @file OnlineLobbyPage - 竞技大厅
- * 当前连线技术：Firebase Firestore 实时同步 (onSnapshot) + 轮询心跳 (Heartbeat)
  */
 export default function OnlineLobbyPage() {
   const router = useRouter();
@@ -36,7 +69,7 @@ export default function OnlineLobbyPage() {
   const [receivedInvite, setReceivedInvite] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // 1. 心跳与存在感知系统 (Heartbeat Presence System)
+  // 1. 心跳与存在感知系统
   useEffect(() => {
     if (!user || !db) return;
 
@@ -53,18 +86,12 @@ export default function OnlineLobbyPage() {
       }
     };
 
-    // 初始更新
     updateStatus();
-
-    // 每 30 秒发送一次心跳，告诉大厅“我还在线”
     const heartbeat = setInterval(updateStatus, 30000);
-
-    return () => {
-      clearInterval(heartbeat);
-    };
+    return () => clearInterval(heartbeat);
   }, [user, db, acceptInvites]);
 
-  // 2. 监听活跃棋手 (实时流)
+  // 2. 监听活跃棋手
   const usersQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "userProfiles"));
@@ -75,14 +102,12 @@ export default function OnlineLobbyPage() {
   const activePlayers = allProfiles?.filter(p => {
     if (p.id === user?.uid) return false;
     if (!p.lastSeen) return false;
-    
-    // 逻辑：仅显示过去 5 分钟内有过心跳反馈的棋手，物理清除僵尸 ID
     const lastSeenDate = p.lastSeen.toDate ? p.lastSeen.toDate() : new Date(p.lastSeen);
     const threshold = new Date(Date.now() - 5 * 60000);
     return lastSeenDate > threshold;
   }) || [];
 
-  // 3. 监听实时正在进行的对局 (实时流)
+  // 3. 监听实时正在进行的对局
   const liveGamesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "games"), where("status", "==", "in-progress"));
@@ -90,7 +115,7 @@ export default function OnlineLobbyPage() {
   
   const { data: liveGames, isLoading: loadingGames } = useCollection(liveGamesQuery);
 
-  // 4. 监听针对我的挂起挑战 (通过 onSnapshot 实时推送)
+  // 4. 监听针对我的挂起挑战
   useEffect(() => {
     if (!db || !user) return;
     const q = query(collection(db, "games"), where("status", "==", "pending"));
@@ -103,9 +128,6 @@ export default function OnlineLobbyPage() {
       if (activeInvite && (!receivedInvite || activeInvite.id !== receivedInvite.id)) {
         setReceivedInvite(activeInvite);
       }
-    }, (err) => {
-      // 捕获连接异常
-      setIsConnected(false);
     });
 
     return () => unsub();
@@ -145,7 +167,8 @@ export default function OnlineLobbyPage() {
         komi: selectedRule === 'chinese' ? 7.5 : 6.5,
         handicap: 0,
         createdBy: user.uid,
-        challengerName: user.displayName
+        challengerName: user.displayName,
+        moveCount: 0
       });
       
       toast({ title: "已发送邀请", description: `等待 ${invitingPlayer.name} 响应...` });
@@ -161,7 +184,8 @@ export default function OnlineLobbyPage() {
     try {
       await updateDoc(doc(db, "games", receivedInvite.id), {
         status: 'in-progress',
-        startedAt: serverTimestamp()
+        startedAt: serverTimestamp(),
+        moveCount: 0
       });
       router.push(`/game/online/${receivedInvite.id}`);
     } catch (err) {}
@@ -222,7 +246,7 @@ export default function OnlineLobbyPage() {
             <Users className="h-4 w-4" /> 活跃棋手 ({activePlayers.length})
           </TabsTrigger>
           <TabsTrigger value="games" className="gap-2">
-            <PlayCircle className="h-4 w-4" /> 实时观战
+            <PlayCircle className="h-4 w-4" /> 实时观战 ({liveGames?.length || 0})
           </TabsTrigger>
         </TabsList>
 
@@ -287,26 +311,43 @@ export default function OnlineLobbyPage() {
               </div>
             ) : liveGames?.length ? (
               liveGames.map((game) => (
-                <Card key={game.id} className="border-2 overflow-hidden flex flex-col">
+                <Card key={game.id} className="border-2 overflow-hidden flex flex-col group">
                   <div className="bg-blue-500/10 p-3 border-b flex items-center justify-between">
-                    <Badge variant="outline" className="bg-background">{game.boardSize}x{game.boardSize}</Badge>
-                    <span className="text-[10px] font-mono font-bold text-blue-600">对局中</span>
+                    <div className="flex gap-2">
+                      <Badge variant="outline" className="bg-background text-[10px]">{game.boardSize}x{game.boardSize}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">{game.rules === 'chinese' ? '中' : '日韩'}</Badge>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[10px]">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+                      LIVE
+                    </div>
                   </div>
-                  <CardContent className="p-6 flex-1 flex flex-col justify-center items-center gap-4">
-                    <div className="flex items-center gap-6">
-                      <div className="text-center space-y-2">
-                         <div className="w-10 h-10 rounded-full bg-black mx-auto" />
-                         <p className="text-xs font-bold truncate max-w-[80px]">{game.playerBlackName}</p>
+                  <CardContent className="p-6 flex-1 flex flex-col gap-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="text-center space-y-2 flex-1">
+                         <div className="w-10 h-10 rounded-full bg-black mx-auto ring-2 ring-offset-2 ring-black/10" />
+                         <p className="text-xs font-bold truncate">{game.playerBlackName}</p>
                       </div>
-                      <div className="text-xl font-bold text-muted-foreground">VS</div>
-                      <div className="text-center space-y-2">
-                         <div className="w-10 h-10 rounded-full bg-white border mx-auto" />
-                         <p className="text-xs font-bold truncate max-w-[80px]">{game.playerWhiteName}</p>
+                      <div className="text-sm font-black text-muted-foreground bg-muted p-2 rounded-lg">VS</div>
+                      <div className="text-center space-y-2 flex-1">
+                         <div className="w-10 h-10 rounded-full bg-white border mx-auto ring-2 ring-offset-2 ring-black/10" />
+                         <p className="text-xs font-bold truncate">{game.playerWhiteName}</p>
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-dashed">
+                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                         <Clock className="h-3 w-3" />
+                         <LiveGameTimer startedAt={game.startedAt} />
+                       </div>
+                       <div className="flex items-center gap-2 text-xs text-muted-foreground justify-end">
+                         <Layers className="h-3 w-3" />
+                         <span>第 <span className="font-bold text-foreground">{game.moveCount || 0}</span> 手</span>
+                       </div>
                     </div>
                   </CardContent>
                   <CardFooter className="bg-muted/30 p-3 mt-auto">
-                    <Button className="w-full gap-2" variant="secondary" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
+                    <Button className="w-full gap-2 font-bold group-hover:bg-blue-600 group-hover:text-white transition-all" variant="outline" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
                       <PlayCircle className="h-4 w-4" /> 实时观战
                     </Button>
                   </CardFooter>

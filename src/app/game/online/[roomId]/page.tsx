@@ -103,7 +103,8 @@ export default function OnlineGamePage() {
       const nextTurn = playerColor === 'black' ? 'white' : 'black';
       await setDoc(doc(db, "games", roomId), {
         currentTurn: nextTurn,
-        status: 'in-progress'
+        status: 'in-progress',
+        moveCount: (game.moveCount || 0) + 1
       }, { merge: true });
 
     } catch (err) {
@@ -132,7 +133,8 @@ export default function OnlineGamePage() {
       if (isConsecutivePass) {
         await setDoc(doc(db, "games", roomId), {
           status: 'finished',
-          finishedAt: serverTimestamp()
+          finishedAt: serverTimestamp(),
+          moveCount: (game.moveCount || 0) + 1
         }, { merge: true });
 
         toast({
@@ -143,6 +145,7 @@ export default function OnlineGamePage() {
         const nextTurn = playerColor === 'black' ? 'white' : 'black';
         await setDoc(doc(db, "games", roomId), {
           currentTurn: nextTurn,
+          moveCount: (game.moveCount || 0) + 1
         }, { merge: true });
 
         toast({
@@ -169,7 +172,7 @@ export default function OnlineGamePage() {
         player: m.playerColor
       })),
       result: {
-        winner: null, // 在线模式目前由玩家协商
+        winner: null,
         reason: '双方连续弃权',
         details: null
       },
