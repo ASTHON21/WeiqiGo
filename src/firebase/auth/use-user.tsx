@@ -10,6 +10,7 @@ import { useFirebase } from '@/firebase';
 export interface SessionUser {
   uid: string;
   displayName: string;
+  persistedId: string; // 网页分发的持久化 ID
 }
 
 /**
@@ -27,8 +28,19 @@ export function useUser() {
     // 监听身份变化
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
-        // 获取持久化存储的昵称，如果没有则生成
+        // 1. 检测 LocalStorage 是否已拥有网页分发的棋手 ID (tempPlayerId)
+        let persistedId = localStorage.getItem('tempPlayerId');
+        
+        // 2. 检测 LocalStorage 昵称 (tempDisplayName)
         let displayName = localStorage.getItem('tempDisplayName');
+        
+        // 如果是新设备/新用户，初始化持久化 ID
+        if (!persistedId) {
+          persistedId = fbUser.uid;
+          localStorage.setItem('tempPlayerId', persistedId);
+        }
+
+        // 初始化昵称
         if (!displayName) {
           const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
           displayName = `棋手-${randomSuffix}`;
@@ -37,12 +49,14 @@ export function useUser() {
         
         setUser({ 
           uid: fbUser.uid, 
-          displayName: displayName 
+          displayName: displayName,
+          persistedId: persistedId // 返回分发的 ID 供业务逻辑参考
         });
         setLoading(false);
       } else {
         // 如果未认证，执行匿名登录
         try {
+          // Firebase 默认会将 Anonymous 凭据持久化
           await signInAnonymously(auth);
         } catch (error) {
           console.error("Anonymous sign-in failed", error);
