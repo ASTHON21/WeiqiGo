@@ -1,8 +1,11 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirebase } from '@/firebase';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
 /**
  * 棋手身份接口
@@ -10,63 +13,91 @@ import { useFirebase } from '@/firebase';
 export interface SessionUser {
   uid: string;
   displayName: string;
-  persistedId: string; // 网页分发的持久化 ID
+  deviceId: string;
 }
 
 /**
- * React hook to manage a persistent player identity using Firebase Anonymous Auth and localStorage.
- * This ensures backend security rules work while maintaining the "no-login" UX across browser restarts.
+ * React hook to manage a persistent player identity.
+ * Uses FingerprintJS for device recognition and Firestore for profile persistence.
  */
 export function useUser() {
-  const { auth } = useFirebase();
+  const { auth, firestore } = useFirebase();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!auth) return;
+    if (!auth || !firestore) return;
 
-    // 监听身份变化
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser) {
-        // 1. 检测 LocalStorage 是否已拥有网页分发的棋手 ID (tempPlayerId)
-        let persistedId = localStorage.getItem('tempPlayerId');
-        
-        // 2. 检测 LocalStorage 昵称 (tempDisplayName)
-        let displayName = localStorage.getItem('tempDisplayName');
-        
-        // 如果是新设备/新用户，初始化持久化 ID
-        if (!persistedId) {
-          persistedId = fbUser.uid;
-          localStorage.setItem('tempPlayerId', persistedId);
-        }
+    const initializeIdentity = async () => {
+      // 1. 获取设备指纹
+      const fp = await FingerprintJS.load();
+      const result = await fp.get();
+      const deviceId = result.visitorId;
 
-        // 初始化昵称
-        if (!displayName) {
-          const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-          displayName = `棋手-${randomSuffix}`;
-          localStorage.setItem('tempDisplayName', displayName);
-        }
-        
-        setUser({ 
-          uid: fbUser.uid, 
-          displayName: displayName,
-          persistedId: persistedId // 返回分发的 ID 供业务逻辑参考
-        });
-        setLoading(false);
-      } else {
-        // 如果未认证，执行匿名登录
-        try {
-          // Firebase 默认会将 Anonymous 凭据持久化
-          await signInAnonymously(auth);
-        } catch (error) {
-          console.error("Anonymous sign-in failed", error);
+      // 2. 监听 Auth 状态
+      const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+        if (fbUser) {
+          // 检查 Firestore 是否已有该 UID 的档案
+          const userRef = doc(firestore, "userProfiles", fbUser.uid);
+          const userSnap = await getDoc(userRef);
+
+          let displayName = localStorage.getItem('tempDisplayName');
+          
+          if (!userSnap.exists()) {
+            // 如果是新用户，初始化档案
+            if (!displayName) {
+              const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+              displayName = `棋手-${randomSuffix}`;
+              localStorage.setItem('tempDisplayName', displayName);
+            }
+
+            await setDoc(userRef, {
+              id: fbUser.uid,
+              displayName: displayName,
+              deviceId: deviceId,
+              createdAt: serverTimestamp(),
+              lastLoginAt: serverTimestamp(),
+              lastSeen: serverTimestamp(),
+              acceptingInvites: true
+            }, { merge: true });
+          } else {
+            // 已有档案，更新最后登录时间
+            displayName = userSnap.data().displayName || displayName;
+            await setDoc(userRef, { 
+              lastLoginAt: serverTimestamp(),
+              deviceId: deviceId, // 确保指纹同步
+              lastSeen: serverTimestamp()
+            }, { merge: true });
+          }
+
+          setUser({ 
+            uid: fbUser.uid, 
+            displayName: displayName || "未知棋手",
+            deviceId: deviceId
+          });
           setLoading(false);
+        } else {
+          try {
+            await signInAnonymously(auth);
+          } catch (error) {
+            console.error("Anonymous sign-in failed", error);
+            setLoading(false);
+          }
         }
-      }
+      });
+
+      return unsubscribe;
+    };
+
+    let authUnsubscribe: (() => void) | undefined;
+    initializeIdentity().then(unsub => {
+      authUnsubscribe = unsub;
     });
 
-    return () => unsubscribe();
-  }, [auth]);
+    return () => {
+      if (authUnsubscribe) authUnsubscribe();
+    };
+  }, [auth, firestore]);
 
-  return { user, loading, error: null };
+  return { user, loading };
 }
