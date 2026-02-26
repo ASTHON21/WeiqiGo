@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { SgfProcessor } from '@/lib/ai/sgf-processor';
+import { GibProcessor } from '@/lib/ai/gib-processor';
 import { LevelData } from '@/lib/types';
 import { GoBoard } from '@/components/game/GoBoard';
 import { SgfHeader } from '@/components/game/SgfHeader';
@@ -10,7 +11,7 @@ import { NavControls } from '@/components/game/NavControls';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSgfViewer } from '@/hooks/useSgfViewer';
-import { FileUp, BookOpen, RotateCcw, ArrowLeft } from 'lucide-react';
+import { FileUp, BookOpen, RotateCcw, ArrowLeft, FileCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -24,15 +25,16 @@ export default function SgfViewerPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    
     // 限制文件大小为 99kB
     const MAX_SIZE = 99 * 1024;
     if (file.size > MAX_SIZE) {
       toast({
         variant: "destructive",
         title: "文件过大",
-        description: "为了保证加载速度，SGF 棋谱文件不能超过 99kB。",
+        description: "为了保证加载速度，棋谱文件不能超过 99kB。",
       });
-      // 清空 input 以便下次选择
       e.target.value = '';
       return;
     }
@@ -41,18 +43,24 @@ export default function SgfViewerPage() {
     reader.onload = (event) => {
       const content = event.target?.result as string;
       try {
-        const data = SgfProcessor.parse("uploaded", content);
+        let data: LevelData;
+        if (extension === 'gib') {
+          data = GibProcessor.parse("uploaded", content);
+        } else {
+          data = SgfProcessor.parse("uploaded", content);
+        }
+        
         setGameData(data);
         toast({
           title: "导入成功",
-          description: "棋谱已成功加载并适配棋盘。",
+          description: `已成功加载 ${extension?.toUpperCase()} 格式棋谱。`,
         });
       } catch (err) {
-        console.error("SGF 解析失败:", err);
+        console.error("棋谱解析失败:", err);
         toast({
           variant: "destructive",
           title: "解析失败",
-          description: "该 SGF 文件格式可能已损坏，请重试。",
+          description: "该文件格式可能已损坏或不支持，请重试。",
         });
       }
     };
@@ -65,19 +73,19 @@ export default function SgfViewerPage() {
     return (
       <div className="container mx-auto p-8 flex flex-col items-center justify-center min-h-[80vh] space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold font-headline">SGF 棋谱查看器</h1>
-          <p className="text-muted-foreground">上传您的 .sgf 文件，支持步进查看与多尺寸棋盘自动适配。</p>
-          <p className="text-[10px] text-muted-foreground/60">最大支持文件大小: 99kB</p>
+          <h1 className="text-3xl font-bold font-headline">棋谱查看器 (SGF/GIB)</h1>
+          <p className="text-muted-foreground">上传 .sgf 或 .gib 文件，支持步进查看与多尺寸棋盘自动适配。</p>
+          <p className="text-[10px] text-muted-foreground/60">最大支持文件大小: 99kB | 适配 Tygem/弈城格式</p>
         </div>
         
         <Card className="w-full max-w-md border-2 border-dashed bg-muted/20 hover:bg-muted/30 transition-colors cursor-pointer relative">
           <label className="flex flex-col items-center justify-center p-12 cursor-pointer">
             <FileUp className="h-12 w-12 text-accent mb-4" />
             <span className="text-lg font-bold">点击选择文件</span>
-            <span className="text-xs text-muted-foreground mt-1">或拖拽 .sgf 文件到此处</span>
+            <span className="text-xs text-muted-foreground mt-1">支持 .sgf 和 .gib 格式</span>
             <input 
               type="file" 
-              accept=".sgf" 
+              accept=".sgf,.gib" 
               className="hidden" 
               onChange={handleFileUpload}
             />
@@ -97,7 +105,9 @@ export default function SgfViewerPage() {
         <Button variant="ghost" size="sm" onClick={() => setGameData(null)} className="gap-2">
           <RotateCcw className="h-4 w-4" /> 更换棋谱
         </Button>
-        <h2 className="text-xl font-bold font-headline text-accent">SGF 阅览模式</h2>
+        <h2 className="text-xl font-bold font-headline text-accent flex items-center gap-2">
+          <FileCode className="h-5 w-5" /> 棋谱阅览模式
+        </h2>
         <Button variant="ghost" size="sm" onClick={() => router.push('/')}>
           退出阅览
         </Button>
@@ -132,14 +142,14 @@ export default function SgfViewerPage() {
           <Card className="border-2 h-[600px] flex flex-col">
             <CardHeader className="bg-muted/30 border-b py-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-accent" /> 对局注解 (GC)
+                <BookOpen className="h-4 w-4 text-accent" /> 棋谱详情与注解
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 p-0 overflow-hidden">
               <ScrollArea className="h-full p-4">
                 <div className="space-y-4">
                    <div className="p-3 bg-accent/5 rounded-md border border-accent/10">
-                      <p className="text-xs font-bold text-accent uppercase mb-1">当前状态</p>
+                      <p className="text-xs font-bold text-accent uppercase mb-1">当前进度</p>
                       <p className="text-sm">
                         第 {viewer.currentIndex} / {viewer.totalSteps} 手
                       </p>
@@ -152,17 +162,17 @@ export default function SgfViewerPage() {
                    
                    <div className="space-y-2">
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                        {viewer.metadata.comment || "该棋谱文件中未包含详细注解内容。"}
+                        {viewer.metadata.comment || "该棋谱暂无详细注解内容。"}
                       </p>
                    </div>
 
                    <div className="pt-4 border-t space-y-3">
-                      <h4 className="text-xs font-bold uppercase text-muted-foreground">棋谱详情</h4>
+                      <h4 className="text-xs font-bold uppercase text-muted-foreground">元数据信息</h4>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
                          <div><span className="text-muted-foreground">规则 (RU):</span> {viewer.metadata.rules || "N/A"}</div>
                          <div><span className="text-muted-foreground">贴目 (KM):</span> {viewer.metadata.komi || "N/A"}</div>
                          <div><span className="text-muted-foreground">地点 (PC):</span> {viewer.metadata.place || "N/A"}</div>
-                         <div><span className="text-muted-foreground">时间 (TM):</span> {viewer.metadata.timeLimit || "N/A"}</div>
+                         <div><span className="text-muted-foreground">日期 (DT):</span> {viewer.metadata.date || "N/A"}</div>
                       </div>
                    </div>
                 </div>
