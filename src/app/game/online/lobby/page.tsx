@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, ShieldCheck, Book, Fingerprint } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, ShieldCheck, Book, Fingerprint, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +30,7 @@ export default function OnlineLobbyPage() {
   const [selectedRule, setSelectedRule] = useState<string>("chinese");
   const [opponentColor, setOpponentColor] = useState<'black' | 'white'>('white');
   const [receivedInvite, setReceivedInvite] = useState<any>(null);
+  const [showDeviceId, setShowDeviceId] = useState(false);
 
   // 1. 心跳机制 (Presence System)
   useEffect(() => {
@@ -54,7 +55,6 @@ export default function OnlineLobbyPage() {
   }, [user, db, acceptInvites]);
 
   // 2. 监听活跃棋手 (只显示过去 5 分钟内活跃的用户)
-  // 注意：Firestore 查询需要动态 timestamp，我们在这里监听所有并客户端过滤以实现极致准确性
   const usersQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "userProfiles"));
@@ -66,7 +66,6 @@ export default function OnlineLobbyPage() {
     if (p.id === user?.uid) return false;
     if (!p.lastSeen) return false;
     
-    // 将 Firestore Timestamp 转换为 Date
     const lastSeenDate = p.lastSeen.toDate ? p.lastSeen.toDate() : new Date(p.lastSeen);
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60000);
     return lastSeenDate > fiveMinutesAgo;
@@ -177,16 +176,31 @@ export default function OnlineLobbyPage() {
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8 max-w-6xl">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-2">
+        <div className="space-y-4">
           <h1 className="text-4xl font-bold font-headline tracking-tight text-blue-500 flex items-center gap-3">
             <Swords className="h-10 w-10" /> 竞技大厅
           </h1>
-          <div className="flex items-center gap-3 text-sm">
-             <div className="flex items-center gap-1.5 bg-muted/50 px-3 py-1 rounded-full border">
-                <Fingerprint className="h-3.5 w-3.5 text-blue-400" />
-                <span className="text-muted-foreground">设备 ID: <span className="font-mono text-foreground">{user?.deviceId.substring(0, 8)}...</span></span>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+             {/* 设备指纹按钮 */}
+             <button 
+                onClick={() => setShowDeviceId(!showDeviceId)}
+                className="flex items-center gap-1.5 bg-muted/50 px-3 py-1.5 rounded-full border hover:bg-muted transition-all active:scale-95 group"
+             >
+                <Fingerprint className={cn("h-4 w-4 transition-colors", showDeviceId ? "text-blue-500" : "text-muted-foreground")} />
+                <span className="text-xs font-bold text-muted-foreground group-hover:text-foreground">
+                  {showDeviceId ? `设备 ID: ${user?.deviceId}` : "点击查看设备指纹"}
+                </span>
+             </button>
+
+             {/* 棋手 ID 显示 */}
+             <div className="flex items-center gap-1.5 bg-blue-500/5 px-3 py-1.5 rounded-full border border-blue-500/20">
+                <User className="h-4 w-4 text-blue-400" />
+                <span className="text-xs text-muted-foreground">
+                  棋手 ID: <span className="font-mono text-foreground font-bold">{user?.uid.substring(0, 12)}...</span>
+                </span>
              </div>
-             <Badge variant={acceptInvites ? "outline" : "destructive"} className="h-6">
+
+             <Badge variant={acceptInvites ? "outline" : "destructive"} className="h-7 px-3">
                 {acceptInvites ? "在线等待中" : "离线/忙碌"}
              </Badge>
           </div>
