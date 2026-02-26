@@ -36,7 +36,6 @@ export default function OnlineLobbyPage() {
   useEffect(() => {
     if (!user || !db) return;
 
-    // 每 30 秒更新一次 lastSeen
     const heartbeat = setInterval(() => {
       const userRef = doc(db, "userProfiles", user.uid);
       updateDoc(userRef, {
@@ -45,7 +44,6 @@ export default function OnlineLobbyPage() {
       }).catch(() => {});
     }, 30000);
 
-    // 初始更新
     updateDoc(doc(db, "userProfiles", user.uid), {
       lastSeen: serverTimestamp(),
       acceptingInvites: acceptInvites
@@ -181,7 +179,6 @@ export default function OnlineLobbyPage() {
             <Swords className="h-10 w-10" /> 竞技大厅
           </h1>
           <div className="flex flex-wrap items-center gap-3 text-sm">
-             {/* 设备指纹按钮 */}
              <button 
                 onClick={() => setShowDeviceId(!showDeviceId)}
                 className="flex items-center gap-1.5 bg-muted/50 px-3 py-1.5 rounded-full border hover:bg-muted transition-all active:scale-95 group"
@@ -192,7 +189,6 @@ export default function OnlineLobbyPage() {
                 </span>
              </button>
 
-             {/* 棋手 ID 显示 */}
              <div className="flex items-center gap-1.5 bg-blue-500/5 px-3 py-1.5 rounded-full border border-blue-500/20">
                 <User className="h-4 w-4 text-blue-400" />
                 <span className="text-xs text-muted-foreground">
@@ -236,15 +232,15 @@ export default function OnlineLobbyPage() {
                             {player.displayName?.[0] || 'U'}
                           </AvatarFallback>
                         </Avatar>
-                        <div>
+                        <div className="space-y-0.5">
                           <h3 className="font-bold text-lg flex items-center gap-2">
                             {player.displayName}
                             {!isAccepting && <Ban className="h-3 w-3 text-red-500" />}
                           </h3>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            <span className="text-[10px] text-muted-foreground">
-                              {isAccepting ? "空闲中" : "请勿打扰"}
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              ID: {player.id.substring(0, 8)}...
                             </span>
                           </div>
                         </div>
@@ -314,7 +310,6 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
-      {/* 邀请配置弹窗 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -372,7 +367,6 @@ export default function OnlineLobbyPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 收到邀请弹窗 */}
       <Dialog open={!!receivedInvite} onOpenChange={(open) => !open && handleDeclineInvite()}>
         <DialogContent className="sm:max-w-md border-4 border-blue-500 shadow-2xl">
           <DialogHeader>
