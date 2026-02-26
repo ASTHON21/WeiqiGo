@@ -74,7 +74,7 @@ export default function HistoryPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `GoMaster_${game.mode}_${format(new Date(game.date), 'yyyyMMdd_HHmm')}.sgf`;
+      a.download = `WEIQI_GO_${game.mode}_${format(new Date(game.date), 'yyyyMMdd_HHmm')}.sgf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -197,7 +197,7 @@ export default function HistoryPage() {
                     </CardContent>
                     <CardFooter className="flex justify-between items-center bg-muted/5 py-3 px-6">
                         <span className="text-[10px] text-muted-foreground italic flex items-center gap-1">
-                          <Icons.Logo className="h-3 w-3" /> GoMaster Record System
+                          <Icons.Logo className="h-3 w-3" /> WEIQI GO Record System v2.1.0
                         </span>
                         <Button variant="secondary" size="sm" onClick={() => handleExport(game)} className="gap-2 group-hover:bg-accent group-hover:text-white transition-colors">
                             <Download className="h-4 w-4" /> 导出 SGF
