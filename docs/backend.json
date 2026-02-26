@@ -69,6 +69,14 @@
           "type": "string",
           "description": "Reference to the UserProfile ID of the player playing as black."
         },
+        "playerWhitePeerId": {
+          "type": "string",
+          "description": "WebRTC Peer ID for the white player."
+        },
+        "playerBlackPeerId": {
+          "type": "string",
+          "description": "WebRTC Peer ID for the black player."
+        },
         "playerWhiteName": {
           "type": "string",
           "description": "Display name of the white player."

@@ -6,19 +6,20 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, ArrowLeft, Save } from 'lucide-react';
+import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, ArrowLeft, Save, Wifi, WifiOff } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, serverTimestamp, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { MoveSetting, GameHistoryEntry } from '@/lib/types';
+import { MoveSetting, GameHistoryEntry, Player } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
+import type Peer from 'peerjs';
 
 export default function OnlineGamePage() {
   const params = useParams();
@@ -36,13 +37,78 @@ export default function OnlineGamePage() {
   const [dismissGameOver, setDismissGameOver] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   
+  // P2P 状态
+  const [peer, setPeer] = useState<Peer | null>(null);
+  const [connection, setConnection] = useState<any>(null);
+  const [p2pStatus, setP2PStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [localMoves, setLocalMoves] = useState<any[]>([]);
+
   const { data: game, isLoading: loadingGame } = useDoc(roomId ? doc(db, "games", roomId) : null);
 
+  // 即使使用 P2P，依然从 Firestore 加载初始/已有步数作为兜底
   const movesQuery = useMemoFirebase(() => 
     query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")), 
     [db, roomId]
   );
-  const { data: moves } = useCollection(movesQuery);
+  const { data: firestoreMoves } = useCollection(movesQuery);
+
+  // 合并 Firestore 和 P2P 步数
+  const moves = [...(firestoreMoves || []), ...localMoves].sort((a, b) => (a.moveNumber || 0) - (b.moveNumber || 0));
+
+  // 初始化 WebRTC (P2P)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !roomId || !user || isSpectating) return;
+
+    let peerInstance: Peer;
+    import('peerjs').then(({ default: Peer }) => {
+      peerInstance = new Peer();
+      setPeer(peerInstance);
+
+      peerInstance.on('open', (id) => {
+        const field = user.uid === game?.playerBlackId ? 'playerBlackPeerId' : 'playerWhitePeerId';
+        updateDoc(doc(db, "games", roomId), { [field]: id });
+      });
+
+      peerInstance.on('connection', (conn) => {
+        conn.on('data', (data: any) => {
+          if (data.type === 'move') {
+            setLocalMoves(prev => [...prev, data.payload]);
+          }
+        });
+        conn.on('open', () => {
+          setConnection(conn);
+          setP2PStatus('connected');
+        });
+        conn.on('close', () => setP2PStatus('disconnected'));
+      });
+    });
+
+    return () => {
+      peerInstance?.destroy();
+    };
+  }, [roomId, user?.uid, isSpectating, game?.id]);
+
+  // 主动连接对手
+  useEffect(() => {
+    if (!peer || !game || connection || isSpectating || !user) return;
+
+    const myRole = user.uid === game.playerBlackId ? 'black' : 'white';
+    const opponentPeerId = myRole === 'black' ? game.playerWhitePeerId : game.playerBlackPeerId;
+
+    if (opponentPeerId) {
+      const conn = peer.connect(opponentPeerId);
+      conn.on('open', () => {
+        setConnection(conn);
+        setP2PStatus('connected');
+      });
+      conn.on('data', (data: any) => {
+        if (data.type === 'move') {
+          setLocalMoves(prev => [...prev, data.payload]);
+        }
+      });
+      conn.on('close', () => setP2PStatus('disconnected'));
+    }
+  }, [peer, game, connection, isSpectating, user]);
 
   useEffect(() => {
     if (game?.rules) {
@@ -89,27 +155,32 @@ export default function OnlineGamePage() {
       return;
     }
 
-    try {
-      await addDoc(collection(db, `games/${roomId}/moves`), {
-        gameId: roomId,
-        playerColor,
-        coordinatesX: r,
-        coordinatesY: c,
-        moveNumber: (moves?.length || 0) + 1,
-        timestamp: serverTimestamp(),
-        evaluation: 0.5,
-      });
+    const moveData = {
+      gameId: roomId,
+      playerColor,
+      coordinatesX: r,
+      coordinatesY: c,
+      moveNumber: (moves?.length || 0) + 1,
+      timestamp: Date.now(),
+      evaluation: 0.5,
+    };
 
-      const nextTurn = playerColor === 'black' ? 'white' : 'black';
-      await setDoc(doc(db, "games", roomId), {
-        currentTurn: nextTurn,
-        status: 'in-progress',
-        moveCount: (game.moveCount || 0) + 1
-      }, { merge: true });
-
-    } catch (err) {
-      console.error("落子失败", err);
+    // 1. 通过 P2P 发送给对手 (0 成本)
+    if (connection && p2pStatus === 'connected') {
+      connection.send({ type: 'move', payload: moveData });
+      setLocalMoves(prev => [...prev, moveData]);
+    } else {
+      // 备选方案：如果 P2P 未连接，退回到 Firestore (确保对局不中断)
+      await addDoc(collection(db, `games/${roomId}/moves`), moveData);
     }
+
+    // 2. 更新对局状态 (仅更新 currentTurn 和 moveCount，不写入 moves 子集合以节省额度)
+    const nextTurn = playerColor === 'black' ? 'white' : 'black';
+    await updateDoc(doc(db, "games", roomId), {
+      currentTurn: nextTurn,
+      status: 'in-progress',
+      moveCount: (game.moveCount || 0) + 1
+    });
   };
 
   const handlePass = async () => {
@@ -119,42 +190,39 @@ export default function OnlineGamePage() {
     const lastMove = moves?.[moves.length - 1];
     const isConsecutivePass = lastMove && lastMove.coordinatesX === -1 && lastMove.coordinatesY === -1;
 
-    try {
-      await addDoc(collection(db, `games/${roomId}/moves`), {
-        gameId: roomId,
-        playerColor,
-        coordinatesX: -1,
-        coordinatesY: -1,
-        moveNumber: (moves?.length || 0) + 1,
-        timestamp: serverTimestamp(),
-        evaluation: 0.5,
+    const moveData = {
+      gameId: roomId,
+      playerColor,
+      coordinatesX: -1,
+      coordinatesY: -1,
+      moveNumber: (moves?.length || 0) + 1,
+      timestamp: Date.now(),
+    };
+
+    if (connection && p2pStatus === 'connected') {
+      connection.send({ type: 'move', payload: moveData });
+      setLocalMoves(prev => [...prev, moveData]);
+    } else {
+      await addDoc(collection(db, `games/${roomId}/moves`), moveData);
+    }
+
+    if (isConsecutivePass) {
+      await updateDoc(doc(db, "games", roomId), {
+        status: 'finished',
+        finishedAt: serverTimestamp(),
+        moveCount: (game.moveCount || 0) + 1
       });
 
-      if (isConsecutivePass) {
-        await setDoc(doc(db, "games", roomId), {
-          status: 'finished',
-          finishedAt: serverTimestamp(),
-          moveCount: (game.moveCount || 0) + 1
-        }, { merge: true });
-
-        toast({
-          title: "对局结束",
-          description: "双方连续弃权，对局已完成。",
-        });
-      } else {
-        const nextTurn = playerColor === 'black' ? 'white' : 'black';
-        await setDoc(doc(db, "games", roomId), {
-          currentTurn: nextTurn,
-          moveCount: (game.moveCount || 0) + 1
-        }, { merge: true });
-
-        toast({
-          title: "已弃权",
-          description: `${playerColor === 'black' ? '黑方' : '白方'}选择了弃权`,
-        });
-      }
-    } catch (err) {
-      console.error("弃权失败", err);
+      toast({
+        title: "对局结束",
+        description: "双方连续弃权，对局已完成。",
+      });
+    } else {
+      const nextTurn = playerColor === 'black' ? 'white' : 'black';
+      await updateDoc(doc(db, "games", roomId), {
+        currentTurn: nextTurn,
+        moveCount: (game.moveCount || 0) + 1
+      });
     }
   };
 
@@ -214,18 +282,21 @@ export default function OnlineGamePage() {
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
          <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-500">
            {isSpectating ? <Radio className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
            {isSpectating ? "正在观战" : "在线对局"}
            {isFinished && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局已结束</Badge>}
          </h1>
-         <div className="flex items-center gap-3">
+         <div className="flex flex-wrap items-center gap-3">
+           {!isSpectating && (
+             <Badge variant={p2pStatus === 'connected' ? 'default' : 'outline'} className={cn("gap-1.5 h-7", p2pStatus === 'connected' ? "bg-green-600" : "text-yellow-600")}>
+               {p2pStatus === 'connected' ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
+               {p2pStatus === 'connected' ? 'P2P 已加密连接' : 'P2P 握手中...'}
+             </Badge>
+           )}
            <Badge variant="outline">{game?.boardSize}x{game?.boardSize}</Badge>
            <Badge variant="secondary">{game?.rules === 'chinese' ? '中国规则' : '日韩规则'}</Badge>
-           <Badge variant={game?.status === 'in-progress' ? 'default' : (game?.status === 'finished' ? 'secondary' : 'outline')} className="flex items-center gap-1">
-             {game?.status === 'in-progress' ? '对局中' : (game?.status === 'finished' ? '已结束' : '等待中')}
-           </Badge>
          </div>
       </div>
 
@@ -237,7 +308,7 @@ export default function OnlineGamePage() {
               size={game?.boardSize || 19} 
               readOnly={!canMove || isFinished}
               onMove={handleMove}
-              currentPlayer={game?.currentTurn}
+              currentPlayer={game?.currentTurn as Player}
               lastMove={moves?.length ? { r: moves[moves.length-1].coordinatesX, c: moves[moves.length-1].coordinatesY, player: moves[moves.length-1].playerColor } : null}
               moveSetting={moveSetting}
             />
@@ -280,20 +351,6 @@ export default function OnlineGamePage() {
                </div>
             )}
           </div>
-          
-          {isFinished && dismissGameOver && (
-            <div className="mt-4 flex gap-4">
-               <Button variant="secondary" onClick={() => setDismissGameOver(false)} className="gap-2">
-                 <Calculator className="h-4 w-4" /> 重新唤起结算
-               </Button>
-               <Button variant="outline" className="gap-2" onClick={saveToLocalHistory} disabled={isSaved}>
-                 <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存记录'}
-               </Button>
-               <Button variant="outline" onClick={() => router.push('/game/online/lobby')} className="gap-2">
-                 <ArrowLeft className="h-4 w-4" /> 退出对局
-               </Button>
-            </div>
-          )}
         </div>
 
         <div className="space-y-6">
