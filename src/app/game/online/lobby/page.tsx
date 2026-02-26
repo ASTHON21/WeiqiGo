@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -13,7 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, ShieldCheck, Book, Fingerprint, User } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, Book, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -30,7 +29,6 @@ export default function OnlineLobbyPage() {
   const [selectedRule, setSelectedRule] = useState<string>("chinese");
   const [opponentColor, setOpponentColor] = useState<'black' | 'white'>('white');
   const [receivedInvite, setReceivedInvite] = useState<any>(null);
-  const [showDeviceId, setShowDeviceId] = useState(false);
 
   // 1. 心跳机制 (Presence System)
   useEffect(() => {
@@ -179,24 +177,14 @@ export default function OnlineLobbyPage() {
             <Swords className="h-10 w-10" /> 竞技大厅
           </h1>
           <div className="flex flex-wrap items-center gap-3 text-sm">
-             <button 
-                onClick={() => setShowDeviceId(!showDeviceId)}
-                className="flex items-center gap-1.5 bg-muted/50 px-3 py-1.5 rounded-full border hover:bg-muted transition-all active:scale-95 group"
-             >
-                <Fingerprint className={cn("h-4 w-4 transition-colors", showDeviceId ? "text-blue-500" : "text-muted-foreground")} />
-                <span className="text-xs font-bold text-muted-foreground group-hover:text-foreground">
-                  {showDeviceId ? `设备 ID: ${user?.deviceId}` : "点击查看设备指纹"}
-                </span>
-             </button>
-
-             <div className="flex items-center gap-1.5 bg-blue-500/5 px-3 py-1.5 rounded-full border border-blue-500/20">
+             <div className="flex items-center gap-1.5 bg-blue-500/5 px-3 py-1.5 rounded-full border border-blue-500/20 shadow-sm">
                 <User className="h-4 w-4 text-blue-400" />
                 <span className="text-xs text-muted-foreground">
-                  棋手 ID: <span className="font-mono text-foreground font-bold">{user?.uid.substring(0, 12)}...</span>
+                  我的棋手 ID: <span className="font-mono text-foreground font-bold">{user?.uid.substring(0, 12)}...</span>
                 </span>
              </div>
 
-             <Badge variant={acceptInvites ? "outline" : "destructive"} className="h-7 px-3">
+             <Badge variant={acceptInvites ? "outline" : "destructive"} className="h-7 px-3 border-2">
                 {acceptInvites ? "在线等待中" : "离线/忙碌"}
              </Badge>
           </div>
