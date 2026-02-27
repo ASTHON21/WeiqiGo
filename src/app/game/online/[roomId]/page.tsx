@@ -6,14 +6,14 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, ArrowLeft, Save, Wifi, WifiOff } from 'lucide-react';
+import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, Wifi, WifiOff, Save } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
-import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, addDoc, serverTimestamp, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -39,17 +39,19 @@ export default function OnlineGamePage() {
   
   // P2P 状态
   const [peer, setPeer] = useState<Peer | null>(null);
+  const [myPeerId, setMyPeerId] = useState<string | null>(null);
   const [connection, setConnection] = useState<any>(null);
   const [p2pStatus, setP2PStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [localMoves, setLocalMoves] = useState<any[]>([]);
 
-  const { data: game, isLoading: loadingGame } = useDoc(roomId ? doc(db, "games", roomId) : null);
+  // 关键修复：确保 user 已就绪后再发起文档读取
+  const { data: game, isLoading: loadingGame } = useDoc(roomId && user ? doc(db, "games", roomId) : null);
 
-  // 即使使用 P2P，依然从 Firestore 加载初始/已有步数作为兜底
-  const movesQuery = useMemoFirebase(() => 
-    query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")), 
-    [db, roomId]
-  );
+  // 关键修复：movesQuery 同样需要守卫
+  const movesQuery = useMemoFirebase(() => {
+    if (!db || !roomId || !user) return null;
+    return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
+  }, [db, roomId, user]);
   const { data: firestoreMoves } = useCollection(movesQuery);
 
   // 合并 Firestore 和 P2P 步数
@@ -65,8 +67,7 @@ export default function OnlineGamePage() {
       setPeer(peerInstance);
 
       peerInstance.on('open', (id) => {
-        const field = user.uid === game?.playerBlackId ? 'playerBlackPeerId' : 'playerWhitePeerId';
-        updateDoc(doc(db, "games", roomId), { [field]: id });
+        setMyPeerId(id);
       });
 
       peerInstance.on('connection', (conn) => {
@@ -86,7 +87,24 @@ export default function OnlineGamePage() {
     return () => {
       peerInstance?.destroy();
     };
-  }, [roomId, user?.uid, isSpectating, game?.id]);
+  }, [roomId, user, isSpectating]);
+
+  // 同步 Peer ID 到 Firestore
+  useEffect(() => {
+    if (!myPeerId || !game || !user || !db || isSpectating) return;
+    
+    const field = user.uid === game.playerBlackId ? 'playerBlackPeerId' : 'playerWhitePeerId';
+    if (game[field] === myPeerId) return;
+
+    updateDoc(doc(db, "games", roomId), { [field]: myPeerId })
+      .catch(async (err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `games/${roomId}`,
+          operation: 'update',
+          requestResourceData: { [field]: myPeerId }
+        }));
+      });
+  }, [myPeerId, game, user, db, isSpectating, roomId]);
 
   // 主动连接对手
   useEffect(() => {
@@ -165,22 +183,35 @@ export default function OnlineGamePage() {
       evaluation: 0.5,
     };
 
-    // 1. 通过 P2P 发送给对手 (0 成本)
     if (connection && p2pStatus === 'connected') {
       connection.send({ type: 'move', payload: moveData });
       setLocalMoves(prev => [...prev, moveData]);
     } else {
-      // 备选方案：如果 P2P 未连接，退回到 Firestore (确保对局不中断)
-      await addDoc(collection(db, `games/${roomId}/moves`), moveData);
+      addDoc(collection(db, `games/${roomId}/moves`), moveData)
+        .catch(async (err) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `games/${roomId}/moves`,
+            operation: 'create',
+            requestResourceData: moveData
+          }));
+        });
     }
 
-    // 2. 更新对局状态 (仅更新 currentTurn 和 moveCount，不写入 moves 子集合以节省额度)
     const nextTurn = playerColor === 'black' ? 'white' : 'black';
-    await updateDoc(doc(db, "games", roomId), {
+    const updatePayload = {
       currentTurn: nextTurn,
       status: 'in-progress',
       moveCount: (game.moveCount || 0) + 1
-    });
+    };
+    
+    updateDoc(doc(db, "games", roomId), updatePayload)
+      .catch(async (err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `games/${roomId}`,
+          operation: 'update',
+          requestResourceData: updatePayload
+        }));
+      });
   };
 
   const handlePass = async () => {
@@ -203,15 +234,28 @@ export default function OnlineGamePage() {
       connection.send({ type: 'move', payload: moveData });
       setLocalMoves(prev => [...prev, moveData]);
     } else {
-      await addDoc(collection(db, `games/${roomId}/moves`), moveData);
+      addDoc(collection(db, `games/${roomId}/moves`), moveData)
+        .catch(async (err) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `games/${roomId}/moves`,
+            operation: 'create',
+            requestResourceData: moveData
+          }));
+        });
     }
 
     if (isConsecutivePass) {
-      await updateDoc(doc(db, "games", roomId), {
+      updateDoc(doc(db, "games", roomId), {
         status: 'finished',
         finishedAt: serverTimestamp(),
         moveCount: (game.moveCount || 0) + 1
-      });
+      }).catch(async (err) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `games/${roomId}`,
+            operation: 'update',
+            requestResourceData: { status: 'finished' }
+          }));
+        });
 
       toast({
         title: "对局结束",
@@ -219,10 +263,16 @@ export default function OnlineGamePage() {
       });
     } else {
       const nextTurn = playerColor === 'black' ? 'white' : 'black';
-      await updateDoc(doc(db, "games", roomId), {
+      updateDoc(doc(db, "games", roomId), {
         currentTurn: nextTurn,
         moveCount: (game.moveCount || 0) + 1
-      });
+      }).catch(async (err) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `games/${roomId}`,
+            operation: 'update',
+            requestResourceData: { currentTurn: nextTurn }
+          }));
+        });
     }
   };
 

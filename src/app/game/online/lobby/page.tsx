@@ -3,23 +3,20 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp, setDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, Book, User, Wifi, WifiOff, Clock, Layers } from 'lucide-react';
+import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { Card, CardContent, CardFooter } from '@/ui/card';
+import { Button } from '@/ui/button';
+import { Badge } from '@/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/ui/tabs";
+import { Avatar, AvatarFallback } from "@/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/ui/radio-group";
+import { Label } from "@/ui/label";
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, User, Wifi, WifiOff, Clock, Layers } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-/**
- * 实时对局时长显示组件
- */
 function LiveGameTimer({ startedAt }: { startedAt: any }) {
   const [duration, setDuration] = useState("00:00");
 
@@ -51,9 +48,6 @@ function LiveGameTimer({ startedAt }: { startedAt: any }) {
   return <span className="font-mono">{duration}</span>;
 }
 
-/**
- * @file OnlineLobbyPage - 竞技大厅
- */
 export default function OnlineLobbyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -69,21 +63,23 @@ export default function OnlineLobbyPage() {
   const [receivedInvite, setReceivedInvite] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // 1. 心跳与存在感知系统
   useEffect(() => {
     if (!user || !db) return;
 
     const updateStatus = async () => {
       const userRef = doc(db, "userProfiles", user.uid);
-      try {
-        await updateDoc(userRef, {
-          lastSeen: serverTimestamp(),
-          acceptingInvites: acceptInvites
+      updateDoc(userRef, {
+        lastSeen: serverTimestamp(),
+        acceptingInvites: acceptInvites
+      }).then(() => setIsConnected(true))
+        .catch(async (err) => {
+          setIsConnected(false);
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `userProfiles/${user.uid}`,
+            operation: 'update',
+            requestResourceData: { lastSeen: 'serverTimestamp', acceptingInvites: acceptInvites }
+          }));
         });
-        setIsConnected(true);
-      } catch (e) {
-        setIsConnected(false);
-      }
     };
 
     updateStatus();
@@ -91,7 +87,6 @@ export default function OnlineLobbyPage() {
     return () => clearInterval(heartbeat);
   }, [user, db, acceptInvites]);
 
-  // 2. 监听活跃棋手
   const usersQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "userProfiles"));
@@ -107,7 +102,6 @@ export default function OnlineLobbyPage() {
     return lastSeenDate > threshold;
   }) || [];
 
-  // 3. 监听实时正在进行的对局
   const liveGamesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "games"), where("status", "==", "in-progress"));
@@ -115,7 +109,6 @@ export default function OnlineLobbyPage() {
   
   const { data: liveGames, isLoading: loadingGames } = useCollection(liveGamesQuery);
 
-  // 4. 监听针对我的挂起挑战
   useEffect(() => {
     if (!db || !user) return;
     const q = query(collection(db, "games"), where("status", "==", "pending"));
@@ -128,6 +121,11 @@ export default function OnlineLobbyPage() {
       if (activeInvite && (!receivedInvite || activeInvite.id !== receivedInvite.id)) {
         setReceivedInvite(activeInvite);
       }
+    }, async (err) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: 'games',
+        operation: 'list'
+      }));
     });
 
     return () => unsub();
@@ -148,58 +146,74 @@ export default function OnlineLobbyPage() {
   const confirmInvite = async () => {
     if (!user || !invitingPlayer) return;
     
-    try {
-      const playerBlackId = opponentColor === 'white' ? user.uid : invitingPlayer.id;
-      const playerWhiteId = opponentColor === 'white' ? invitingPlayer.id : user.uid;
-      const playerBlackName = opponentColor === 'white' ? user.displayName : invitingPlayer.name;
-      const playerWhiteName = opponentColor === 'white' ? invitingPlayer.name : user.displayName;
+    const playerBlackId = opponentColor === 'white' ? user.uid : invitingPlayer.id;
+    const playerWhiteId = opponentColor === 'white' ? invitingPlayer.id : user.uid;
+    const playerBlackName = opponentColor === 'white' ? user.displayName : invitingPlayer.name;
+    const playerWhiteName = opponentColor === 'white' ? invitingPlayer.name : user.displayName;
 
-      const gameRef = await addDoc(collection(db, "games"), {
-        playerBlackId,
-        playerWhiteId,
-        playerBlackName,
-        playerWhiteName,
-        status: 'pending',
-        boardSize: parseInt(selectedSize),
-        rules: selectedRule,
-        currentTurn: 'black',
-        startedAt: serverTimestamp(),
-        komi: selectedRule === 'chinese' ? 7.5 : 6.5,
-        handicap: 0,
-        createdBy: user.uid,
-        challengerName: user.displayName,
-        moveCount: 0
+    const newGame = {
+      playerBlackId,
+      playerWhiteId,
+      playerBlackName,
+      playerWhiteName,
+      status: 'pending',
+      boardSize: parseInt(selectedSize),
+      rules: selectedRule,
+      currentTurn: 'black',
+      startedAt: serverTimestamp(),
+      komi: selectedRule === 'chinese' ? 7.5 : 6.5,
+      handicap: 0,
+      createdBy: user.uid,
+      challengerName: user.displayName,
+      moveCount: 0
+    };
+
+    addDoc(collection(db, "games"), newGame)
+      .then((gameRef) => {
+        toast({ title: "已发送邀请", description: `等待 ${invitingPlayer.name} 响应...` });
+        setInvitingPlayer(null);
+        router.push(`/game/online/${gameRef.id}`);
+      })
+      .catch(async (err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'games',
+          operation: 'create',
+          requestResourceData: newGame
+        }));
       });
-      
-      toast({ title: "已发送邀请", description: `等待 ${invitingPlayer.name} 响应...` });
-      setInvitingPlayer(null);
-      router.push(`/game/online/${gameRef.id}`);
-    } catch (err) {
-      toast({ variant: "destructive", title: "邀请失败" });
-    }
   };
 
   const handleAcceptInvite = async () => {
     if (!receivedInvite || !db) return;
-    try {
-      await updateDoc(doc(db, "games", receivedInvite.id), {
-        status: 'in-progress',
-        startedAt: serverTimestamp(),
-        moveCount: 0
-      });
+    updateDoc(doc(db, "games", receivedInvite.id), {
+      status: 'in-progress',
+      startedAt: serverTimestamp(),
+      moveCount: 0
+    }).then(() => {
       router.push(`/game/online/${receivedInvite.id}`);
-    } catch (err) {}
+    }).catch(async (err) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: `games/${receivedInvite.id}`,
+        operation: 'update',
+        requestResourceData: { status: 'in-progress' }
+      }));
+    });
   };
 
   const handleDeclineInvite = async () => {
     if (!receivedInvite || !db) return;
-    try {
-      await updateDoc(doc(db, "games", receivedInvite.id), {
-        status: 'finished',
-        reason: 'declined'
-      });
+    updateDoc(doc(db, "games", receivedInvite.id), {
+      status: 'finished',
+      reason: 'declined'
+    }).then(() => {
       setReceivedInvite(null);
-    } catch (err) {}
+    }).catch(async (err) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: `games/${receivedInvite.id}`,
+        operation: 'update',
+        requestResourceData: { status: 'finished' }
+      }));
+    });
   };
 
   if (loadingUser) {
