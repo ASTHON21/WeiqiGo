@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { GameHistoryEntry } from '@/lib/types';
 import { format } from 'date-fns';
-import { Download, Trash2, Cloud, Monitor, Swords, Disc, BookOpen, ArrowLeft, History, Clock, Loader2 } from 'lucide-react';
+import { Download, Trash2, Monitor, Swords, Disc, BookOpen, ArrowLeft, History } from 'lucide-react';
 import { exportToSGF } from '@/lib/sgf';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -23,16 +23,12 @@ import {
 } from "@/components/ui/alert-dialog"
 import { cn } from '@/lib/utils';
 import { Icons } from '@/components/icons';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
 export default function HistoryPage() {
   const router = useRouter();
   const [localHistory, setLocalHistory] = useState<GameHistoryEntry[]>([]);
   const { toast } = useToast();
-  const { user } = useUser();
-  const db = useFirestore();
 
   // 加载本地历史
   useEffect(() => {
@@ -46,23 +42,8 @@ export default function HistoryPage() {
     }
   }, []);
 
-  // 加载云端对局（在线挑战）
-  const gamesQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
-    return query(collection(db, "games"), orderBy("startedAt", "desc"));
-  }, [db, user]);
-  
-  const { data: cloudHistory, isLoading: isCloudLoading } = useCollection<any>(gamesQuery);
-
-  // 合并并排序
-  const displayHistory = [
-    ...localHistory, 
-    ...(cloudHistory || []).map(g => ({
-      ...g,
-      date: g.startedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-      mode: 'online' as const
-    }))
-  ].sort((a, b) => 
+  // 排序显示历史
+  const displayHistory = [...localHistory].sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
@@ -91,35 +72,18 @@ export default function HistoryPage() {
   }
 
   const renderStatusBadge = (game: any) => {
-    const status = game.status;
     const winner = game.result?.winner;
 
-    if (status === 'finished' || status === 'resigned') {
-      if (winner && winner !== 'draw') {
-          const isBlack = winner === 'black';
-          return (
-              <Badge variant={isBlack ? 'default' : 'outline'} className={cn(isBlack ? 'bg-black text-white' : 'bg-white text-black border-black/50')}>
-                  <Icons.Stone className={cn("w-3 h-3 mr-1.5", isBlack ? 'fill-white' : 'fill-black stroke-white stroke-[2px]')} />
-                  {winner === 'black' ? '黑方胜' : '白方胜'}
-              </Badge>
-          );
-      }
-      return <Badge variant="secondary">已结束</Badge>;
+    if (winner && winner !== 'draw') {
+        const isBlack = winner === 'black';
+        return (
+            <Badge variant={isBlack ? 'default' : 'outline'} className={cn(isBlack ? 'bg-black text-white' : 'bg-white text-black border-black/50')}>
+                <Icons.Stone className={cn("w-3 h-3 mr-1.5", isBlack ? 'fill-white' : 'fill-black stroke-white stroke-[2px]')} />
+                {winner === 'black' ? '黑方胜' : '白方胜'}
+            </Badge>
+        );
     }
-
-    if (status === 'in-progress') {
-      return (
-        <Badge variant="outline" className="text-blue-500 border-blue-500 bg-blue-500/5 animate-pulse">
-          <Clock className="w-3 h-3 mr-1" /> 进行中
-        </Badge>
-      );
-    }
-
-    if (status === 'pending') {
-      return <Badge variant="outline">等待中</Badge>;
-    }
-
-    return <Badge variant="outline">无结果</Badge>;
+    return <Badge variant="secondary">已完成</Badge>;
   }
 
   const getModeIcon = (mode: string) => {
@@ -140,14 +104,9 @@ export default function HistoryPage() {
           </Button>
           <h1 className="text-3xl font-bold font-headline flex items-center gap-3">
             对局历史记录
-            {cloudHistory && cloudHistory.length > 0 && (
-              <Badge variant="secondary" className="bg-accent/10 text-accent border-accent/20">
-                <Cloud className="w-3 h-3 mr-1"/> 云端同步中
-              </Badge>
-            )}
           </h1>
           <p className="text-muted-foreground italic">
-            本页汇总了您的本地练棋记录及在线实时对局状态。
+            本页仅显示您在本设备上手动保存的练棋记录及对局快照。
           </p>
         </div>
         <AlertDialog>
@@ -169,12 +128,7 @@ export default function HistoryPage() {
         </AlertDialog>
       </div>
 
-      {(isCloudLoading) ? (
-        <div className="flex flex-col items-center justify-center p-24 space-y-4">
-          <Loader2 className="h-10 w-10 animate-spin text-accent" />
-          <p className="text-sm text-muted-foreground">正在同步云端记录...</p>
-        </div>
-      ) : displayHistory.length > 0 ? (
+      {displayHistory.length > 0 ? (
         <div className="grid gap-6">
             {displayHistory.map((game) => (
                 <Card key={game.id} className="border-2 hover:border-accent/50 transition-all group">
@@ -188,7 +142,9 @@ export default function HistoryPage() {
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
                                   <span>{game.boardSize}x{game.boardSize}</span>
                                   <span>·</span>
-                                  <span className="capitalize">{game.mode === 'online' ? (game.playerBlackName + ' vs ' + game.playerWhiteName) : '本地练习'}</span>
+                                  <span className="capitalize">
+                                    {game.mode === 'online' ? ( (game.metadata?.blackName || '黑方') + ' vs ' + (game.metadata?.whiteName || '白方')) : '本地练习'}
+                                  </span>
                                 </div>
                             </div>
                         </div>
@@ -199,24 +155,20 @@ export default function HistoryPage() {
                             <div className="space-y-1">
                                 <p className="text-[10px] uppercase font-bold text-muted-foreground">终止原因/状态</p>
                                 <p className="font-medium">
-                                  {game.status === 'in-progress' ? '对局正在进行中' : (game.result?.reason || (game.mode === 'online' ? '对局已完成' : '手动保存'))}
+                                  {game.result?.reason || '手动保存'}
                                 </p>
                             </div>
                             <div className="flex justify-between md:justify-end gap-8 font-mono">
                                 <div className="text-center">
                                    <p className="text-[10px] uppercase font-bold text-muted-foreground">黑方得分</p>
                                    <p className="text-xl font-black">
-                                      {game.status === 'finished' || game.mode === 'practice' 
-                                        ? (game.result?.blackScore?.toFixed(1) ?? 'N/A') 
-                                        : '--'}
+                                      {game.result?.blackScore?.toFixed(1) ?? 'N/A'}
                                    </p>
                                 </div>
                                 <div className="text-center">
                                    <p className="text-[10px] uppercase font-bold text-muted-foreground">白方得分</p>
                                    <p className="text-xl font-black">
-                                      {game.status === 'finished' || game.mode === 'practice' 
-                                        ? (game.result?.whiteScore?.toFixed(1) ?? 'N/A') 
-                                        : '--'}
+                                      {game.result?.whiteScore?.toFixed(1) ?? 'N/A'}
                                    </p>
                                 </div>
                             </div>
@@ -227,11 +179,6 @@ export default function HistoryPage() {
                           <Icons.Logo className="h-3 w-3" /> WEIQI GO Record System
                         </span>
                         <div className="flex gap-2">
-                          {game.mode === 'online' && game.status === 'in-progress' && (
-                            <Button variant="outline" size="sm" onClick={() => router.push(`/game/online/${game.id}`)}>
-                              进入房间
-                            </Button>
-                          )}
                           <Button variant="secondary" size="sm" onClick={() => handleExport(game)} className="gap-2 group-hover:bg-accent group-hover:text-white transition-colors">
                               <Download className="h-4 w-4" /> 导出 SGF
                           </Button>
@@ -246,9 +193,9 @@ export default function HistoryPage() {
                 <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
                   <History className="h-8 w-8 text-muted-foreground opacity-30" />
                 </div>
-                <CardTitle className="text-xl">暂无历史记录</CardTitle>
+                <CardTitle className="text-xl">暂无本地历史记录</CardTitle>
                 <CardDescription className="max-w-xs mx-auto">
-                  完成对局或进行在线挑战后，精彩瞬间将出现在这里。
+                  完成对局并在结算时点击“保存记录”后，精彩瞬间将出现在这里。
                 </CardDescription>
             </CardHeader>
             <CardFooter>
@@ -259,3 +206,4 @@ export default function HistoryPage() {
     </div>
   );
 }
+
