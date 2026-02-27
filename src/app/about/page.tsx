@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Github, Globe, Mail, User, Info, Smartphone, Monitor } from "lucide-react";
+import { ArrowLeft, Github, Globe, Mail, User, Info, Smartphone, Monitor, Database, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -94,9 +94,16 @@ export default function AboutPage() {
                 </Alert>
               </div>
 
-              <h3 className="text-foreground font-bold mt-6 mb-2">核心特性</h3>
-              <ul className="list-disc pl-5 space-y-1">
-                <li><strong>WebRTC P2P 对弈</strong>：基于对等网络技术，落子直接点对点传输，降低 Firebase 读写消耗。</li>
+              <h3 className="text-foreground font-bold mt-6 mb-2">核心技术特性</h3>
+              <ul className="list-disc pl-5 space-y-2">
+                <li className="flex items-start gap-2">
+                  <Zap className="h-4 w-4 text-yellow-500 mt-1 shrink-0" />
+                  <span><strong>WebRTC P2P 对弈</strong>：基于对等网络技术，落子直接点对点传输。Firebase 仅作为信令中继，极大降低了对局延迟和后端开销。</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Database className="h-4 w-4 text-blue-500 mt-1 shrink-0" />
+                  <span><strong>Cloud Firestore 数据库</strong>：使用 Google Cloud 的 NoSQL 数据库存储棋手档案、对局元数据及存在心跳。</span>
+                </li>
                 <li><strong>名局阅览</strong>：支持标准的 SGF/GIB 格式导入，线性复刻历史名局。</li>
                 <li><strong>双重规则</strong>：全面支持**中国规则**（数子法）与**日韩规则**（数目法）。</li>
                 <li><strong>持久身份</strong>：基于设备指纹的本地身份标识，刷新页面亦可延续博弈。</li>
