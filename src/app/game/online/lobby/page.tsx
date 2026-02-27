@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Bell, Hourglass } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Bell, Hourglass } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -154,14 +154,13 @@ export default function OnlineLobbyPage() {
   const handleAcceptInvite = async () => {
     if (!receivedInvite || !db) return;
     
-    // Explicitly update status to in-progress first
     await updateDoc(doc(db, "games", receivedInvite.id), {
       status: 'in-progress',
       startedAt: serverTimestamp(),
       lastActivityAt: serverTimestamp()
     });
 
-    toast({ title: "挑战已接受", description: "建立 P2P 隧道中..." });
+    toast({ title: "挑战已接受", description: "建立同步通道中..." });
     router.push(`/game/online/${receivedInvite.id}`);
   };
 

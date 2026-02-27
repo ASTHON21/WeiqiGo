@@ -6,9 +6,9 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Radio, Calculator, Lock, Wifi, WifiOff, Save, Home, Hourglass, ShieldAlert, XCircle } from 'lucide-react';
+import { Users, Swords, Loader2, CloudSync, Calculator, Lock, Wifi, WifiOff, Save, Home, Hourglass, ShieldAlert, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
@@ -17,7 +17,6 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { MoveSetting, Player } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
-import type Peer from 'peerjs';
 
 export default function OnlineGamePage() {
   const params = useParams();
@@ -33,15 +32,7 @@ export default function OnlineGamePage() {
   const [rules, setRules] = useState("");
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [dismissGameOver, setDismissGameOver] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
   
-  // P2P State
-  const [peer, setPeer] = useState<Peer | null>(null);
-  const [myPeerId, setMyPeerId] = useState<string | null>(null);
-  const connectionRef = useRef<any>(null);
-  const [p2pStatus, setP2PStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
-  const [localMoves, setLocalMoves] = useState<any[]>([]);
-
   // Time tracking
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
 
@@ -64,18 +55,13 @@ export default function OnlineGamePage() {
         description: "对方已婉拒您的对局邀请。正在返回大厅...",
       });
       
-      if (peer) {
-        peer.destroy();
-        setPeer(null);
-      }
-      
       const timer = setTimeout(() => {
         router.push('/game/online/lobby');
       }, 2500);
       
       return () => clearTimeout(timer);
     }
-  }, [isDeclined, isPlayer, isSpectating, router, peer]);
+  }, [isDeclined, isPlayer, isSpectating, router]);
 
   // Sync initial time from game doc
   useEffect(() => {
@@ -100,113 +86,12 @@ export default function OnlineGamePage() {
     }
   }, [isInProgress, isFinished, isSpectating, isPlayer, game?.currentTurn]);
 
-  // Firestore moves listener
+  // Firestore moves listener - This IS the synchronization mechanism
   const movesQuery = useMemoFirebase(() => {
     if (!db || !roomId || !user) return null;
     return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
   }, [db, roomId, user]);
-  const { data: firestoreMoves } = useCollection(movesQuery);
-
-  // Merge P2P moves with Firestore backup
-  const moves = useMemo(() => {
-    const combined = [...(firestoreMoves || [])];
-    localMoves.forEach(lm => {
-      if (!combined.find(cm => cm.moveNumber === lm.moveNumber)) {
-        combined.push(lm);
-      }
-    });
-    return combined.sort((a, b) => (a.moveNumber || 0) - (b.moveNumber || 0));
-  }, [firestoreMoves, localMoves]);
-
-  // LAZY PEER INITIALIZATION: Only initialize when game is in-progress
-  useEffect(() => {
-    if (typeof window === 'undefined' || !roomId || !user || isSpectating || !isPlayer || isFinished || !isInProgress) {
-      // If status changes away from in-progress, destroy peer
-      if (peer) {
-        peer.destroy();
-        setPeer(null);
-        setMyPeerId(null);
-        setP2PStatus('disconnected');
-      }
-      return;
-    }
-
-    if (peer) return; // Already initialized
-
-    let peerInstance: Peer;
-    import('peerjs').then(({ default: Peer }) => {
-      peerInstance = new Peer();
-      setPeer(peerInstance);
-
-      peerInstance.on('open', (id) => {
-        setMyPeerId(id);
-      });
-
-      peerInstance.on('connection', (conn) => {
-        // Double check status inside connection callback
-        conn.on('open', () => {
-          connectionRef.current = conn;
-          setP2PStatus('connected');
-        });
-        
-        conn.on('data', (data: any) => {
-          if (data.type === 'move') {
-            setLocalMoves(prev => [...prev, data.payload]);
-          }
-        });
-        
-        conn.on('close', () => setP2PStatus('disconnected'));
-      });
-    });
-
-    return () => {
-      peerInstance?.destroy();
-      connectionRef.current?.close();
-    };
-  }, [roomId, user?.uid, isSpectating, isPlayer, isFinished, isInProgress, peer]);
-
-  // Sync Peer ID to Firestore
-  useEffect(() => {
-    if (!myPeerId || !game || !user || !db || isSpectating || isFinished || !isInProgress) return;
-    
-    const field = user.uid === game.playerBlackId ? 'playerBlackPeerId' : 'playerWhitePeerId';
-    if (game[field] === myPeerId) return;
-
-    updateDoc(doc(db, "games", roomId), { 
-      [field]: myPeerId, 
-      lastActivityAt: serverTimestamp() 
-    }).catch(console.error);
-  }, [myPeerId, game?.playerBlackId, game?.playerWhiteId, user?.uid, db, isSpectating, roomId, isFinished, isInProgress]);
-
-  // Active Handshake: Only if inProgress and opponent Peer ID is available
-  useEffect(() => {
-    if (!peer || !isInProgress || connectionRef.current || isSpectating || !user || !myPeerId) return;
-
-    const myRole = user.uid === game.playerBlackId ? 'black' : 'white';
-    const opponentPeerId = myRole === 'black' ? game.playerWhitePeerId : game.playerBlackPeerId;
-
-    if (opponentPeerId && opponentPeerId !== myPeerId) {
-      setP2PStatus('connecting');
-      const conn = peer.connect(opponentPeerId);
-      
-      conn.on('open', () => {
-        connectionRef.current = conn;
-        setP2PStatus('connected');
-      });
-
-      conn.on('data', (data: any) => {
-        if (data.type === 'move') {
-          setLocalMoves(prev => [...prev, data.payload]);
-        }
-      });
-
-      conn.on('close', () => setP2PStatus('disconnected'));
-      conn.on('error', () => {
-        setP2PStatus('disconnected');
-        connectionRef.current = null;
-      });
-    }
-  }, [peer, isInProgress, game?.playerWhitePeerId, game?.playerBlackPeerId, isSpectating, user?.uid, myPeerId]);
+  const { data: moves } = useCollection(movesQuery);
 
   // Load Rules
   useEffect(() => {
@@ -268,11 +153,7 @@ export default function OnlineGamePage() {
       evaluation: 0.5,
     };
 
-    if (connectionRef.current && p2pStatus === 'connected') {
-      connectionRef.current.send({ type: 'move', payload: moveData });
-      setLocalMoves(prev => [...prev, moveData]);
-    } 
-    
+    // Standard Firestore write - syncs to all listeners automatically
     addDoc(collection(db, `games/${roomId}/moves`), moveData).catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `games/${roomId}/moves`,
@@ -307,11 +188,6 @@ export default function OnlineGamePage() {
       timestamp: Date.now(),
     };
 
-    if (connectionRef.current && p2pStatus === 'connected') {
-      connectionRef.current.send({ type: 'move', payload: moveData });
-      setLocalMoves(prev => [...prev, moveData]);
-    }
-    
     addDoc(collection(db, `games/${roomId}/moves`), moveData);
 
     if (isConsecutivePass) {
@@ -359,7 +235,7 @@ export default function OnlineGamePage() {
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-blue-500 mx-auto" />
-          <p className="text-muted-foreground font-bold">同步对局元数据...</p>
+          <p className="text-muted-foreground font-bold">同步云端博弈状态...</p>
         </div>
       </div>
     );
@@ -386,16 +262,16 @@ export default function OnlineGamePage() {
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
          <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-500 font-headline">
-           {isSpectating ? <Radio className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
-           {isSpectating ? "观摩名局" : "在线连线对弈"}
+           {isSpectating ? <CloudSync className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
+           {isSpectating ? "云端名局观摩" : "在线同步对弈"}
            {isFinished && !isDeclined && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局结算完毕</Badge>}
            {isPending && <Badge variant="outline" className="text-yellow-600 border-yellow-500 animate-pulse">等待对手确认</Badge>}
          </h1>
          <div className="flex flex-wrap items-center gap-3">
            {!isSpectating && !isFinished && isInProgress && (
-             <Badge variant={p2pStatus === 'connected' ? 'default' : 'outline'} className={cn("gap-1.5 h-7", p2pStatus === 'connected' ? "bg-green-600" : "text-yellow-600 animate-pulse")}>
-               {p2pStatus === 'connected' ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
-               {p2pStatus === 'connected' ? 'P2P 加密直连' : p2pStatus === 'connecting' ? '握手中...' : '等待 Peer 就绪'}
+             <Badge variant="default" className="gap-1.5 h-7 bg-green-600">
+               <Wifi className="h-3.5 w-3.5" />
+               云端实时同步
              </Badge>
            )}
            <Badge variant="outline" className="font-mono">{game?.boardSize}x{game?.boardSize}</Badge>
@@ -425,22 +301,10 @@ export default function OnlineGamePage() {
                      <div className="space-y-2">
                         <h3 className="text-2xl font-black font-headline text-foreground">等待对手应战</h3>
                         <p className="text-sm text-muted-foreground leading-relaxed">
-                          对局尚未正式开始。系统已暂停 P2P 信令交换以防止资源阻塞。请等待对方接受挑战。
+                          对局尚未正式开始。请等待对方接受挑战，系统将自动建立云端同步通道。
                         </p>
                      </div>
                      <Button variant="outline" className="w-full border-2" onClick={() => router.push('/game/online/lobby')}>取消挑战并返回大厅</Button>
-                  </div>
-               </div>
-            )}
-
-            {isInProgress && p2pStatus !== 'connected' && !isSpectating && (
-               <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-[2px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted">
-                  <div className="text-center space-y-4">
-                     <Loader2 className="h-12 w-12 animate-spin text-blue-500 mx-auto" />
-                     <p className="text-lg font-black font-headline text-foreground">
-                       {p2pStatus === 'connecting' ? '建立 P2P 直连隧道...' : '初始化加密通信栈...'}
-                     </p>
-                     <p className="text-xs text-muted-foreground">正在协商加密密钥与对等节点路径</p>
                   </div>
                </div>
             )}
@@ -544,4 +408,3 @@ export default function OnlineGamePage() {
     </div>
   );
 }
-
