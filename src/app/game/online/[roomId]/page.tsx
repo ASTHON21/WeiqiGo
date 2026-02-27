@@ -5,7 +5,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, Wifi, WifiOff, Save, Home, RefreshCw } from 'lucide-react';
+import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, Wifi, WifiOff, Save, Home, RefreshCw, Hourglass } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -64,7 +64,7 @@ export default function OnlineGamePage() {
     return combined.sort((a, b) => (a.moveNumber || 0) - (b.moveNumber || 0));
   }, [firestoreMoves, localMoves]);
 
-  // 初始化 WebRTC (P2P)
+  // 初始化 WebRTC (P2P Server)
   useEffect(() => {
     if (typeof window === 'undefined' || !roomId || !user || isSpectating) return;
 
@@ -111,9 +111,10 @@ export default function OnlineGamePage() {
       });
   }, [myPeerId, game, user, db, isSpectating, roomId]);
 
-  // 主动尝试连接对手 (当监听到对手 Peer ID 出现时)
+  // 主动尝试连接对手 (仅在对局状态为 in-progress 时触发)
   useEffect(() => {
     if (!peer || !game || connectionRef.current || isSpectating || !user || !myPeerId) return;
+    if (game.status !== 'in-progress') return; // 关键：pending 状态下不建立同步
 
     const myRole = user.uid === game.playerBlackId ? 'black' : 'white';
     const opponentPeerId = myRole === 'black' ? game.playerWhitePeerId : game.playerBlackPeerId;
@@ -132,7 +133,7 @@ export default function OnlineGamePage() {
       conn.on('close', () => setP2PStatus('disconnected'));
       conn.on('error', () => setP2PStatus('disconnected'));
     }
-  }, [peer, game, isSpectating, user, myPeerId]);
+  }, [peer, game?.status, game?.playerWhitePeerId, game?.playerBlackPeerId, isSpectating, user, myPeerId]);
 
   // 加载规则文本
   useEffect(() => {
@@ -167,8 +168,11 @@ export default function OnlineGamePage() {
     (game.currentTurn === 'black' && user.uid === game.playerBlackId) ||
     (game.currentTurn === 'white' && user.uid === game.playerWhiteId)
   );
-  const canMove = !isSpectating && isPlayer && game?.status !== 'finished' && isMyTurn;
+  
+  // 核心变更：仅在 status === 'in-progress' 时允许落子
+  const canMove = !isSpectating && isPlayer && game?.status === 'in-progress' && isMyTurn;
   const isFinished = game?.status === 'finished';
+  const isPending = game?.status === 'pending';
 
   const handleMove = async (r: number, c: number) => {
     if (!canMove || !user || !game) return;
@@ -195,13 +199,11 @@ export default function OnlineGamePage() {
       evaluation: 0.5,
     };
 
-    // 1. 如果 P2P 已连通，通过数据通道发送
     if (connectionRef.current && p2pStatus === 'connected') {
       connectionRef.current.send({ type: 'move', payload: moveData });
       setLocalMoves(prev => [...prev, moveData]);
     } 
     
-    // 2. 无论 P2P 是否连通，始终写入 Firestore 以便备份和观战
     addDoc(collection(db, `games/${roomId}/moves`), moveData)
       .catch((err) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -211,7 +213,6 @@ export default function OnlineGamePage() {
         }));
       });
 
-    // 3. 更新对局状态（回合、步数、活跃时间）
     const nextTurn = playerColor === 'black' ? 'white' : 'black';
     updateDoc(doc(db, "games", roomId), {
       currentTurn: nextTurn,
@@ -257,7 +258,6 @@ export default function OnlineGamePage() {
     });
 
     if (isConsecutivePass) {
-      // 触发结算逻辑
       const ruleType = game.rules as 'chinese' | 'territory';
       const score = ruleType === 'chinese' 
         ? GoLogic.calculateChineseScore(board)
@@ -351,9 +351,10 @@ export default function OnlineGamePage() {
            {isSpectating ? <Radio className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
            {isSpectating ? "观摩名局" : "在线连线对弈"}
            {isFinished && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局结算完毕</Badge>}
+           {isPending && <Badge variant="outline" className="text-yellow-600 border-yellow-500 animate-pulse">等待对手确认挑战</Badge>}
          </h1>
          <div className="flex flex-wrap items-center gap-3">
-           {!isSpectating && !isFinished && (
+           {!isSpectating && !isFinished && !isPending && (
              <Badge variant={p2pStatus === 'connected' ? 'default' : 'outline'} className={cn("gap-1.5 h-7", p2pStatus === 'connected' ? "bg-green-600" : "text-yellow-600 animate-pulse")}>
                {p2pStatus === 'connected' ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
                {p2pStatus === 'connected' ? 'P2P 加密直连' : '寻找 P2P 隧道...'}
@@ -377,11 +378,26 @@ export default function OnlineGamePage() {
               moveSetting={moveSetting}
             />
             
-            {game?.status === 'pending' && !isSpectating && (
+            {isPending && !isSpectating && (
+               <div className="absolute inset-0 z-50 bg-background/60 backdrop-blur-[2px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted animate-in fade-in duration-500">
+                  <div className="text-center space-y-4 max-w-xs">
+                     <div className="mx-auto w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mb-4">
+                        <Hourglass className="h-8 w-8 text-yellow-600 animate-spin-slow" />
+                     </div>
+                     <h3 className="text-xl font-black font-headline text-foreground">等待对方接受挑战</h3>
+                     <p className="text-xs text-muted-foreground leading-relaxed">
+                       对手已收到您的挑战书。在此期间落子功能已锁定，请稍候...
+                     </p>
+                     <Button variant="ghost" size="sm" onClick={() => router.push('/game/online/lobby')}>取消等待</Button>
+                  </div>
+               </div>
+            )}
+
+            {game?.status === 'in-progress' && p2pStatus !== 'connected' && !isSpectating && moves.length === 0 && (
                <div className="absolute inset-0 z-50 bg-background/60 backdrop-blur-[2px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted animate-in fade-in duration-500">
                   <div className="text-center space-y-4">
                      <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto" />
-                     <p className="text-muted-foreground font-black font-headline">等待对手接入房间...</p>
+                     <p className="text-muted-foreground font-black font-headline">挑战已接受，建立 P2P 隧道...</p>
                   </div>
                </div>
             )}
@@ -459,7 +475,7 @@ export default function OnlineGamePage() {
             </CardContent>
           </Card>
 
-          {!isFinished && (
+          {!isFinished && !isPending && (
             <div className="p-4 bg-muted/50 rounded-lg border-2 text-center border-blue-500/20 shadow-inner">
               <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1 tracking-wider">落子状态</p>
               <div className="text-lg font-black flex items-center justify-center gap-2 font-headline">
