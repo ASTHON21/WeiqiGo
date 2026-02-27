@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
@@ -12,40 +13,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, User, Wifi, WifiOff, Clock, Layers } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, User, Wifi, WifiOff, Clock, Trophy, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-
-function LiveGameTimer({ startedAt }: { startedAt: any }) {
-  const [duration, setDuration] = useState("00:00");
-
-  useEffect(() => {
-    if (!startedAt) return;
-    const start = startedAt.toDate ? startedAt.toDate() : new Date(startedAt);
-    
-    const update = () => {
-      const now = new Date();
-      const diff = Math.floor((now.getTime() - start.getTime()) / 1000);
-      if (diff < 0) return;
-      
-      const h = Math.floor(diff / 3600);
-      const m = Math.floor((diff % 3600) / 60);
-      const s = diff % 60;
-      
-      if (h > 0) {
-        setDuration(`${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
-      } else {
-        setDuration(`${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
-      }
-    };
-
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, [startedAt]);
-
-  return <span className="font-mono">{duration}</span>;
-}
+import { useLanguage } from '@/context/language-context';
 
 export default function OnlineLobbyPage() {
   const router = useRouter();
@@ -54,6 +25,7 @@ export default function OnlineLobbyPage() {
   const { user, loading: loadingUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const [invitingPlayer, setInvitingPlayer] = useState<{ id: string, name: string } | null>(null);
   const [selectedSize, setSelectedSize] = useState<string>("19");
@@ -83,7 +55,7 @@ export default function OnlineLobbyPage() {
     };
 
     updateStatus();
-    const heartbeat = setInterval(updateStatus, 30000); // 30秒心跳
+    const heartbeat = setInterval(updateStatus, 30000); 
     return () => clearInterval(heartbeat);
   }, [user, db, acceptInvites]);
 
@@ -99,24 +71,26 @@ export default function OnlineLobbyPage() {
     if (p.id === user?.uid) return false;
     if (!p.lastSeen) return false;
     const lastSeenDate = p.lastSeen.toDate ? p.lastSeen.toDate() : new Date(p.lastSeen);
-    const threshold = new Date(Date.now() - 5 * 60000); // 5分钟有效期
+    const threshold = new Date(Date.now() - 5 * 60000); 
     return lastSeenDate > threshold;
   }) || [];
 
-  // 监听实时对局
-  const liveGamesQuery = useMemoFirebase(() => {
+  // 监听最近 1 小时内完成的名局
+  const recentGamesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    const yesterday = new Date(Date.now() - 24 * 60 * 60000);
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     return query(
       collection(db, "games"), 
-      where("status", "==", "in-progress"),
-      where("startedAt", ">", yesterday)
+      where("status", "==", "finished"),
+      where("finishedAt", ">", oneHourAgo),
+      orderBy("finishedAt", "desc"),
+      limit(20)
     );
   }, [db, user]);
   
-  const { data: liveGames, isLoading: loadingGames } = useCollection(liveGamesQuery);
+  const { data: recentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
 
-  // 监听受到的邀请：针对当前用户的特定查询，提高安全性并修复权限争议
+  // 监听受到的邀请
   const invitesBlackQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -138,7 +112,6 @@ export default function OnlineLobbyPage() {
   const { data: invitesBlack } = useCollection(invitesBlackQuery);
   const { data: invitesWhite } = useCollection(invitesWhiteQuery);
 
-  // 合并邀请并检测
   useEffect(() => {
     if (!user) return;
     const allInvites = [...(invitesBlack || []), ...(invitesWhite || [])];
@@ -250,7 +223,7 @@ export default function OnlineLobbyPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-4">
           <h1 className="text-4xl font-bold font-headline tracking-tight text-blue-500 flex items-center gap-3">
-            <Swords className="h-10 w-10" /> 竞技大厅
+            <Swords className="h-10 w-10" /> {t('home.online.title')}
           </h1>
           <div className="flex flex-wrap items-center gap-3 text-sm">
              <div className="flex items-center gap-1.5 bg-blue-500/5 px-3 py-1.5 rounded-full border border-blue-500/20 shadow-sm">
@@ -277,10 +250,10 @@ export default function OnlineLobbyPage() {
       <Tabs defaultValue="players" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-2 h-12 mb-6">
           <TabsTrigger value="players" className="gap-2">
-            <Users className="h-4 w-4" /> 活跃棋手 ({activePlayers.length})
+            <Users className="h-4 w-4" /> {t('lobby.tab.players')} ({activePlayers.length})
           </TabsTrigger>
           <TabsTrigger value="games" className="gap-2">
-            <PlayCircle className="h-4 w-4" /> 实时对局 ({liveGames?.length || 0})
+            <History className="h-4 w-4" /> {t('lobby.tab.recent')} ({recentGames?.length || 0})
           </TabsTrigger>
         </TabsList>
 
@@ -344,8 +317,8 @@ export default function OnlineLobbyPage() {
               <div className="col-span-full flex justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
               </div>
-            ) : liveGames?.length ? (
-              liveGames.map((game) => (
+            ) : recentGames?.length ? (
+              recentGames.map((game) => (
                 <Card key={game.id} className="border-2 overflow-hidden flex flex-col group hover:border-blue-500/50 transition-all shadow-sm">
                   <div className="bg-blue-500/10 p-3 border-b flex items-center justify-between">
                     <div className="flex gap-2">
@@ -353,8 +326,8 @@ export default function OnlineLobbyPage() {
                       <Badge variant="secondary" className="text-[10px]">{game.rules === 'chinese' ? '中' : '日韩'}</Badge>
                     </div>
                     <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[10px] font-headline uppercase tracking-wider">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
-                      正在对局
+                      <Trophy className="h-3 w-3" />
+                      已完赛
                     </div>
                   </div>
                   <CardContent className="p-6 flex-1 flex flex-col gap-6">
@@ -362,28 +335,33 @@ export default function OnlineLobbyPage() {
                       <div className="text-center space-y-2 flex-1">
                          <div className="w-10 h-10 rounded-full bg-black mx-auto ring-2 ring-offset-2 ring-black/10 shadow-sm" />
                          <p className="text-xs font-bold truncate">{game.playerBlackName}</p>
+                         {game.result?.winner === 'black' && <Badge variant="secondary" className="text-[10px] py-0">{t('lobby.game.winner')}</Badge>}
                       </div>
-                      <div className="text-[10px] font-black text-muted-foreground bg-muted px-2 py-1 rounded italic">VS</div>
+                      <div className="text-center">
+                        <p className="text-[10px] font-black text-muted-foreground bg-muted px-2 py-1 rounded italic mb-1">RESULT</p>
+                        <p className="text-sm font-bold font-headline">{game.result?.blackScore?.toFixed(1)} : {game.result?.whiteScore?.toFixed(1)}</p>
+                      </div>
                       <div className="text-center space-y-2 flex-1">
                          <div className="w-10 h-10 rounded-full bg-white border mx-auto ring-2 ring-offset-2 ring-black/10 shadow-sm" />
                          <p className="text-xs font-bold truncate">{game.playerWhiteName}</p>
+                         {game.result?.winner === 'white' && <Badge variant="secondary" className="text-[10px] py-0">{t('lobby.game.winner')}</Badge>}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 pt-2 border-t border-dashed">
                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
                          <Clock className="h-3 w-3" />
-                         <LiveGameTimer startedAt={game.startedAt} />
+                         <span>完赛于 {game.finishedAt?.toDate?.().toLocaleTimeString() || '刚刚'}</span>
                        </div>
                        <div className="flex items-center gap-2 text-xs text-muted-foreground justify-end">
-                         <Layers className="h-3 w-3" />
-                         <span>第 <span className="font-bold text-foreground">{game.moveCount || 0}</span> 手</span>
+                         <History className="h-3 w-3" />
+                         <span>共 <span className="font-bold text-foreground">{game.moveCount || 0}</span> 手</span>
                        </div>
                     </div>
                   </CardContent>
                   <CardFooter className="bg-muted/30 p-3 mt-auto">
                     <Button className="w-full gap-2 font-bold group-hover:bg-blue-600 group-hover:text-white transition-all" variant="outline" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
-                      <PlayCircle className="h-4 w-4" /> 实时观战
+                      <PlayCircle className="h-4 w-4" /> {t('lobby.game.view')}
                     </Button>
                   </CardFooter>
                 </Card>
@@ -391,8 +369,8 @@ export default function OnlineLobbyPage() {
             ) : (
               <Card className="col-span-full border-2 border-dashed p-12 text-center bg-muted/5">
                 <PlayCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                <p className="text-muted-foreground font-medium font-headline">当前暂无公开对局</p>
-                <p className="text-xs text-muted-foreground mt-2">发起挑战即可出现在此处。</p>
+                <p className="text-muted-foreground font-medium font-headline">暂无最近完赛名局</p>
+                <p className="text-xs text-muted-foreground mt-2">对局结束后，将在此展示 1 小时。</p>
               </Card>
             )}
           </div>

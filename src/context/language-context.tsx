@@ -28,7 +28,7 @@ const translations = {
     'home.viewer.info': '支持 .sgf 格式。支持步进控制与重置，纯净阅览无干预。',
     'home.viewer.start': '进入阅览',
     'home.online.title': '竞技大厅 (Lobby)',
-    'home.online.desc': '查看实时在线玩家，发起对局挑战，或观摩名手对弈。',
+    'home.online.desc': '查看实时在线玩家，发起对局挑战，或观摩 1 小时内完赛的名局。',
     'home.online.accept': '接受邀请',
     'home.online.decline': '不接受邀请',
     'home.online.start': '进入大厅',
@@ -38,6 +38,10 @@ const translations = {
     'home.announcement.title': '版本更新说明',
     'rules.chinese': '中国规则',
     'rules.territory': '日韩规则',
+    'lobby.tab.players': '活跃棋手',
+    'lobby.tab.recent': '名局回放 (1h)',
+    'lobby.game.winner': '胜',
+    'lobby.game.view': '进入观摩'
   },
   en: {
     'nav.home': 'Home',
@@ -55,7 +59,7 @@ const translations = {
     'home.viewer.info': 'Supports .sgf format. Precise navigation and reset controls.',
     'home.viewer.start': 'Enter Viewer',
     'home.online.title': 'Competition Lobby',
-    'home.online.desc': 'Find online players, send challenges, or spectate live games.',
+    'home.online.desc': 'Find online players, send challenges, or spectate games finished within 1 hour.',
     'home.online.accept': 'Accept Invites',
     'home.online.decline': 'Decline Invites',
     'home.online.start': 'Enter Lobby',
@@ -65,6 +69,10 @@ const translations = {
     'home.announcement.title': 'Release Notes',
     'rules.chinese': 'Chinese Rules',
     'rules.territory': 'Japanese Rules',
+    'lobby.tab.players': 'Active Players',
+    'lobby.tab.recent': 'Recent Replays (1h)',
+    'lobby.game.winner': 'Win',
+    'lobby.game.view': 'View Game'
   }
 };
 
