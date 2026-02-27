@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -36,7 +35,7 @@ export default function OnlineLobbyPage() {
 
   // 定时发送心跳，标记玩家在线
   useEffect(() => {
-    if (!user || !db) return;
+    if (!user?.uid || !db) return;
 
     const updateStatus = async () => {
       const userRef = doc(db, "userProfiles", user.uid);
@@ -46,24 +45,21 @@ export default function OnlineLobbyPage() {
       }).then(() => setIsConnected(true))
         .catch(async (err) => {
           setIsConnected(false);
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `userProfiles/${user.uid}`,
-            operation: 'update',
-            requestResourceData: { lastSeen: 'serverTimestamp', acceptingInvites: acceptInvites }
-          }));
+          // 仅记录到控制台，不抛出 permission-error 避免干扰大厅 UI
+          console.warn("Heartbeat update failed:", err);
         });
     };
 
     updateStatus();
     const heartbeat = setInterval(updateStatus, 30000); 
     return () => clearInterval(heartbeat);
-  }, [user, db, acceptInvites]);
+  }, [user?.uid, db, acceptInvites]);
 
   // 监听活跃棋手 (5分钟内有活跃心跳)
   const usersQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
+    if (!db || !user?.uid) return null;
     return query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(50));
-  }, [db, user]);
+  }, [db, user?.uid]);
   
   const { data: allProfiles, isLoading: loadingPlayers } = useCollection(usersQuery);
 
@@ -77,7 +73,7 @@ export default function OnlineLobbyPage() {
 
   // 监听最近 1 小时内完成的名局
   const recentGamesQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
+    if (!db || !user?.uid) return null;
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     return query(
       collection(db, "games"), 
@@ -86,40 +82,41 @@ export default function OnlineLobbyPage() {
       orderBy("finishedAt", "desc"),
       limit(20)
     );
-  }, [db, user]);
+  }, [db, user?.uid]);
   
   const { data: recentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
 
-  // 监听受到的邀请
+  // 监听受到的挑战请求 (执黑)
   const invitesBlackQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
+    if (!db || !user?.uid) return null;
     return query(
       collection(db, "games"), 
       where("status", "==", "pending"), 
       where("playerBlackId", "==", user.uid)
     );
-  }, [db, user]);
+  }, [db, user?.uid]);
 
+  // 监听受到的挑战请求 (执白)
   const invitesWhiteQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
+    if (!db || !user?.uid) return null;
     return query(
       collection(db, "games"), 
       where("status", "==", "pending"), 
       where("playerWhiteId", "==", user.uid)
     );
-  }, [db, user]);
+  }, [db, user?.uid]);
   
   const { data: invitesBlack } = useCollection(invitesBlackQuery);
   const { data: invitesWhite } = useCollection(invitesWhiteQuery);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) return;
     const allInvites = [...(invitesBlack || []), ...(invitesWhite || [])];
     const invite = allInvites.find(g => g.createdBy !== user.uid);
     if (invite && (!receivedInvite || invite.id !== receivedInvite.id)) {
       setReceivedInvite(invite);
     }
-  }, [invitesBlack, invitesWhite, user, receivedInvite]);
+  }, [invitesBlack, invitesWhite, user?.uid, receivedInvite]);
 
   const handleInviteClick = (id: string, name: string, isAccepting: boolean) => {
     if (!isAccepting) {
@@ -134,7 +131,7 @@ export default function OnlineLobbyPage() {
   };
 
   const confirmInvite = async () => {
-    if (!user || !invitingPlayer) return;
+    if (!user?.uid || !invitingPlayer) return;
     
     const playerBlackId = opponentColor === 'white' ? user.uid : invitingPlayer.id;
     const playerWhiteId = opponentColor === 'white' ? invitingPlayer.id : user.uid;

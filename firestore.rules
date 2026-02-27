@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // 校验函数：检查用户是否已通过身份验证（支持匿名登录）
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null && request.auth.uid != null;
     }
 
     // 校验函数：检查是否是用户本人在操作
@@ -17,12 +17,17 @@ service cloud.firestore {
       allow write: if isOwner(userId);
     }
 
-    // 对局数据：为了支持大厅列表及 P2P 信令，允许所有已认证用户读写
-    // 实际生产环境建议根据 playerBlackId/playerWhiteId 进行更细粒度的控制
+    // 对局数据：为了支持大厅列表及 P2P 信令交换
+    // 使用更扁平的结构避免嵌套冲突
     match /games/{gameId} {
       allow read, write: if isAuthenticated();
       
-      // 落子记录及子集合：同样继承父级权限逻辑
+      // 子集合落子记录：明确授权
+      match /moves/{moveId} {
+        allow read, write: if isAuthenticated();
+      }
+      
+      // 捕获所有其他可能的子路径
       match /{allPaths=**} {
         allow read, write: if isAuthenticated();
       }
