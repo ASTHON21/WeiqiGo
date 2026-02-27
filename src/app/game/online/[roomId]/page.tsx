@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -6,7 +5,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, CloudSync, Calculator, Lock, Wifi, WifiOff, Save, Home, Hourglass, ShieldAlert, XCircle } from 'lucide-react';
+import { Users, Swords, Loader2, Cloud, Calculator, Lock, Wifi, WifiOff, Save, Home, Hourglass, ShieldAlert, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
@@ -86,7 +85,7 @@ export default function OnlineGamePage() {
     }
   }, [isInProgress, isFinished, isSpectating, isPlayer, game?.currentTurn]);
 
-  // Firestore moves listener - This IS the synchronization mechanism
+  // Firestore moves listener - This IS the synchronization mechanism (Zero cost, high reliability)
   const movesQuery = useMemoFirebase(() => {
     if (!db || !roomId || !user) return null;
     return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
@@ -262,7 +261,7 @@ export default function OnlineGamePage() {
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
          <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-500 font-headline">
-           {isSpectating ? <CloudSync className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
+           {isSpectating ? <Cloud className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
            {isSpectating ? "云端名局观摩" : "在线同步对弈"}
            {isFinished && !isDeclined && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局结算完毕</Badge>}
            {isPending && <Badge variant="outline" className="text-yellow-600 border-yellow-500 animate-pulse">等待对手确认</Badge>}
