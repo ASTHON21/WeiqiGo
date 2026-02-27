@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 校验函数：检查用户是否已通过匿名或正式验证
+    // 校验函数：检查用户是否已通过身份验证（支持匿名登录）
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -11,29 +11,20 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // 用户档案：允许本人创建、更新和删除，所有人可读
+    // 用户档案：所有人可读（用于大厅显示），本人可写
     match /userProfiles/{userId} {
       allow read: if isAuthenticated();
       allow create, update, delete: if isOwner(userId);
     }
 
-    // 对局数据：对局参与者可以读写
+    // 对局数据：所有人可读（观战及大厅），已认证用户可写（创建及同步状态）
     match /games/{gameId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && 
-                    (request.resource.data.playerBlackId == request.auth.uid || 
-                     request.resource.data.playerWhiteId == request.auth.uid);
-      allow update: if isAuthenticated() && 
-                    (resource.data.playerBlackId == request.auth.uid || 
-                     resource.data.playerWhiteId == request.auth.uid);
-    }
-
-    // 落子记录：对局参与者可写，所有人可读（观战）
-    match /games/{gameId}/moves/{moveId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && 
-                    (get(/databases/$(database)/documents/games/$(gameId)).data.playerBlackId == request.auth.uid || 
-                     get(/databases/$(database)/documents/games/$(gameId)).data.playerWhiteId == request.auth.uid);
+      allow read, create, update, delete: if isAuthenticated();
+      
+      // 落子记录：所有人可读（观战），已认证用户可写
+      match /moves/{moveId} {
+        allow read, create: if isAuthenticated();
+      }
     }
   }
 }

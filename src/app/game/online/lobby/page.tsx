@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -116,25 +116,23 @@ export default function OnlineLobbyPage() {
   
   const { data: liveGames, isLoading: loadingGames } = useCollection(liveGamesQuery);
 
-  // 监听受到的邀请
-  useEffect(() => {
-    if (!db || !user) return;
-    const q = query(collection(db, "games"), where("status", "==", "pending"));
-    
-    const unsub = onSnapshot(q, (snapshot) => {
-      const activeInvite = snapshot.docs
-        .map(d => ({ id: d.id, ...d.data() } as any))
-        .find(g => (g.playerBlackId === user.uid || g.playerWhiteId === user.uid) && g.createdBy !== user.uid);
-      
-      if (activeInvite && (!receivedInvite || activeInvite.id !== receivedInvite.id)) {
-        setReceivedInvite(activeInvite);
-      }
-    }, (err) => {
-      console.error("Invite Listener Error:", err);
-    });
+  // 监听受到的邀请：使用 useCollection 替换手动监听以提高稳定性
+  const invitationsQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, "games"), where("status", "==", "pending"));
+  }, [db, user]);
+  
+  const { data: invitations } = useCollection(invitationsQuery);
 
-    return () => unsub();
-  }, [db, user, receivedInvite]);
+  useEffect(() => {
+    if (!invitations || !user) return;
+    const invite = invitations.find(g => 
+      (g.playerBlackId === user.uid || g.playerWhiteId === user.uid) && g.createdBy !== user.uid
+    );
+    if (invite && (!receivedInvite || invite.id !== receivedInvite.id)) {
+      setReceivedInvite(invite);
+    }
+  }, [invitations, user, receivedInvite]);
 
   const handleInviteClick = (id: string, name: string, isAccepting: boolean) => {
     if (!isAccepting) {
