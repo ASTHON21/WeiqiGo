@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -41,6 +42,9 @@ export default function OnlineGamePage() {
   const [p2pStatus, setP2PStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
   const [localMoves, setLocalMoves] = useState<any[]>([]);
 
+  // Time tracking
+  const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
+
   // Get main game document
   const { data: game, isLoading: loadingGame } = useDoc(roomId && user ? doc(db, "games", roomId) : null);
 
@@ -49,6 +53,29 @@ export default function OnlineGamePage() {
   const isPending = game?.status === 'pending';
   const isInProgress = game?.status === 'in-progress';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
+
+  // Sync initial time from game doc
+  useEffect(() => {
+    if (game) {
+      setTimeUsed({
+        black: game.playerBlackTimeUsed || 0,
+        white: game.playerWhiteTimeUsed || 0
+      });
+    }
+  }, [game?.id]);
+
+  // Timer logic
+  useEffect(() => {
+    if (isInProgress && !isFinished && !isPending && !isSpectating && isPlayer) {
+      const interval = setInterval(() => {
+        setTimeUsed(prev => ({
+          ...prev,
+          [game.currentTurn]: prev[game.currentTurn as 'black' | 'white'] + 1
+        }));
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isInProgress, isFinished, isPending, isSpectating, isPlayer, game?.currentTurn]);
 
   // Firestore moves listener
   const movesQuery = useMemoFirebase(() => {
@@ -82,8 +109,6 @@ export default function OnlineGamePage() {
       });
 
       peerInstance.on('connection', (conn) => {
-        // Defensive check: Only accept data connections if game is active
-        // We use a ref-like check or just rely on the data handler being active
         conn.on('data', (data: any) => {
           if (data.type === 'move') {
             setLocalMoves(prev => [...prev, data.payload]);
@@ -116,7 +141,7 @@ export default function OnlineGamePage() {
     }).catch(console.error);
   }, [myPeerId, game?.playerBlackId, game?.playerWhiteId, user?.uid, db, isSpectating, roomId]);
 
-  // Active Handshake: Only connect when game is officially 'in-progress'
+  // Active Handshake
   useEffect(() => {
     if (!peer || !isInProgress || connectionRef.current || isSpectating || !user || !myPeerId) return;
 
@@ -219,6 +244,8 @@ export default function OnlineGamePage() {
     updateDoc(doc(db, "games", roomId), {
       currentTurn: nextTurn,
       moveCount: (game.moveCount || 0) + 1,
+      playerBlackTimeUsed: timeUsed.black,
+      playerWhiteTimeUsed: timeUsed.white,
       lastActivityAt: serverTimestamp()
     });
   };
@@ -256,6 +283,8 @@ export default function OnlineGamePage() {
         status: 'finished',
         finishedAt: serverTimestamp(),
         moveCount: (game.moveCount || 0) + 1,
+        playerBlackTimeUsed: timeUsed.black,
+        playerWhiteTimeUsed: timeUsed.white,
         lastActivityAt: serverTimestamp(),
         result: {
           winner: score.winner,
@@ -271,9 +300,17 @@ export default function OnlineGamePage() {
       updateDoc(doc(db, "games", roomId), {
         currentTurn: nextTurn,
         moveCount: (game.moveCount || 0) + 1,
+        playerBlackTimeUsed: timeUsed.black,
+        playerWhiteTimeUsed: timeUsed.white,
         lastActivityAt: serverTimestamp()
       });
     }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (loadingGame || loadingUser) {
@@ -321,7 +358,6 @@ export default function OnlineGamePage() {
               moveSetting={moveSetting}
             />
             
-            {/* BLOCKER: Pending Phase */}
             {isPending && !isSpectating && (
                <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-[2px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted">
                   <div className="text-center space-y-6 max-w-xs p-8">
@@ -339,7 +375,6 @@ export default function OnlineGamePage() {
                </div>
             )}
 
-            {/* BLOCKER: Connecting Phase */}
             {isInProgress && p2pStatus !== 'connected' && !isSpectating && moves.length === 0 && (
                <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-[2px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted">
                   <div className="text-center space-y-4">
@@ -365,15 +400,17 @@ export default function OnlineGamePage() {
                          <div className="p-4 rounded-xl bg-black/5 border-2 border-primary/10 text-center space-y-1">
                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">黑方点数</p>
                            <p className="text-3xl font-black text-foreground font-headline leading-none">{game.result?.blackScore?.toFixed(1) || '0.0'}</p>
+                           <p className="text-[10px] text-muted-foreground mt-1">耗时: {formatDuration(game.playerBlackTimeUsed || 0)}</p>
                          </div>
                          <div className="p-4 rounded-xl bg-black/5 border-2 border-primary/10 text-center space-y-1">
                            <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">白方点数</p>
                            <p className="text-3xl font-black text-foreground font-headline leading-none">{game.result?.whiteScore?.toFixed(1) || '0.0'}</p>
+                           <p className="text-[10px] text-muted-foreground mt-1">耗时: {formatDuration(game.playerWhiteTimeUsed || 0)}</p>
                          </div>
                        </div>
 
                        <div className="p-6 bg-blue-500/10 rounded-2xl border-4 border-blue-500/20 space-y-2">
-                          <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终判定</p>
+                          <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终判定 (总手数: {game.moveCount})</p>
                           <p className="text-4xl font-black font-headline text-blue-800">
                             {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {Math.abs((game.result?.blackScore || 0) - (game.result?.whiteScore || 0)).toFixed(1)} 目
                           </p>
@@ -409,14 +446,20 @@ export default function OnlineGamePage() {
               <div className="flex items-center justify-between">
                  <div className="flex items-center gap-2">
                    <div className="w-8 h-8 rounded-full bg-black border-2 border-white shadow-sm" />
-                   <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerBlackName || '黑方选手'}</span>
+                   <div className="flex flex-col">
+                    <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerBlackName || '黑方选手'}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">{formatDuration(timeUsed.black)}</span>
+                   </div>
                  </div>
                  {game?.playerBlackId === user?.uid && <Badge variant="secondary">您</Badge>}
               </div>
               <div className="flex items-center justify-between">
                  <div className="flex items-center gap-2">
                    <div className="w-8 h-8 rounded-full bg-white border-2 border-black shadow-sm" />
-                   <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerWhiteName || '白方选手'}</span>
+                   <div className="flex flex-col">
+                    <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerWhiteName || '白方选手'}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">{formatDuration(timeUsed.white)}</span>
+                   </div>
                  </div>
                  {game?.playerWhiteId === user?.uid && <Badge variant="secondary">您</Badge>}
               </div>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,7 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Bell } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Bell, Hourglass } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -65,15 +66,12 @@ export default function OnlineLobbyPage() {
     });
   }, [allProfiles, user?.uid]);
 
-  // 修复：移除复合索引依赖
-  // 原本 where("status") + orderBy("finishedAt") 需要手动配置索引
-  // 现在只按时间排序，在前端进行状态和时间窗口过滤
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(
       collection(db, "games"), 
       orderBy("finishedAt", "desc"), 
-      limit(100) // 获取更多记录供前端过滤
+      limit(100)
     );
   }, [db, user?.uid]);
   
@@ -83,7 +81,6 @@ export default function OnlineLobbyPage() {
     if (!allRecentGames) return [];
     const oneHourAgo = Date.now() - 60 * 60 * 1000;
     return allRecentGames.filter(g => {
-      // 仅保留 1 小时内完赛的对局
       if (g.status !== 'finished' || !g.finishedAt) return false;
       const finishedTime = g.finishedAt.toDate ? g.finishedAt.toDate().getTime() : new Date(g.finishedAt).getTime();
       return finishedTime >= oneHourAgo;
@@ -144,6 +141,8 @@ export default function OnlineLobbyPage() {
       createdBy: user.uid,
       challengerName: user.displayName,
       moveCount: 0,
+      playerBlackTimeUsed: 0,
+      playerWhiteTimeUsed: 0,
       lastActivityAt: serverTimestamp()
     };
 
@@ -175,6 +174,12 @@ export default function OnlineLobbyPage() {
     }).then(() => {
       setReceivedInvite(null);
     }).catch(console.error);
+  };
+
+  const formatDuration = (seconds: number = 0) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (loadingUser) {
@@ -311,12 +316,12 @@ export default function OnlineLobbyPage() {
                       </div>
                       <div className="grid grid-cols-2 gap-4 pt-2 border-t border-dashed">
                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                           <Clock className="h-3 w-3" />
-                           <span>{game.finishedAt?.toDate?.().toLocaleTimeString() || '刚刚'}</span>
+                           <Hourglass className="h-3 w-3" />
+                           <span className="font-mono">B:{formatDuration(game.playerBlackTimeUsed)} | W:{formatDuration(game.playerWhiteTimeUsed)}</span>
                          </div>
                          <div className="flex items-center gap-2 text-xs text-muted-foreground justify-end">
                            <History className="h-3 w-3" />
-                           <span>{game.moveCount || 0} 手</span>
+                           <span className="font-bold">总手数: {game.moveCount || 0}</span>
                          </div>
                       </div>
                     </CardContent>

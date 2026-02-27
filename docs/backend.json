@@ -85,6 +85,14 @@
           "type": "string",
           "description": "Display name of the black player."
         },
+        "playerBlackTimeUsed": {
+          "type": "number",
+          "description": "Total time used by the black player in seconds."
+        },
+        "playerWhiteTimeUsed": {
+          "type": "number",
+          "description": "Total time used by the white player in seconds."
+        },
         "currentTurn": {
           "type": "string",
           "description": "Indicates whose turn it currently is. Expected values: 'white' or 'black'."
