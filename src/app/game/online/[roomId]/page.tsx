@@ -10,7 +10,7 @@ import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, Wifi, WifiOff, S
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
@@ -44,18 +44,17 @@ export default function OnlineGamePage() {
   const [p2pStatus, setP2PStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [localMoves, setLocalMoves] = useState<any[]>([]);
 
-  // 关键修复：确保 user 已就绪后再发起文档读取
   const { data: game, isLoading: loadingGame } = useDoc(roomId && user ? doc(db, "games", roomId) : null);
 
-  // 关键修复：movesQuery 同样需要守卫
   const movesQuery = useMemoFirebase(() => {
     if (!db || !roomId || !user) return null;
     return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
   }, [db, roomId, user]);
   const { data: firestoreMoves } = useCollection(movesQuery);
 
-  // 合并 Firestore 和 P2P 步数
-  const moves = [...(firestoreMoves || []), ...localMoves].sort((a, b) => (a.moveNumber || 0) - (b.moveNumber || 0));
+  const moves = useMemo(() => {
+    return [...(firestoreMoves || []), ...localMoves].sort((a, b) => (a.moveNumber || 0) - (b.moveNumber || 0));
+  }, [firestoreMoves, localMoves]);
 
   // 初始化 WebRTC (P2P)
   useEffect(() => {
@@ -136,19 +135,26 @@ export default function OnlineGamePage() {
     }
   }, [game?.rules, language]);
 
-  const board = (() => {
-    if (!game) return createEmptyBoard(19);
-    let tempBoard = createEmptyBoard(game.boardSize || 19);
-    if (!moves) return tempBoard;
+  // 关键修复：重新计算棋盘时统计提子
+  const { board, prisoners } = useMemo(() => {
+    let tempBoard = createEmptyBoard(game?.boardSize || 19);
+    let p = { black: 0, white: 0 };
+    if (!moves) return { board: tempBoard, prisoners: p };
     
     moves.forEach(m => {
       if (m.coordinatesX !== -1) {
         const result = GoLogic.processMove(tempBoard, m.coordinatesX, m.coordinatesY, m.playerColor, []);
-        if (result.success) tempBoard = result.newBoard;
+        if (result.success) {
+           tempBoard = result.newBoard;
+           if (result.capturedCount > 0) {
+             const color = m.playerColor as 'black' | 'white';
+             p[color] += result.capturedCount;
+           }
+        }
       }
     });
-    return tempBoard;
-  })();
+    return { board: tempBoard, prisoners: p };
+  }, [game?.boardSize, moves]);
 
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
   const isMyTurn = game && user && (
@@ -245,10 +251,24 @@ export default function OnlineGamePage() {
     }
 
     if (isConsecutivePass) {
+      // 关键修复：结束时计算最终得分并同步云端
+      const ruleType = game.rules as 'chinese' | 'territory';
+      const score = ruleType === 'chinese' 
+        ? GoLogic.calculateChineseScore(board)
+        : GoLogic.calculateJapaneseScore(board, prisoners.black, prisoners.white);
+
       updateDoc(doc(db, "games", roomId), {
         status: 'finished',
         finishedAt: serverTimestamp(),
-        moveCount: (game.moveCount || 0) + 1
+        moveCount: (game.moveCount || 0) + 1,
+        result: {
+          winner: score.winner,
+          reason: '双方连续弃权',
+          blackScore: score.blackTotal,
+          whiteScore: score.whiteTotal,
+          details: (score as any).details || null,
+          komi: score.komi
+        }
       }).catch(async (err) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: `games/${roomId}`,
@@ -259,7 +279,7 @@ export default function OnlineGamePage() {
 
       toast({
         title: "对局结束",
-        description: "双方连续弃权，对局已完成。",
+        description: "双方连续弃权，对局已完成并结算。",
       });
     } else {
       const nextTurn = playerColor === 'black' ? 'white' : 'black';
@@ -279,6 +299,14 @@ export default function OnlineGamePage() {
   const saveToLocalHistory = () => {
     if (!game || !moves || isSaved) return;
 
+    // 如果对局已结束但云端还没更新好结果，本地尝试计算一次
+    const ruleType = game.rules as 'chinese' | 'territory';
+    const score = game.result?.blackScore !== undefined ? game.result : (
+      ruleType === 'chinese' 
+        ? GoLogic.calculateChineseScore(board) 
+        : GoLogic.calculateJapaneseScore(board, prisoners.black, prisoners.white)
+    );
+
     const entry: GameHistoryEntry = {
       id: `online-${roomId}-${Date.now()}`,
       date: new Date().toISOString(),
@@ -290,9 +318,12 @@ export default function OnlineGamePage() {
         player: m.playerColor
       })),
       result: {
-        winner: null,
-        reason: '双方连续弃权',
-        details: null
+        winner: score.winner as any,
+        reason: game.result?.reason || '双方连续弃权',
+        blackScore: (score as any).blackTotal || (score as any).blackScore,
+        whiteScore: (score as any).whiteTotal || (score as any).whiteScore,
+        details: (score as any).details || null,
+        komi: (score as any).komi
       },
       metadata: {
         event: "在线对局",
@@ -382,8 +413,16 @@ export default function OnlineGamePage() {
                     </CardHeader>
                     <CardContent className="p-6 text-center space-y-4">
                        <h2 className="text-2xl font-black">对局圆满结束</h2>
+                       {game.result?.winner && (
+                         <div className="p-3 bg-blue-50 rounded-lg border-2 border-blue-200">
+                            <p className="text-sm font-bold text-blue-600">最终比分</p>
+                            <p className="text-lg font-black">
+                              {game.result.winner === 'black' ? '黑方胜' : '白方胜'} {Math.abs((game.result.blackScore || 0) - (game.result.whiteScore || 0)).toFixed(1)} 目
+                            </p>
+                         </div>
+                       )}
                        <p className="text-sm text-muted-foreground leading-relaxed">
-                         双方棋手已达成共识（连续弃权）。<br/>您可以选择保存记录或留在页面继续查看棋局。
+                         双方棋手已达成共识。您可以选择保存记录或留在页面继续查看棋局。
                        </p>
                     </CardContent>
                     <CardFooter className="flex flex-col sm:flex-row gap-3 bg-muted/30 p-4">
@@ -391,7 +430,7 @@ export default function OnlineGamePage() {
                          留在房内观摩
                        </Button>
                        <Button variant="secondary" className="flex-1 h-12 font-bold gap-2" onClick={saveToLocalHistory} disabled={isSaved}>
-                         <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存本局记录'}
+                         <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存记录'}
                        </Button>
                        <Button className="flex-1 h-12 font-bold bg-blue-600 hover:bg-blue-700" onClick={() => router.push('/game/online/lobby')}>
                          返回大厅
