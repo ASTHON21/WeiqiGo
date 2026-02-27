@@ -67,26 +67,24 @@ export default function OnlineLobbyPage() {
   }, [allProfiles, user?.uid]);
 
   const recentGamesQuery = useMemoFirebase(() => {
-    if (!db || !user?.uid) return null;
+    if (!db) return null;
+    const oneHourAgo = Timestamp.fromDate(new Date(Date.now() - 60 * 60 * 1000));
     return query(
       collection(db, "games"), 
+      where("finishedAt", ">=", oneHourAgo),
       orderBy("finishedAt", "desc"), 
-      limit(100)
+      limit(20)
     );
-  }, [db, user?.uid]);
+  }, [db]);
   
   const { data: allRecentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
 
   const filteredRecentGames = useMemo(() => {
     if (!allRecentGames) return [];
-    const oneHourAgo = Date.now() - 60 * 60 * 1000;
-    return allRecentGames.filter(g => {
-      if (g.status !== 'finished' || !g.finishedAt) return false;
-      const finishedTime = g.finishedAt.toDate ? g.finishedAt.toDate().getTime() : new Date(g.finishedAt).getTime();
-      return finishedTime >= oneHourAgo;
-    });
+    return allRecentGames.filter(g => g.status === 'finished' && g.reason !== 'declined');
   }, [allRecentGames]);
 
+  // Directed Invite Listeners
   const invitesBlackQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(collection(db, "games"), where("status", "==", "pending"), where("playerBlackId", "==", user.uid));
@@ -155,14 +153,16 @@ export default function OnlineLobbyPage() {
 
   const handleAcceptInvite = async () => {
     if (!receivedInvite || !db) return;
-    updateDoc(doc(db, "games", receivedInvite.id), {
+    
+    // Explicitly update status to in-progress first
+    await updateDoc(doc(db, "games", receivedInvite.id), {
       status: 'in-progress',
       startedAt: serverTimestamp(),
-      lastActivityAt: serverTimestamp(),
-      moveCount: 0
-    }).then(() => {
-      router.push(`/game/online/${receivedInvite.id}`);
-    }).catch(console.error);
+      lastActivityAt: serverTimestamp()
+    });
+
+    toast({ title: "挑战已接受", description: "建立 P2P 隧道中..." });
+    router.push(`/game/online/${receivedInvite.id}`);
   };
 
   const handleDeclineInvite = async () => {
@@ -316,7 +316,7 @@ export default function OnlineLobbyPage() {
                       </div>
                       <div className="grid grid-cols-2 gap-4 pt-2 border-t border-dashed">
                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                           <Hourglass className="h-3 w-3" />
+                           <Clock className="h-3 w-3" />
                            <span className="font-mono">B:{formatDuration(game.playerBlackTimeUsed)} | W:{formatDuration(game.playerWhiteTimeUsed)}</span>
                          </div>
                          <div className="flex items-center gap-2 text-xs text-muted-foreground justify-end">
@@ -345,6 +345,7 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Received Invite Modal */}
       <Dialog open={!!receivedInvite} onOpenChange={(open) => !open && handleDeclineInvite()}>
         <DialogContent className="sm:max-w-md border-4 border-blue-600 shadow-2xl">
           <DialogHeader>
@@ -373,6 +374,7 @@ export default function OnlineLobbyPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Sending Invite Modal */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
         <DialogContent className="sm:max-w-md border-2">
           <DialogHeader>
