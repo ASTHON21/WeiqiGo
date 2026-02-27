@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, Wifi, WifiOff, Save, Home } from 'lucide-react';
+import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, Wifi, WifiOff, Save, Home, RefreshCw } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -402,40 +402,79 @@ export default function OnlineGamePage() {
             )}
             
             {isFinished && !dismissGameOver && (
-               <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg p-4">
+               <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg p-4 overflow-y-auto">
                   <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                    <CardHeader className="bg-blue-500 text-white py-4 text-center">
+                    <CardHeader className="bg-blue-600 text-white py-5 text-center">
                       <CardTitle className="flex items-center justify-center gap-2 text-xl font-headline uppercase tracking-tight">
                         <Calculator className="h-6 w-6" /> 对局结算报告
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-8 text-center space-y-6">
-                       <h2 className="text-3xl font-black font-headline">对局圆满结束</h2>
-                       {game.result?.winner && (
-                         <div className="p-5 bg-blue-500/5 rounded-xl border-2 border-blue-500/20 space-y-2">
-                            <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">最终判定结果</p>
-                            <p className="text-2xl font-black font-headline text-foreground">
-                              {game.result.winner === 'black' ? '黑方胜' : '白方胜'} {Math.abs((game.result.blackScore || 0) - (game.result.whiteScore || 0)).toFixed(1)} 目
+                    <CardContent className="p-8 text-center space-y-6 bg-background">
+                       <h2 className="text-3xl font-black font-headline text-foreground leading-none">对局圆满结束</h2>
+                       
+                       <div className="grid grid-cols-2 gap-4">
+                         <div className="p-4 rounded-xl bg-black/5 border-2 border-primary/10 text-center space-y-1">
+                           <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">黑方点数</p>
+                           <p className="text-3xl font-black text-foreground font-headline leading-none">{game.result?.blackScore?.toFixed(1) || '0.0'}</p>
+                         </div>
+                         <div className="p-4 rounded-xl bg-black/5 border-2 border-primary/10 text-center space-y-1">
+                           <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">白方点数</p>
+                           <p className="text-3xl font-black text-foreground font-headline leading-none">{game.result?.whiteScore?.toFixed(1) || '0.0'}</p>
+                         </div>
+                       </div>
+
+                       {game.result?.details && (
+                         <div className="bg-muted/40 p-5 rounded-xl space-y-2 border text-left shadow-inner">
+                            <p className="text-[11px] font-black border-b pb-2 flex items-center gap-2 text-foreground uppercase tracking-wider">
+                              <Book className="h-3.5 w-3.5 text-blue-500" /> 计分细节 Breakdown
                             </p>
+                            <div className="grid grid-cols-1 gap-y-1.5 text-[12px] font-medium text-muted-foreground">
+                              <div className="flex justify-between items-center">
+                                <span>黑方围空:</span> 
+                                <span className="text-foreground font-bold">{game.result.details.blackTerritory} 目</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span>白方围空:</span> 
+                                <span className="text-foreground font-bold">{game.result.details.whiteTerritory} 目</span>
+                              </div>
+                              <div className="flex justify-between items-center text-red-600/80">
+                                <span>黑方损子:</span> 
+                                <span className="font-bold">-{game.result.details.blackPrisoners + game.result.details.blackDeadOnBoard} 子</span>
+                              </div>
+                              <div className="flex justify-between items-center text-red-600/80">
+                                <span>白方损子:</span> 
+                                <span className="font-bold">-{game.result.details.whitePrisoners + game.result.details.whiteDeadOnBoard} 子</span>
+                              </div>
+                            </div>
                          </div>
                        )}
-                       <p className="text-sm text-muted-foreground leading-relaxed px-2">
-                         恭喜两位选手完成本局博弈。所有的落子记录已永久存档，您可以选择保存至本地或留在房间内进行复盘。
-                       </p>
+
+                       <div className="p-6 bg-blue-500/10 rounded-2xl border-4 border-blue-500/20 space-y-2">
+                          <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">
+                            最终判定 (Komi: {game.result?.komi})
+                          </p>
+                          <p className="text-4xl font-black font-headline text-blue-800">
+                            {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {Math.abs((game.result?.blackScore || 0) - (game.result?.whiteScore || 0)).toFixed(1)} 目
+                          </p>
+                       </div>
                     </CardContent>
-                    <CardFooter className="flex flex-wrap gap-3 bg-muted/30 p-4 border-t">
-                       <Button variant="ghost" className="flex-1 min-w-[120px] h-12 font-bold gap-2" onClick={() => router.push('/')}>
-                         <Home className="h-4 w-4" /> 返回主页
-                       </Button>
-                       <Button variant="outline" className="flex-1 min-w-[120px] h-12 font-bold border-2" onClick={() => setDismissGameOver(true)}>
-                         留在房内复盘
-                       </Button>
-                       <Button variant="secondary" className="flex-1 min-w-[120px] h-12 font-bold gap-2" onClick={saveToLocalHistory} disabled={isSaved}>
-                         <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存记录'}
-                       </Button>
-                       <Button className="flex-1 min-w-[120px] h-12 font-bold bg-blue-600 hover:bg-blue-700" onClick={() => router.push('/game/online/lobby')}>
-                         返回竞技大厅
-                       </Button>
+                    <CardFooter className="flex flex-col gap-3 bg-muted/30 p-6 border-t">
+                       <div className="grid grid-cols-2 w-full gap-3">
+                         <Button variant="ghost" className="h-12 font-bold gap-2 border-2 bg-background hover:bg-muted" onClick={() => router.push('/')}>
+                           <Home className="h-4 w-4" /> 返回主页
+                         </Button>
+                         <Button variant="outline" className="h-12 font-bold border-2 bg-background" onClick={() => setDismissGameOver(true)}>
+                           留在房内复盘
+                         </Button>
+                       </div>
+                       <div className="grid grid-cols-2 w-full gap-3">
+                         <Button variant="secondary" className="h-12 font-bold gap-2 border-2 border-blue-600/20" onClick={saveToLocalHistory} disabled={isSaved}>
+                           <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存本地记录'}
+                         </Button>
+                         <Button className="h-12 font-bold bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={() => router.push('/game/online/lobby')}>
+                           返回竞技大厅
+                         </Button>
+                       </div>
                     </CardFooter>
                   </Card>
                </div>
