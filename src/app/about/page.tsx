@@ -4,8 +4,9 @@ import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Github, Globe, Mail, User } from "lucide-react";
+import { ArrowLeft, Github, Globe, Mail, User, Info, Smartphone, Monitor } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function AboutPage() {
   const router = useRouter();
@@ -71,18 +72,34 @@ export default function AboutPage() {
                 <p className="text-xs">Project Manager</p>
               </div>
 
-              <h3 className="text-foreground font-bold mt-6 mb-2">项目初衷</h3>
-              <p>
-                在快节奏的数字化时代，我们希望回归棋盘本身的宁静。无论是本地的潜心研磨，还是跨越网络的实时博弈，
-                WEIQI GO 都旨在提供最流畅、最符合直觉的操作体验。
-              </p>
+              <div className="mt-8 space-y-4">
+                <h3 className="text-foreground font-bold flex items-center gap-2">
+                  <Info className="h-5 w-5 text-blue-500" /> 如何测试连线功能？
+                </h3>
+                <Alert className="bg-blue-500/5 border-blue-500/20">
+                  <AlertTitle className="text-blue-600 font-bold">多开模拟测试指南</AlertTitle>
+                  <AlertDescription className="space-y-2 mt-2">
+                    <div className="flex items-start gap-2">
+                      <Monitor className="h-4 w-4 mt-1 shrink-0" />
+                      <p><strong>窗口 A (正常模式)</strong>: 进入竞技大厅，确保“接受邀请”开启。</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Smartphone className="h-4 w-4 mt-1 shrink-0" />
+                      <p><strong>窗口 B (无痕模式)</strong>: 打开另一个无痕窗口，这会为您分配一个新的独立棋手 ID。</p>
+                    </div>
+                    <p className="text-xs pt-2 border-t mt-2">
+                      在任意窗口的“活跃棋手”列表中找到另一个账号，发送挑战即可。对局采用 <strong>WebRTC P2P</strong> 技术，落子几乎零延迟。
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              </div>
 
               <h3 className="text-foreground font-bold mt-6 mb-2">核心特性</h3>
               <ul className="list-disc pl-5 space-y-1">
-                <li><strong>名局阅览</strong>：支持标准的 SGF 格式导入，线性复刻历史名局。</li>
-                <li><strong>双重规则</strong>：全面支持**中国规则**（数子法）与**日韩规则**（数目法），内置自动化结算引擎。</li>
-                <li><strong>持久身份</strong>：基于 LocalStorage 的本地身份标识，重启浏览器亦可延续博弈。</li>
-                <li><strong>竞技大厅</strong>：实时在线匹配与观战系统。</li>
+                <li><strong>WebRTC P2P 对弈</strong>：基于对等网络技术，落子直接点对点传输，降低 Firebase 读写消耗。</li>
+                <li><strong>名局阅览</strong>：支持标准的 SGF/GIB 格式导入，线性复刻历史名局。</li>
+                <li><strong>双重规则</strong>：全面支持**中国规则**（数子法）与**日韩规则**（数目法）。</li>
+                <li><strong>持久身份</strong>：基于设备指纹的本地身份标识，刷新页面亦可延续博弈。</li>
               </ul>
             </div>
 
