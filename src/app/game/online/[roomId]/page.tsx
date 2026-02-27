@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Radio, Calculator, Lock, Wifi, WifiOff, Save, Home, Hourglass, ShieldAlert } from 'lucide-react';
+import { Users, Swords, Loader2, Radio, Calculator, Lock, Wifi, WifiOff, Save, Home, Hourglass, ShieldAlert, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
@@ -52,7 +52,31 @@ export default function OnlineGamePage() {
   const isFinished = game?.status === 'finished';
   const isPending = game?.status === 'pending';
   const isInProgress = game?.status === 'in-progress';
+  const isDeclined = game?.status === 'finished' && game?.reason === 'declined';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
+
+  // 1. 处理邀请被拒绝的逻辑：立即切断连接并返回大厅
+  useEffect(() => {
+    if (isDeclined && isPlayer && !isSpectating) {
+      toast({
+        variant: "destructive",
+        title: "挑战被拒绝",
+        description: "对方已婉拒您的对局邀请。正在返回大厅...",
+      });
+      
+      // 立即销毁 Peer 释放资源，防止卡死
+      if (peer) {
+        peer.destroy();
+        setPeer(null);
+      }
+      
+      const timer = setTimeout(() => {
+        router.push('/game/online/lobby');
+      }, 2500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isDeclined, isPlayer, isSpectating, router, peer]);
 
   // Sync initial time from game doc
   useEffect(() => {
@@ -95,12 +119,15 @@ export default function OnlineGamePage() {
     return combined.sort((a, b) => (a.moveNumber || 0) - (b.moveNumber || 0));
   }, [firestoreMoves, localMoves]);
 
-  // Initialize WebRTC Peer
+  // 2. 初始化 WebRTC Peer (推迟到对局正式开始后，或仅在 Pending 阶段创建但不握手)
   useEffect(() => {
-    if (typeof window === 'undefined' || !roomId || !user || isSpectating || !isPlayer) return;
+    if (typeof window === 'undefined' || !roomId || !user || isSpectating || !isPlayer || isFinished) return;
 
     let peerInstance: Peer;
     import('peerjs').then(({ default: Peer }) => {
+      // 仅在非拒绝状态下创建
+      if (isDeclined) return;
+      
       peerInstance = new Peer();
       setPeer(peerInstance);
 
@@ -109,6 +136,12 @@ export default function OnlineGamePage() {
       });
 
       peerInstance.on('connection', (conn) => {
+        // 只有在进行中才接受连接
+        if (!isInProgress) {
+          conn.close();
+          return;
+        }
+
         conn.on('data', (data: any) => {
           if (data.type === 'move') {
             setLocalMoves(prev => [...prev, data.payload]);
@@ -126,11 +159,11 @@ export default function OnlineGamePage() {
       peerInstance?.destroy();
       connectionRef.current?.close();
     };
-  }, [roomId, user?.uid, isSpectating, isPlayer]);
+  }, [roomId, user?.uid, isSpectating, isPlayer, isFinished, isDeclined, isInProgress]);
 
   // Sync Peer ID to Firestore
   useEffect(() => {
-    if (!myPeerId || !game || !user || !db || isSpectating) return;
+    if (!myPeerId || !game || !user || !db || isSpectating || isFinished) return;
     
     const field = user.uid === game.playerBlackId ? 'playerBlackPeerId' : 'playerWhitePeerId';
     if (game[field] === myPeerId) return;
@@ -139,9 +172,9 @@ export default function OnlineGamePage() {
       [field]: myPeerId, 
       lastActivityAt: serverTimestamp() 
     }).catch(console.error);
-  }, [myPeerId, game?.playerBlackId, game?.playerWhiteId, user?.uid, db, isSpectating, roomId]);
+  }, [myPeerId, game?.playerBlackId, game?.playerWhiteId, user?.uid, db, isSpectating, roomId, isFinished]);
 
-  // Active Handshake
+  // 3. Active Handshake: 严格限制仅在 InProgress 且对方 Peer ID 存在时才建立
   useEffect(() => {
     if (!peer || !isInProgress || connectionRef.current || isSpectating || !user || !myPeerId) return;
 
@@ -161,7 +194,10 @@ export default function OnlineGamePage() {
         }
       });
       conn.on('close', () => setP2PStatus('disconnected'));
-      conn.on('error', () => setP2PStatus('disconnected'));
+      conn.on('error', () => {
+        setP2PStatus('disconnected');
+        connectionRef.current = null;
+      });
     }
   }, [peer, isInProgress, game?.playerWhitePeerId, game?.playerBlackPeerId, isSpectating, user?.uid, myPeerId]);
 
@@ -324,13 +360,31 @@ export default function OnlineGamePage() {
     );
   }
 
+  // 被拒绝时的视觉提示
+  if (isDeclined && !isSpectating) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <Card className="max-w-md w-full border-4 border-red-500 shadow-2xl p-8 text-center space-y-6">
+           <div className="mx-auto w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center">
+              <XCircle className="h-12 w-12 text-red-600" />
+           </div>
+           <div className="space-y-2">
+              <h2 className="text-2xl font-black font-headline text-foreground">对局已取消</h2>
+              <p className="text-muted-foreground">对方已婉拒了您的邀请。正在为您重回大厅...</p>
+           </div>
+           <Button variant="outline" className="w-full border-2" onClick={() => router.push('/game/online/lobby')}>立即返回</Button>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
          <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-500 font-headline">
            {isSpectating ? <Radio className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
            {isSpectating ? "观摩名局" : "在线连线对弈"}
-           {isFinished && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局结算完毕</Badge>}
+           {isFinished && !isDeclined && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局结算完毕</Badge>}
            {isPending && <Badge variant="outline" className="text-yellow-600 border-yellow-500 animate-pulse">等待对手确认</Badge>}
          </h1>
          <div className="flex flex-wrap items-center gap-3">
@@ -385,7 +439,7 @@ export default function OnlineGamePage() {
                </div>
             )}
             
-            {isFinished && !dismissGameOver && (
+            {isFinished && !dismissGameOver && !isDeclined && (
                <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg p-4 overflow-y-auto">
                   <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl animate-in zoom-in-95 duration-200">
                     <CardHeader className="bg-blue-600 text-white py-5 text-center">
