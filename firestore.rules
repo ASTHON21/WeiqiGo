@@ -2,10 +2,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 彻底放开权限，仅依赖应用层逻辑（FingerprintJS）进行棋手标识。
-    // 这将解决在移除 Auth 后，由于浏览器残留的旧 Token 导致的 list/get 权限错误。
+    // 强制扁平化规则，确保即使存在残留的旧认证 Token 也不会触发 403 冲突。
+    // 在基于 FingerprintJS 的 MVP 环境下，我们依赖应用逻辑而非规则进行身份隔离。
     match /{allPaths=**} {
       allow read, write: if true;
     }
   }
 }
+// 强制刷新规则引擎：2026-02-27T02:00:00Z

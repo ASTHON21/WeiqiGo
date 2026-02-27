@@ -18,7 +18,7 @@ export interface SessionUser {
 
 /**
  * React hook to manage a persistent player identity based on device fingerprint.
- * Decoupled from Firebase Auth to prevent permission conflicts.
+ * Completely decoupled from Firebase Auth.
  */
 export function useUser() {
   const { firestore, auth } = useFirebase();
@@ -30,7 +30,8 @@ export function useUser() {
 
     const initializeIdentity = async () => {
       try {
-        // 1. 强制清理任何残留的 Firebase Auth 会话，确保请求不携带过期的 Auth Context
+        // 1. 彻底清除残留的 Firebase Auth 会话，确保请求不携带任何过期 Token
+        // 这一步至关重要，防止无效 Token 干扰 Firestore 规则判定
         if (auth.currentUser) {
           await signOut(auth);
         }
@@ -40,7 +41,7 @@ export function useUser() {
         const result = await fp.get();
         const deviceId = result.visitorId;
 
-        // 3. 直接使用指纹 ID 作为用户 UID
+        // 3. 使用指纹 ID 作为用户唯一标识
         const userRef = doc(firestore, "userProfiles", deviceId);
         const userSnap = await getDoc(userRef);
 
@@ -49,7 +50,7 @@ export function useUser() {
           const lastLoginAt = data.lastLoginAt?.toDate ? data.lastLoginAt.toDate() : new Date(data.lastLoginAt);
           const now = new Date();
           
-          // 检查是否超过 3 天未活跃 (3 * 24 * 60 * 60 * 1000)
+          // 检查是否超过 3 天未活跃
           const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
           if (now.getTime() - lastLoginAt.getTime() > threeDaysInMs) {
             await deleteDoc(userRef);

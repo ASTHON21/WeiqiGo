@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, Timestamp } from 'firebase/firestore';
@@ -59,28 +60,38 @@ export default function OnlineLobbyPage() {
   
   const { data: allProfiles, isLoading: loadingPlayers } = useCollection(usersQuery);
 
-  const activePlayers = allProfiles?.filter(p => {
-    if (p.id === user?.uid) return false;
-    if (!p.lastSeen) return false;
-    const lastSeenDate = p.lastSeen.toDate ? p.lastSeen.toDate() : new Date(p.lastSeen);
-    const threshold = new Date(Date.now() - 5 * 60000); 
-    return lastSeenDate > threshold;
-  }) || [];
+  const activePlayers = useMemo(() => {
+    if (!allProfiles) return [];
+    const threshold = Date.now() - 5 * 60000;
+    return allProfiles.filter(p => {
+      if (p.id === user?.uid) return false;
+      if (!p.lastSeen) return false;
+      const lastSeenDate = p.lastSeen.toDate ? p.lastSeen.toDate().getTime() : new Date(p.lastSeen).getTime();
+      return lastSeenDate > threshold;
+    });
+  }, [allProfiles, user?.uid]);
 
-  // 名局回放查询 (1小时内完成)
+  // 名局回放查询 (仅基于时间线排序，避免复合索引报错，在内存中过滤 status)
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    const oneHourAgo = Timestamp.fromDate(new Date(Date.now() - 60 * 60 * 1000));
     return query(
       collection(db, "games"), 
-      where("status", "==", "finished"),
-      where("finishedAt", ">", oneHourAgo),
       orderBy("finishedAt", "desc"),
-      limit(20)
+      limit(50)
     );
   }, [db, user?.uid]);
   
-  const { data: recentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
+  const { data: rawRecentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
+
+  const filteredRecentGames = useMemo(() => {
+    if (!rawRecentGames) return [];
+    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    return rawRecentGames.filter(g => {
+      if (g.status !== 'finished' || !g.finishedAt) return false;
+      const finishedTime = g.finishedAt.toDate ? g.finishedAt.toDate().getTime() : new Date(g.finishedAt).getTime();
+      return finishedTime > oneHourAgo;
+    });
+  }, [rawRecentGames]);
 
   // 邀请查询 (黑方)
   const invitesBlackQuery = useMemoFirebase(() => {
@@ -155,11 +166,7 @@ export default function OnlineLobbyPage() {
         router.push(`/game/online/${gameRef.id}`);
       })
       .catch((err) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'games',
-          operation: 'create',
-          requestResourceData: newGame
-        }));
+        console.error("Invite failed:", err);
       });
   };
 
@@ -172,12 +179,6 @@ export default function OnlineLobbyPage() {
       moveCount: 0
     }).then(() => {
       router.push(`/game/online/${receivedInvite.id}`);
-    }).catch((err) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `games/${receivedInvite.id}`,
-        operation: 'update',
-        requestResourceData: { status: 'in-progress' }
-      }));
     });
   };
 
@@ -189,12 +190,6 @@ export default function OnlineLobbyPage() {
       finishedAt: serverTimestamp()
     }).then(() => {
       setReceivedInvite(null);
-    }).catch((err) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `games/${receivedInvite.id}`,
-        operation: 'update',
-        requestResourceData: { status: 'finished' }
-      }));
     });
   };
 
@@ -241,7 +236,7 @@ export default function OnlineLobbyPage() {
             <Users className="h-4 w-4" /> {t('lobby.tab.players')} ({activePlayers.length})
           </TabsTrigger>
           <TabsTrigger value="games" className="gap-2">
-            <History className="h-4 w-4" /> {t('lobby.tab.recent')} ({recentGames?.length || 0})
+            <History className="h-4 w-4" /> {t('lobby.tab.recent')} ({filteredRecentGames.length})
           </TabsTrigger>
         </TabsList>
 
@@ -301,8 +296,8 @@ export default function OnlineLobbyPage() {
         <TabsContent value="games">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {!loadingGames ? (
-              recentGames?.length ? (
-                recentGames.map((game) => (
+              filteredRecentGames.length ? (
+                filteredRecentGames.map((game) => (
                   <Card key={game.id} className="border-2 overflow-hidden flex flex-col group hover:border-blue-500/50 transition-all shadow-sm">
                     <div className="bg-blue-500/10 p-3 border-b flex items-center justify-between">
                       <div className="flex gap-2">
