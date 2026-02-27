@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -85,11 +86,11 @@ export default function OnlineGamePage() {
     }
   }, [isInProgress, isFinished, isSpectating, isPlayer, game?.currentTurn]);
 
-  // Firestore moves listener - This IS the synchronization mechanism (Zero cost, high reliability)
+  // Firestore moves listener
   const movesQuery = useMemoFirebase(() => {
-    if (!db || !roomId || !user) return null;
+    if (!db || !roomId || !user || !isInProgress && !isFinished) return null;
     return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
-  }, [db, roomId, user]);
+  }, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
 
   // Load Rules
@@ -152,7 +153,6 @@ export default function OnlineGamePage() {
       evaluation: 0.5,
     };
 
-    // Standard Firestore write - syncs to all listeners automatically
     addDoc(collection(db, `games/${roomId}/moves`), moveData).catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `games/${roomId}/moves`,
@@ -257,6 +257,33 @@ export default function OnlineGamePage() {
     );
   }
 
+  // Pre-game / Waiting Screen
+  if (isPending && !isSpectating) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background/95">
+        <div className="text-center space-y-8 max-w-sm px-6">
+          <div className="relative mx-auto w-32 h-32">
+             <Hourglass className="h-full w-full text-blue-500 animate-spin-slow opacity-20" />
+             <div className="absolute inset-0 flex items-center justify-center">
+                <Cloud className="h-12 w-12 text-blue-600 animate-pulse" />
+             </div>
+          </div>
+          <div className="space-y-3">
+            <h2 className="text-3xl font-black font-headline tracking-tight">建立云端通道中</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              正在等待对方确认应战。一旦连接建立，棋盘将自动同步为您开启。
+            </p>
+          </div>
+          <div className="pt-6">
+            <Button variant="outline" className="w-full h-12 font-bold border-2" onClick={() => router.push('/game/online/lobby')}>
+              取消并返回大厅
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -264,7 +291,6 @@ export default function OnlineGamePage() {
            {isSpectating ? <Cloud className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
            {isSpectating ? "云端名局观摩" : "在线同步对弈"}
            {isFinished && !isDeclined && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局结算完毕</Badge>}
-           {isPending && <Badge variant="outline" className="text-yellow-600 border-yellow-500 animate-pulse">等待对手确认</Badge>}
          </h1>
          <div className="flex flex-wrap items-center gap-3">
            {!isSpectating && !isFinished && isInProgress && (
@@ -290,23 +316,6 @@ export default function OnlineGamePage() {
               lastMove={moves?.length ? { r: moves[moves.length-1].coordinatesX, c: moves[moves.length-1].coordinatesY, player: moves[moves.length-1].playerColor } : null}
               moveSetting={moveSetting}
             />
-            
-            {isPending && !isSpectating && (
-               <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-[2px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted">
-                  <div className="text-center space-y-6 max-w-xs p-8">
-                     <div className="mx-auto w-20 h-20 bg-yellow-500/10 rounded-full flex items-center justify-center">
-                        <Hourglass className="h-10 w-10 text-yellow-600 animate-spin-slow" />
-                     </div>
-                     <div className="space-y-2">
-                        <h3 className="text-2xl font-black font-headline text-foreground">等待对手应战</h3>
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                          对局尚未正式开始。请等待对方接受挑战，系统将自动建立云端同步通道。
-                        </p>
-                     </div>
-                     <Button variant="outline" className="w-full border-2" onClick={() => router.push('/game/online/lobby')}>取消挑战并返回大厅</Button>
-                  </div>
-               </div>
-            )}
             
             {isFinished && !dismissGameOver && !isDeclined && (
                <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg p-4">

@@ -3,17 +3,17 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Bell, Hourglass } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Bell, Hourglass, XCircle, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -32,8 +32,10 @@ export default function OnlineLobbyPage() {
   const [selectedRule, setSelectedRule] = useState<string>("chinese");
   const [opponentColor, setOpponentColor] = useState<'black' | 'white'>('white');
   const [receivedInvite, setReceivedInvite] = useState<any>(null);
+  const [pendingGameId, setPendingGameId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
+  // Heartbeat and Status Sync
   useEffect(() => {
     if (!user?.uid || !db) return;
     const updateStatus = async () => {
@@ -49,6 +51,7 @@ export default function OnlineLobbyPage() {
     return () => clearInterval(heartbeat);
   }, [user?.uid, db, acceptInvites]);
 
+  // Player List
   const usersQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(50));
@@ -66,6 +69,7 @@ export default function OnlineLobbyPage() {
     });
   }, [allProfiles, user?.uid]);
 
+  // Recent Replays (1h)
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     const oneHourAgo = Timestamp.fromDate(new Date(Date.now() - 60 * 60 * 1000));
@@ -76,15 +80,13 @@ export default function OnlineLobbyPage() {
       limit(20)
     );
   }, [db]);
-  
   const { data: allRecentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
-
   const filteredRecentGames = useMemo(() => {
     if (!allRecentGames) return [];
     return allRecentGames.filter(g => g.status === 'finished' && g.reason !== 'declined');
   }, [allRecentGames]);
 
-  // Directed Invite Listeners
+  // Incoming Invites
   const invitesBlackQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(collection(db, "games"), where("status", "==", "pending"), where("playerBlackId", "==", user.uid));
@@ -93,7 +95,6 @@ export default function OnlineLobbyPage() {
     if (!db || !user?.uid) return null;
     return query(collection(db, "games"), where("status", "==", "pending"), where("playerWhiteId", "==", user.uid));
   }, [db, user?.uid]);
-  
   const { data: invitesBlack } = useCollection(invitesBlackQuery);
   const { data: invitesWhite } = useCollection(invitesWhiteQuery);
 
@@ -107,6 +108,21 @@ export default function OnlineLobbyPage() {
       setReceivedInvite(null);
     }
   }, [invitesBlack, invitesWhite, user?.uid, receivedInvite]);
+
+  // Outgoing Invitation Status Watcher
+  const { data: pendingGameData } = useDoc(pendingGameId ? doc(db, "games", pendingGameId) : null);
+  useEffect(() => {
+    if (!pendingGameData) return;
+    
+    if (pendingGameData.status === 'in-progress') {
+      toast({ title: "对手已应战", description: "建立同步通道中..." });
+      router.push(`/game/online/${pendingGameId}`);
+      setPendingGameId(null);
+    } else if (pendingGameData.status === 'finished' && pendingGameData.reason === 'declined') {
+      toast({ variant: "destructive", title: "挑战被拒绝", description: "对方目前无法进行对局。" });
+      setPendingGameId(null);
+    }
+  }, [pendingGameData, pendingGameId, router]);
 
   const handleInviteClick = (id: string, name: string, isAccepting: boolean) => {
     if (!isAccepting) {
@@ -145,22 +161,18 @@ export default function OnlineLobbyPage() {
     };
 
     addDoc(collection(db, "games"), newGame).then((gameRef) => {
-      toast({ title: "挑战书已送达", description: `等待 ${invitingPlayer.name} 开启对局...` });
+      setPendingGameId(gameRef.id);
       setInvitingPlayer(null);
-      router.push(`/game/online/${gameRef.id}`);
     }).catch(console.error);
   };
 
   const handleAcceptInvite = async () => {
     if (!receivedInvite || !db) return;
-    
     await updateDoc(doc(db, "games", receivedInvite.id), {
       status: 'in-progress',
       startedAt: serverTimestamp(),
       lastActivityAt: serverTimestamp()
     });
-
-    toast({ title: "挑战已接受", description: "建立同步通道中..." });
     router.push(`/game/online/${receivedInvite.id}`);
   };
 
@@ -172,7 +184,7 @@ export default function OnlineLobbyPage() {
       finishedAt: serverTimestamp()
     }).then(() => {
       setReceivedInvite(null);
-    }).catch(console.error);
+    });
   };
 
   const formatDuration = (seconds: number = 0) => {
@@ -344,11 +356,43 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Outgoing Invite Pending Modal */}
+      <Dialog open={!!pendingGameId} onOpenChange={(open) => !open && setPendingGameId(null)}>
+        <DialogContent className="sm:max-w-md border-4 border-yellow-500 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle>正在等待应战</DialogTitle>
+            <DialogDescription>
+              您的挑战书已送达。对方接受后，系统将自动为您开启云端同步棋盘。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-12 flex flex-col items-center justify-center space-y-6">
+            <div className="relative">
+              <Hourglass className="h-16 w-16 text-yellow-600 animate-spin-slow" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                 <div className="w-8 h-8 rounded-full bg-yellow-500/20 animate-ping" />
+              </div>
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-lg font-bold">挑战已发出...</p>
+              <p className="text-xs text-muted-foreground">请不要关闭此窗口，直到对手做出响应。</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="w-full h-11 border-2" onClick={() => setPendingGameId(null)}>
+              取消挑战
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Received Invite Modal */}
       <Dialog open={!!receivedInvite} onOpenChange={(open) => !open && handleDeclineInvite()}>
         <DialogContent className="sm:max-w-md border-4 border-blue-600 shadow-2xl">
           <DialogHeader>
             <DialogTitle>收到对局挑战</DialogTitle>
+            <DialogDescription>
+              来自其他棋手的在线博弈邀请。
+            </DialogDescription>
           </DialogHeader>
           <div className="py-6 space-y-6">
             <div className="flex items-center gap-4 bg-blue-500/5 p-4 rounded-xl border border-blue-500/20">
@@ -373,11 +417,14 @@ export default function OnlineLobbyPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Sending Invite Modal */}
+      {/* Sending Invite Modal (Config) */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
         <DialogContent className="sm:max-w-md border-2">
           <DialogHeader>
-            <DialogTitle>发起对局挑战</DialogTitle>
+            <DialogTitle>配置挑战参数</DialogTitle>
+            <DialogDescription>
+              为这场博弈选择合适的难度与规则。
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="space-y-3">
