@@ -135,7 +135,7 @@ export default function OnlineGamePage() {
     }
   }, [game?.rules, language]);
 
-  // 关键修复：重新计算棋盘时统计提子
+  // 计算棋盘与提子
   const { board, prisoners } = useMemo(() => {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
     let p = { black: 0, white: 0 };
@@ -251,7 +251,6 @@ export default function OnlineGamePage() {
     }
 
     if (isConsecutivePass) {
-      // 关键修复：结束时计算最终得分并同步云端
       const ruleType = game.rules as 'chinese' | 'territory';
       const score = ruleType === 'chinese' 
         ? GoLogic.calculateChineseScore(board)
@@ -299,7 +298,6 @@ export default function OnlineGamePage() {
   const saveToLocalHistory = () => {
     if (!game || !moves || isSaved) return;
 
-    // 如果对局已结束但云端还没更新好结果，本地尝试计算一次
     const ruleType = game.rules as 'chinese' | 'territory';
     const score = game.result?.blackScore !== undefined ? game.result : (
       ruleType === 'chinese' 
@@ -364,7 +362,7 @@ export default function OnlineGamePage() {
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-         <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-500">
+         <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-500 font-headline">
            {isSpectating ? <Radio className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
            {isSpectating ? "正在观战" : "在线对局"}
            {isFinished && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局已结束</Badge>}
@@ -404,39 +402,39 @@ export default function OnlineGamePage() {
             )}
             
             {isFinished && !dismissGameOver && (
-               <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg">
-                  <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl overflow-hidden">
-                    <CardHeader className="bg-blue-500 text-white py-4">
-                      <CardTitle className="flex items-center justify-center gap-2 text-xl">
-                        <Calculator className="h-6 w-6" /> 对局已结束
+               <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg p-4">
+                  <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                    <CardHeader className="bg-blue-500 text-white py-4 text-center">
+                      <CardTitle className="flex items-center justify-center gap-2 text-xl font-headline uppercase tracking-tight">
+                        <Calculator className="h-6 w-6" /> 对局结算报告
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-6 text-center space-y-4">
-                       <h2 className="text-2xl font-black">对局圆满结束</h2>
+                    <CardContent className="p-8 text-center space-y-6">
+                       <h2 className="text-3xl font-black font-headline">对局圆满结束</h2>
                        {game.result?.winner && (
-                         <div className="p-3 bg-blue-50 rounded-lg border-2 border-blue-200">
-                            <p className="text-sm font-bold text-blue-600">最终比分</p>
-                            <p className="text-lg font-black">
+                         <div className="p-5 bg-blue-500/5 rounded-xl border-2 border-blue-500/20 space-y-2">
+                            <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">最终判定结果</p>
+                            <p className="text-2xl font-black font-headline text-foreground">
                               {game.result.winner === 'black' ? '黑方胜' : '白方胜'} {Math.abs((game.result.blackScore || 0) - (game.result.whiteScore || 0)).toFixed(1)} 目
                             </p>
                          </div>
                        )}
-                       <p className="text-sm text-muted-foreground leading-relaxed">
-                         双方棋手已达成共识。您可以选择保存记录或留在页面继续查看棋局。
+                       <p className="text-sm text-muted-foreground leading-relaxed px-2">
+                         恭喜两位选手完成本局博弈。所有的落子记录已永久存档，您可以选择保存至本地或留在房间内进行复盘。
                        </p>
                     </CardContent>
-                    <CardFooter className="flex flex-wrap gap-3 bg-muted/30 p-4">
+                    <CardFooter className="flex flex-wrap gap-3 bg-muted/30 p-4 border-t">
                        <Button variant="ghost" className="flex-1 min-w-[120px] h-12 font-bold gap-2" onClick={() => router.push('/')}>
                          <Home className="h-4 w-4" /> 返回主页
                        </Button>
-                       <Button variant="outline" className="flex-1 min-w-[120px] h-12 font-bold" onClick={() => setDismissGameOver(true)}>
-                         留在房内观摩
+                       <Button variant="outline" className="flex-1 min-w-[120px] h-12 font-bold border-2" onClick={() => setDismissGameOver(true)}>
+                         留在房内复盘
                        </Button>
                        <Button variant="secondary" className="flex-1 min-w-[120px] h-12 font-bold gap-2" onClick={saveToLocalHistory} disabled={isSaved}>
                          <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存记录'}
                        </Button>
                        <Button className="flex-1 min-w-[120px] h-12 font-bold bg-blue-600 hover:bg-blue-700" onClick={() => router.push('/game/online/lobby')}>
-                         返回大厅
+                         返回竞技大厅
                        </Button>
                     </CardFooter>
                   </Card>
@@ -471,29 +469,30 @@ export default function OnlineGamePage() {
           </Card>
 
           {!isFinished && (
-            <div className="p-4 bg-muted/50 rounded-lg border-2 text-center">
-              <p className="text-xs text-muted-foreground uppercase font-bold mb-1">当前回合</p>
-              <div className="text-lg font-black flex items-center justify-center gap-2">
-                <div className={cn("w-3 h-3 rounded-full border", game?.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
-                {game?.currentTurn === 'black' ? '黑方落子' : '白方落子'}
+            <div className="p-4 bg-muted/50 rounded-lg border-2 text-center border-blue-500/20 shadow-inner">
+              <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1 tracking-wider">当前落子方</p>
+              <div className="text-lg font-black flex items-center justify-center gap-2 font-headline">
+                <div className={cn("w-3 h-3 rounded-full border shadow-sm", game?.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
+                {game?.currentTurn === 'black' ? '黑方回合' : '白方回合'}
               </div>
             </div>
           )}
 
           <Sheet>
             <SheetTrigger asChild>
-              <Card className="border-2 cursor-pointer hover:bg-muted/50 transition-colors">
+              <Card className="border-2 cursor-pointer hover:bg-muted/50 transition-colors group">
                 <CardContent className="p-4 flex items-center justify-between">
                    <div className="flex items-center gap-2">
-                      <Book className="h-4 w-4 text-accent" />
+                      <Book className="h-4 w-4 text-accent group-hover:scale-110 transition-transform" />
                       <span className="text-sm font-bold">查阅竞赛规则</span>
                    </div>
+                   <Badge variant="outline" className="text-[10px]">Rulebook</Badge>
                 </CardContent>
               </Card>
             </SheetTrigger>
             <SheetContent side="right" className="w-full md:max-w-[90vw] lg:max-w-[1200px]">
               <SheetHeader>
-                <SheetTitle>{game?.rules === 'chinese' ? '中国围棋竞赛规则' : '日韩规则目数计算法'}</SheetTitle>
+                <SheetTitle className="font-headline">{game?.rules === 'chinese' ? '中国围棋竞赛规则' : '日韩规则目数计算法'}</SheetTitle>
               </SheetHeader>
               <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
                 <div className="prose prose-sm dark:prose-invert max-w-none">

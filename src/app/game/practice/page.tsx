@@ -263,60 +263,60 @@ export default function PracticePage() {
       </div>
 
       <AlertDialog open={!!scoreResult} onOpenChange={(open) => !open && setScoreResult(null)}>
-        <AlertDialogContent className="max-w-md">
+        <AlertDialogContent className="max-w-md border-4 border-primary">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-xl">
+            <AlertDialogTitle className="flex items-center gap-2 text-xl font-headline">
               <Calculator className="h-6 w-6 text-blue-500" /> {scoreResult?.ruleName} 结算结果
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-4 pt-4 text-sm text-muted-foreground">
+              <div className="space-y-4 pt-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-lg bg-black/5 border text-center space-y-1">
+                  <div className="p-4 rounded-lg bg-black/5 border-2 text-center space-y-1">
                     <p className="text-[10px] font-bold uppercase text-muted-foreground">黑方总点数</p>
-                    <p className="text-3xl font-black">{scoreResult?.blackTotal.toFixed(1)}</p>
+                    <p className="text-3xl font-black text-foreground font-headline">{scoreResult?.blackTotal.toFixed(1)}</p>
                   </div>
-                  <div className="p-4 rounded-lg bg-black/5 border text-center space-y-1">
+                  <div className="p-4 rounded-lg bg-black/5 border-2 text-center space-y-1">
                     <p className="text-[10px] font-bold uppercase text-muted-foreground">白方总点数</p>
-                    <p className="text-3xl font-black">{scoreResult?.whiteTotal.toFixed(1)}</p>
+                    <p className="text-3xl font-black text-foreground font-headline">{scoreResult?.whiteTotal.toFixed(1)}</p>
                   </div>
                 </div>
 
                 {scoreResult?.details && (
-                  <div className="bg-muted/30 p-4 rounded-lg space-y-2 text-foreground">
-                    <p className="text-xs font-bold border-b pb-1 flex items-center gap-1">
-                      <Info className="h-3 w-3" /> 数目详情 (Territory Calculation)
+                  <div className="bg-muted/40 p-4 rounded-lg space-y-2 border">
+                    <p className="text-xs font-bold border-b pb-1 flex items-center gap-1 text-foreground">
+                      <Info className="h-3 w-3" /> 数目详情 (Scoring Details)
                     </p>
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[11px]">
-                        <div className="flex justify-between"><span>黑方围空:</span> <span>{scoreResult.details.blackTerritory}目</span></div>
-                        <div className="flex justify-between"><span>白方围空:</span> <span>{scoreResult.details.whiteTerritory}目</span></div>
-                        <div className="flex justify-between text-red-500"><span>黑被提子:</span> <span>-{scoreResult.details.blackPrisoners}子</span></div>
-                        <div className="flex justify-between text-red-500"><span>白被提子:</span> <span>-{scoreResult.details.whitePrisoners}子</span></div>
-                        <div className="flex justify-between text-red-600"><span>黑棋死子:</span> <span>-{scoreResult.details.blackDeadOnBoard}子</span></div>
-                        <div className="flex justify-between text-red-600"><span>白棋死子:</span> <span>-{scoreResult.details.whiteDeadOnBoard}子</span></div>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-1.5 text-[11px] font-medium text-muted-foreground">
+                        <div className="flex justify-between"><span>黑方围空:</span> <span className="text-foreground">{scoreResult.details.blackTerritory}目</span></div>
+                        <div className="flex justify-between"><span>白方围空:</span> <span className="text-foreground">{scoreResult.details.whiteTerritory}目</span></div>
+                        <div className="flex justify-between text-red-600/80"><span>黑被提子:</span> <span>-{scoreResult.details.blackPrisoners}子</span></div>
+                        <div className="flex justify-between text-red-600/80"><span>白被提子:</span> <span>-{scoreResult.details.whitePrisoners}子</span></div>
+                        <div className="flex justify-between text-red-700/80"><span>黑棋死子:</span> <span>-{scoreResult.details.blackDeadOnBoard}子</span></div>
+                        <div className="flex justify-between text-red-700/80"><span>白棋死子:</span> <span>-{scoreResult.details.whiteDeadOnBoard}子</span></div>
                     </div>
                   </div>
                 )}
 
-                <div className="p-4 rounded-lg bg-blue-500/5 border-2 border-blue-500/20 text-center">
-                  <p className="text-sm font-bold text-blue-600 mb-1">胜负判定 (含贴目 {scoreResult?.komi})</p>
-                  <h3 className="text-2xl font-black text-blue-700">
+                <div className="p-4 rounded-lg bg-blue-500/10 border-2 border-blue-500/30 text-center">
+                  <p className="text-xs font-bold text-blue-600 mb-1 uppercase tracking-wider">最终胜负 (含贴目 {scoreResult?.komi})</p>
+                  <h3 className="text-3xl font-black text-blue-700 font-headline">
                     {scoreResult?.winner === 'black' ? '黑方胜' : '白方胜'} {scoreResult?.diff.toFixed(1)} 目
                   </h3>
                 </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="ghost" className="w-full sm:w-auto gap-2" onClick={() => router.push('/')}>
+          <AlertDialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
+            <Button variant="ghost" className="w-full sm:w-auto gap-2 h-11 font-bold" onClick={() => router.push('/')}>
               <Home className="h-4 w-4" /> 返回主页
             </Button>
-            <AlertDialogCancel className="w-full sm:w-auto mt-0" onClick={() => setScoreResult(null)}>
+            <AlertDialogCancel className="w-full sm:w-auto mt-0 h-11 font-bold border-2" onClick={() => setScoreResult(null)}>
               继续查看棋盘
             </AlertDialogCancel>
-            <Button variant="outline" className="w-full sm:w-auto gap-2 border-blue-500 text-blue-600 hover:bg-blue-50" onClick={saveToLocalHistory} disabled={isSaved}>
-              <Save className="h-4 w-4" /> {isSaved ? '记录已保存' : '保存棋谱到本地'}
+            <Button variant="outline" className="w-full sm:w-auto gap-2 h-11 font-bold border-blue-500 text-blue-600 hover:bg-blue-50" onClick={saveToLocalHistory} disabled={isSaved}>
+              <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存记录'}
             </Button>
-            <AlertDialogAction className="w-full sm:w-auto" onClick={handleReset}>
+            <AlertDialogAction className="w-full sm:w-auto h-11 font-bold bg-primary hover:bg-primary/90" onClick={handleReset}>
               重置对局
             </AlertDialogAction>
           </AlertDialogFooter>
