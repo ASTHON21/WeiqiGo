@@ -74,55 +74,81 @@ export const GoLogic = {
     calculateChineseScore: (board: BoardState) => {
         const size = board.length;
         const totalPoints = size * size;
-        const KOMI = 3.75; 
+        const halfPoints = totalPoints / 2;
+        
+        // 根据棋盘大小设置贴子 (Komi in Zi)
+        let KOMI = 3.75; 
+        if (size === 13) KOMI = 3.25;
+        if (size === 9) KOMI = 2.75;
+
+        // 1. 识别并清理死子
+        const allGroups = GoLogic.getAllGroups(board);
+        const countingBoard = board.map(row => [...row]);
+        allGroups.forEach(group => {
+            if (!GoLogic.isGroupAlive(board, group)) {
+                group.positions.forEach(([r, c]) => {
+                    countingBoard[r][c] = null;
+                });
+            }
+        });
         
         let blackStones = 0;
         let visited = new Set<string>();
         
-        // 1. 数活子
+        // 2. 数活子
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
-                if (board[r][c] === 'black') blackStones++;
+                if (countingBoard[r][c] === 'black') blackStones++;
             }
         }
 
-        // 2. 数围空 (洪水填充)
+        // 3. 数围空 (包含公气平分)
         let blackTerritory = 0;
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
                 const key = `${r},${c}`;
-                if (board[r][c] === null && !visited.has(key)) {
-                    const { points, owner } = GoLogic.findEnclosedArea(board, r, c, visited);
-                    if (owner === 'black') blackTerritory += points.length;
-                    else if (owner === 'seki') blackTerritory += points.length / 2; // 中国规则公气折半
+                if (countingBoard[r][c] === null && !visited.has(key)) {
+                    const { points, owner } = GoLogic.findEnclosedArea(countingBoard, r, c, visited);
+                    if (owner === 'black') {
+                        blackTerritory += points.length;
+                    } else if (owner === 'seki') {
+                        // 中国规则：双活公气双方平分
+                        blackTerritory += points.length / 2;
+                    }
                 }
             }
         }
 
         const blackTotal = blackStones + blackTerritory;
         const whiteTotal = totalPoints - blackTotal;
-        const diff = blackTotal - (totalPoints / 2 + KOMI);
-        const winner = diff > 0 ? 'black' : 'white';
+        const winThreshold = halfPoints + KOMI;
+        
+        const diff = blackTotal - winThreshold;
+        const winner = diff >= 0 ? 'black' : 'white';
 
         return {
             blackTotal,
             whiteTotal,
-            komi: `${KOMI}子 (7.5目)`,
+            komi: `${KOMI}子 (约${KOMI * 2}目)`,
             winner,
-            diff: Math.abs(diff)
+            diff: Math.abs(diff),
+            details: {
+                blackStones,
+                blackTerritory,
+                totalPoints,
+                halfPoints,
+                komiZi: KOMI
+            }
         };
     },
 
     /**
      * 日韩规则数目法 (Territory Based Counting)
-     * 重塑逻辑：严格遵循 ZH-TBC.md 
-     * 胜负 = (黑方围空 - 白提黑子 - 黑死子) - (白方围空 - 黑提白子 - 白死子) - 贴目
      */
     calculateJapaneseScore: (board: BoardState, blackPrisoners: number, whitePrisoners: number) => {
         const size = board.length;
         const KOMI = 6.5; 
 
-        // 1. 识别棋盘死子 (死子定义：终局时没有呼吸点且无法做出两眼的棋块)
         const allGroups = GoLogic.getAllGroups(board);
         const deadStones = { black: 0, white: 0 };
         const liveBoard = board.map(row => [...row]);
@@ -131,12 +157,11 @@ export const GoLogic = {
             if (!GoLogic.isGroupAlive(board, group)) {
                 group.positions.forEach(([r, c]) => {
                     deadStones[group.player as 'black' | 'white']++;
-                    liveBoard[r][c] = null; // 围空计算时将其视为虚空
+                    liveBoard[r][c] = null;
                 });
             }
         });
 
-        // 2. 计算领地 (洪水填充)
         let blackTerritory = 0;
         let whiteTerritory = 0;
         let visited = new Set<string>();
@@ -148,14 +173,10 @@ export const GoLogic = {
                     const { points, owner } = GoLogic.findEnclosedArea(liveBoard, r, c, visited);
                     if (owner === 'black') blackTerritory += points.length;
                     if (owner === 'white') whiteTerritory += points.length;
-                    // owner === 'seki' 时公气计为0，符合日韩规则
                 }
             }
         }
 
-        // 3. 应用日韩规则公式
-        // blackPrisoners: 白方提掉的黑子数 (白方的战果)
-        // whitePrisoners: 黑方提掉的白子数 (黑方的战果)
         const blackFinal = blackTerritory - blackPrisoners - deadStones.black;
         const whiteFinal = whiteTerritory - whitePrisoners - deadStones.white;
 
@@ -171,8 +192,8 @@ export const GoLogic = {
             details: {
                 blackTerritory,
                 whiteTerritory,
-                blackPrisoners: blackPrisoners, // 对方俘子
-                whitePrisoners: whitePrisoners,
+                blackPrisoners,
+                whitePrisoners,
                 blackDeadOnBoard: deadStones.black,
                 whiteDeadOnBoard: deadStones.white,
                 komi: KOMI
@@ -182,16 +203,12 @@ export const GoLogic = {
 
     /**
      * 判断棋块是否活棋
-     * 物理活棋定义：终局时拥有至少 1 口气即视为存活 (假设单官已填满)
      */
     isGroupAlive: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
         const [r, c] = group.positions[0];
         const liberties = GoLogic.calculateLiberties(board, r, c);
         
-        // 只要有呼吸点，在自动结算中即为活棋
         if (liberties > 0) return true;
-
-        // 无呼吸点时检查是否为特殊双活状态
         return GoLogic.checkSekiSimple(board, group);
     },
 
@@ -204,7 +221,6 @@ export const GoLogic = {
         group.positions.forEach(([r, c]) => {
             [[r-1, c], [r+1, c], [r, c-1], [r, c+1]].forEach(([nr, nc]) => {
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
-                    // 如果邻居是空位（公气），则有双活可能
                     if (board[nr][nc] === null) isSeki = true;
                 }
             });
