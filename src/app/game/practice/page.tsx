@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { usePracticeGame } from '@/hooks/usePracticeGame';
 import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Save } from 'lucide-react';
+import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Save, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -30,6 +30,7 @@ import { MoveSetting, GameHistoryEntry } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
 
 export default function PracticePage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const size = parseInt(searchParams.get('size') || '19');
   const initialRule = (searchParams.get('rule') as 'chinese' | 'territory') || 'chinese';
@@ -306,7 +307,10 @@ export default function PracticePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel className="w-full sm:w-auto" onClick={() => setScoreResult(null)}>
+            <Button variant="ghost" className="w-full sm:w-auto gap-2" onClick={() => router.push('/')}>
+              <Home className="h-4 w-4" /> 返回主页
+            </Button>
+            <AlertDialogCancel className="w-full sm:w-auto mt-0" onClick={() => setScoreResult(null)}>
               继续查看棋盘
             </AlertDialogCancel>
             <Button variant="outline" className="w-full sm:w-auto gap-2 border-blue-500 text-blue-600 hover:bg-blue-50" onClick={saveToLocalHistory} disabled={isSaved}>

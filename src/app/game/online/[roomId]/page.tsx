@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, Wifi, WifiOff, Save } from 'lucide-react';
+import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, Wifi, WifiOff, Save, Home } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -425,14 +425,17 @@ export default function OnlineGamePage() {
                          双方棋手已达成共识。您可以选择保存记录或留在页面继续查看棋局。
                        </p>
                     </CardContent>
-                    <CardFooter className="flex flex-col sm:flex-row gap-3 bg-muted/30 p-4">
-                       <Button variant="outline" className="flex-1 h-12 font-bold" onClick={() => setDismissGameOver(true)}>
+                    <CardFooter className="flex flex-wrap gap-3 bg-muted/30 p-4">
+                       <Button variant="ghost" className="flex-1 min-w-[120px] h-12 font-bold gap-2" onClick={() => router.push('/')}>
+                         <Home className="h-4 w-4" /> 返回主页
+                       </Button>
+                       <Button variant="outline" className="flex-1 min-w-[120px] h-12 font-bold" onClick={() => setDismissGameOver(true)}>
                          留在房内观摩
                        </Button>
-                       <Button variant="secondary" className="flex-1 h-12 font-bold gap-2" onClick={saveToLocalHistory} disabled={isSaved}>
+                       <Button variant="secondary" className="flex-1 min-w-[120px] h-12 font-bold gap-2" onClick={saveToLocalHistory} disabled={isSaved}>
                          <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存记录'}
                        </Button>
-                       <Button className="flex-1 h-12 font-bold bg-blue-600 hover:bg-blue-700" onClick={() => router.push('/game/online/lobby')}>
+                       <Button className="flex-1 min-w-[120px] h-12 font-bold bg-blue-600 hover:bg-blue-700" onClick={() => router.push('/game/online/lobby')}>
                          返回大厅
                        </Button>
                     </CardFooter>
