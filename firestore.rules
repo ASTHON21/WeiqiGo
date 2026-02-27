@@ -1,36 +1,30 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 校验函数：检查用户是否已通过身份验证（支持匿名登录）
-    function isAuthenticated() {
-      return request.auth != null && request.auth.uid != null;
-    }
+    // 移除 Firebase Auth 依赖后，为了支持 FingerprintJS 标识
+    // 针对原型阶段，我们允许所有请求进行读写。
+    // 在生产环境下，应通过后端验证或自定义 Token 强化安全。
 
-    // 校验函数：检查是否是用户本人在操作
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    // 用户档案：所有人可读（用于大厅显示），本人可写
     match /userProfiles/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isOwner(userId);
+      allow read, write: if true;
     }
 
-    // 对局数据：为了支持大厅列表及 P2P 信令交换
-    // 使用更扁平的结构避免嵌套冲突
     match /games/{gameId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
       
-      // 子集合落子记录：明确授权
       match /moves/{moveId} {
-        allow read, write: if isAuthenticated();
+        allow read, write: if true;
       }
       
-      // 捕获所有其他可能的子路径
       match /{allPaths=**} {
-        allow read, write: if isAuthenticated();
+        allow read, write: if true;
       }
+    }
+
+    // 允许对所有集合进行查询（list 操作）
+    match /{allPaths=**} {
+      allow read, write: if true;
     }
   }
 }
