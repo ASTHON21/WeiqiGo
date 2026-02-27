@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -13,7 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, User, Wifi, WifiOff, Clock, Trophy, History } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Bell } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -66,18 +65,30 @@ export default function OnlineLobbyPage() {
     });
   }, [allProfiles, user?.uid]);
 
+  // 修复：移除复合索引依赖
+  // 原本 where("status") + orderBy("finishedAt") 需要手动配置索引
+  // 现在只按时间排序，在前端进行状态和时间窗口过滤
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     return query(
       collection(db, "games"), 
-      where("status", "==", "finished"),
-      where("finishedAt", ">=", Timestamp.fromDate(oneHourAgo)),
       orderBy("finishedAt", "desc"), 
-      limit(50)
+      limit(100) // 获取更多记录供前端过滤
     );
   }, [db, user?.uid]);
-  const { data: filteredRecentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
+  
+  const { data: allRecentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
+
+  const filteredRecentGames = useMemo(() => {
+    if (!allRecentGames) return [];
+    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    return allRecentGames.filter(g => {
+      // 仅保留 1 小时内完赛的对局
+      if (g.status !== 'finished' || !g.finishedAt) return false;
+      const finishedTime = g.finishedAt.toDate ? g.finishedAt.toDate().getTime() : new Date(g.finishedAt).getTime();
+      return finishedTime >= oneHourAgo;
+    });
+  }, [allRecentGames]);
 
   const invitesBlackQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
