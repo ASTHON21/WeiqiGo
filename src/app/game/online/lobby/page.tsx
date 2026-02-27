@@ -1,17 +1,18 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/dialog";
+import { RadioGroup, RadioGroupItem } from "@/radio-group";
+import { Label } from "@/label";
 import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, User, Wifi, WifiOff, Clock, Trophy, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -33,7 +34,7 @@ export default function OnlineLobbyPage() {
   const [receivedInvite, setReceivedInvite] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // 定时发送心跳，标记玩家在线
+  // 定时发送心跳
   useEffect(() => {
     if (!user?.uid || !db) return;
 
@@ -43,11 +44,7 @@ export default function OnlineLobbyPage() {
         lastSeen: serverTimestamp(),
         acceptingInvites: acceptInvites
       }).then(() => setIsConnected(true))
-        .catch(async (err) => {
-          setIsConnected(false);
-          // 仅记录到控制台，不抛出 permission-error 避免干扰大厅 UI
-          console.warn("Heartbeat update failed:", err);
-        });
+        .catch(() => setIsConnected(false));
     };
 
     updateStatus();
@@ -55,7 +52,7 @@ export default function OnlineLobbyPage() {
     return () => clearInterval(heartbeat);
   }, [user?.uid, db, acceptInvites]);
 
-  // 监听活跃棋手 (5分钟内有活跃心跳)
+  // 活跃棋手查询
   const usersQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(50));
@@ -71,10 +68,11 @@ export default function OnlineLobbyPage() {
     return lastSeenDate > threshold;
   }) || [];
 
-  // 监听最近 1 小时内完成的名局
+  // 名局回放查询 (1小时内完成)
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    // 使用 Timestamp.fromDate 确保查询精确度，防止 73 小时僵尸数据漏网
+    const oneHourAgo = Timestamp.fromDate(new Date(Date.now() - 60 * 60 * 1000));
     return query(
       collection(db, "games"), 
       where("status", "==", "finished"),
@@ -86,7 +84,7 @@ export default function OnlineLobbyPage() {
   
   const { data: recentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
 
-  // 监听受到的挑战请求 (执黑)
+  // 邀请查询 (黑方)
   const invitesBlackQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(
@@ -96,7 +94,7 @@ export default function OnlineLobbyPage() {
     );
   }, [db, user?.uid]);
 
-  // 监听受到的挑战请求 (执白)
+  // 邀请查询 (白方)
   const invitesWhiteQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(
@@ -120,11 +118,7 @@ export default function OnlineLobbyPage() {
 
   const handleInviteClick = (id: string, name: string, isAccepting: boolean) => {
     if (!isAccepting) {
-      toast({
-        variant: "destructive",
-        title: "无法邀请",
-        description: `${name} 当前不接受邀请。`,
-      });
+      toast({ variant: "destructive", title: "无法邀请", description: `${name} 当前不接受邀请。` });
       return;
     }
     setInvitingPlayer({ id, name });
@@ -229,7 +223,6 @@ export default function OnlineLobbyPage() {
                   棋手: <span className="font-mono text-foreground font-bold">{user?.displayName}</span>
                 </span>
              </div>
-
              <div className="flex items-center gap-2">
                 <Badge variant={acceptInvites ? "outline" : "destructive"} className="h-7 px-3 border-2">
                     {acceptInvites ? "等待对局" : "暂不接受挑战"}
@@ -256,119 +249,115 @@ export default function OnlineLobbyPage() {
 
         <TabsContent value="players">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {loadingPlayers ? (
-              Array(6).fill(0).map((_, i) => (
-                <Card key={i} className="animate-pulse bg-muted/20 border-2 h-24" />
-              ))
-            ) : activePlayers.length > 0 ? (
-              activePlayers.map((player) => {
-                const isAccepting = player.acceptingInvites !== false;
-                return (
-                  <Card key={player.id} className={cn("border-2 transition-all group", isAccepting ? "hover:border-blue-500/50 shadow-sm" : "opacity-60 grayscale-[0.5]")}>
-                    <CardContent className="p-6 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <Avatar className="h-12 w-12 border-2 border-blue-500/30">
-                          <AvatarFallback className={cn("text-white font-bold bg-blue-500")}>
-                            {player.displayName?.[0] || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="space-y-0.5">
-                          <h3 className="font-bold text-lg flex items-center gap-2">
-                            {player.displayName}
-                            {!isAccepting && <Ban className="h-3 w-3 text-red-500" />}
-                          </h3>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            <span className="text-[10px] text-muted-foreground font-mono">
-                              ID: {player.id.substring(0, 8)}...
-                            </span>
+            {!loadingPlayers ? (
+              activePlayers.length > 0 ? (
+                activePlayers.map((player) => {
+                  const isAccepting = player.acceptingInvites !== false;
+                  return (
+                    <Card key={player.id} className={cn("border-2 transition-all group", isAccepting ? "hover:border-blue-500/50 shadow-sm" : "opacity-60 grayscale-[0.5]")}>
+                      <CardContent className="p-6 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <Avatar className="h-12 w-12 border-2 border-blue-500/30">
+                            <AvatarFallback className={cn("text-white font-bold bg-blue-500")}>
+                              {player.displayName?.[0] || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="space-y-0.5">
+                            <h3 className="font-bold text-lg flex items-center gap-2">
+                              {player.displayName}
+                              {!isAccepting && <Ban className="h-3 w-3 text-red-500" />}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                ID: {player.id.substring(0, 8)}...
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <Button 
-                        size="icon" 
-                        variant="ghost" 
-                        disabled={!isAccepting}
-                        className="group-hover:bg-blue-600 group-hover:text-white transition-colors"
-                        onClick={() => handleInviteClick(player.id, player.displayName, isAccepting)}
-                      >
-                        <UserPlus className="h-5 w-5" />
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )
-              })
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          disabled={!isAccepting}
+                          className="group-hover:bg-blue-600 group-hover:text-white transition-colors"
+                          onClick={() => handleInviteClick(player.id, player.displayName, isAccepting)}
+                        >
+                          <UserPlus className="h-5 w-5" />
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )
+                })
+              ) : (
+                <Card className="col-span-full border-2 border-dashed p-12 text-center bg-muted/5">
+                  <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                  <p className="text-muted-foreground font-medium font-headline">暂无在线棋手</p>
+                </Card>
+              )
             ) : (
-              <Card className="col-span-full border-2 border-dashed p-12 text-center bg-muted/5">
-                <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                <p className="text-muted-foreground font-medium font-headline">暂无在线棋手</p>
-                <p className="text-xs text-muted-foreground mt-2">提示：打开一个无痕窗口访问本项目，即可看到自己。</p>
-              </Card>
+              Array(6).fill(0).map((_, i) => <Card key={i} className="animate-pulse bg-muted/20 border-2 h-24" />)
             )}
           </div>
         </TabsContent>
 
         <TabsContent value="games">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {loadingGames ? (
-              <div className="col-span-full flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-              </div>
-            ) : recentGames?.length ? (
-              recentGames.map((game) => (
-                <Card key={game.id} className="border-2 overflow-hidden flex flex-col group hover:border-blue-500/50 transition-all shadow-sm">
-                  <div className="bg-blue-500/10 p-3 border-b flex items-center justify-between">
-                    <div className="flex gap-2">
-                      <Badge variant="outline" className="bg-background text-[10px] font-mono">{game.boardSize}x{game.boardSize}</Badge>
-                      <Badge variant="secondary" className="text-[10px]">{game.rules === 'chinese' ? '中' : '日韩'}</Badge>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[10px] font-headline uppercase tracking-wider">
-                      <Trophy className="h-3 w-3" />
-                      已完赛
-                    </div>
-                  </div>
-                  <CardContent className="p-6 flex-1 flex flex-col gap-6">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="text-center space-y-2 flex-1">
-                         <div className="w-10 h-10 rounded-full bg-black mx-auto ring-2 ring-offset-2 ring-black/10 shadow-sm" />
-                         <p className="text-xs font-bold truncate">{game.playerBlackName}</p>
-                         {game.result?.winner === 'black' && <Badge variant="secondary" className="text-[10px] py-0">{t('lobby.game.winner')}</Badge>}
+            {!loadingGames ? (
+              recentGames?.length ? (
+                recentGames.map((game) => (
+                  <Card key={game.id} className="border-2 overflow-hidden flex flex-col group hover:border-blue-500/50 transition-all shadow-sm">
+                    <div className="bg-blue-500/10 p-3 border-b flex items-center justify-between">
+                      <div className="flex gap-2">
+                        <Badge variant="outline" className="bg-background text-[10px] font-mono">{game.boardSize}x{game.boardSize}</Badge>
+                        <Badge variant="secondary" className="text-[10px]">{game.rules === 'chinese' ? '中' : '日韩'}</Badge>
                       </div>
-                      <div className="text-center">
-                        <p className="text-[10px] font-black text-muted-foreground bg-muted px-2 py-1 rounded italic mb-1">RESULT</p>
-                        <p className="text-sm font-bold font-headline">{game.result?.blackScore?.toFixed(1)} : {game.result?.whiteScore?.toFixed(1)}</p>
-                      </div>
-                      <div className="text-center space-y-2 flex-1">
-                         <div className="w-10 h-10 rounded-full bg-white border mx-auto ring-2 ring-offset-2 ring-black/10 shadow-sm" />
-                         <p className="text-xs font-bold truncate">{game.playerWhiteName}</p>
-                         {game.result?.winner === 'white' && <Badge variant="secondary" className="text-[10px] py-0">{t('lobby.game.winner')}</Badge>}
+                      <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[10px] font-headline uppercase tracking-wider">
+                        <Trophy className="h-3 w-3" /> 已完赛
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-dashed">
-                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                         <Clock className="h-3 w-3" />
-                         <span>完赛于 {game.finishedAt?.toDate?.().toLocaleTimeString() || '刚刚'}</span>
-                       </div>
-                       <div className="flex items-center gap-2 text-xs text-muted-foreground justify-end">
-                         <History className="h-3 w-3" />
-                         <span>共 <span className="font-bold text-foreground">{game.moveCount || 0}</span> 手</span>
-                       </div>
-                    </div>
-                  </CardContent>
-                  <CardFooter className="bg-muted/30 p-3 mt-auto">
-                    <Button className="w-full gap-2 font-bold group-hover:bg-blue-600 group-hover:text-white transition-all" variant="outline" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
-                      <PlayCircle className="h-4 w-4" /> {t('lobby.game.view')}
-                    </Button>
-                  </CardFooter>
+                    <CardContent className="p-6 flex-1 flex flex-col gap-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="text-center space-y-2 flex-1">
+                           <div className="w-10 h-10 rounded-full bg-black mx-auto ring-2 ring-offset-2 ring-black/10 shadow-sm" />
+                           <p className="text-xs font-bold truncate">{game.playerBlackName}</p>
+                           {game.result?.winner === 'black' && <Badge variant="secondary" className="text-[10px] py-0">{t('lobby.game.winner')}</Badge>}
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[10px] font-black text-muted-foreground bg-muted px-2 py-1 rounded italic mb-1">RESULT</p>
+                          <p className="text-sm font-bold font-headline">{game.result?.blackScore?.toFixed(1)} : {game.result?.whiteScore?.toFixed(1)}</p>
+                        </div>
+                        <div className="text-center space-y-2 flex-1">
+                           <div className="w-10 h-10 rounded-full bg-white border mx-auto ring-2 ring-offset-2 ring-black/10 shadow-sm" />
+                           <p className="text-xs font-bold truncate">{game.playerWhiteName}</p>
+                           {game.result?.winner === 'white' && <Badge variant="secondary" className="text-[10px] py-0">{t('lobby.game.winner')}</Badge>}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-dashed">
+                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                           <Clock className="h-3 w-3" />
+                           <span>{game.finishedAt?.toDate?.().toLocaleTimeString() || '刚刚'}</span>
+                         </div>
+                         <div className="flex items-center gap-2 text-xs text-muted-foreground justify-end">
+                           <History className="h-3 w-3" />
+                           <span><span className="font-bold text-foreground">{game.moveCount || 0}</span> 手</span>
+                         </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="bg-muted/30 p-3 mt-auto">
+                      <Button className="w-full gap-2 font-bold group-hover:bg-blue-600 group-hover:text-white transition-all" variant="outline" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
+                        <PlayCircle className="h-4 w-4" /> {t('lobby.game.view')}
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))
+              ) : (
+                <Card className="col-span-full border-2 border-dashed p-12 text-center bg-muted/5">
+                  <PlayCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                  <p className="text-muted-foreground font-medium font-headline">暂无最近完赛名局</p>
                 </Card>
-              ))
+              )
             ) : (
-              <Card className="col-span-full border-2 border-dashed p-12 text-center bg-muted/5">
-                <PlayCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                <p className="text-muted-foreground font-medium font-headline">暂无最近完赛名局</p>
-                <p className="text-xs text-muted-foreground mt-2">对局结束后，将在此展示 1 小时。</p>
-              </Card>
+              <div className="col-span-full flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-blue-500" /></div>
             )}
           </div>
         </TabsContent>
@@ -381,38 +370,23 @@ export default function OnlineLobbyPage() {
             <DialogTitle className="flex items-center gap-2 text-2xl text-blue-600 font-headline">
               <BellRing className="h-6 w-6 animate-bounce" /> 您有新的挑战！
             </DialogTitle>
-            <DialogDescription>收到来自竞技大厅的棋手对局请求。</DialogDescription>
           </DialogHeader>
-          
           <div className="py-6 space-y-6">
             <div className="flex items-center gap-4 bg-blue-500/5 p-4 rounded-xl border border-blue-500/20">
                <Avatar className="h-14 w-14 border-2 border-blue-600">
-                 <AvatarFallback className="bg-blue-600 text-white text-xl font-bold font-headline">
-                   {receivedInvite?.challengerName?.[0]}
-                 </AvatarFallback>
+                 <AvatarFallback className="bg-blue-600 text-white text-xl font-bold font-headline">{receivedInvite?.challengerName?.[0]}</AvatarFallback>
                </Avatar>
                <div>
                  <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Challenger</p>
                  <h3 className="text-xl font-black">{receivedInvite?.challengerName}</h3>
                </div>
             </div>
-
             <div className="grid grid-cols-3 gap-3">
-              <div className="p-3 border rounded-lg text-center bg-background shadow-inner">
-                <p className="text-[9px] font-bold text-muted-foreground uppercase">棋盘</p>
-                <p className="text-sm font-black">{receivedInvite?.boardSize}x{receivedInvite?.boardSize}</p>
-              </div>
-              <div className="p-3 border rounded-lg text-center bg-background shadow-inner">
-                <p className="text-[9px] font-bold text-muted-foreground uppercase">您执</p>
-                <p className="text-sm font-black">{receivedInvite?.playerBlackId === user?.uid ? '黑棋' : '白棋'}</p>
-              </div>
-              <div className="p-3 border rounded-lg text-center bg-background shadow-inner">
-                <p className="text-[9px] font-bold text-muted-foreground uppercase">规则</p>
-                <p className="text-sm font-black">{receivedInvite?.rules === 'chinese' ? '中' : '日韩'}</p>
-              </div>
+              <div className="p-3 border rounded-lg text-center bg-background"><p className="text-[9px] font-bold text-muted-foreground uppercase">棋盘</p><p className="text-sm font-black">{receivedInvite?.boardSize}x{receivedInvite?.boardSize}</p></div>
+              <div className="p-3 border rounded-lg text-center bg-background"><p className="text-[9px] font-bold text-muted-foreground uppercase">您执</p><p className="text-sm font-black">{receivedInvite?.playerBlackId === user?.uid ? '黑棋' : '白棋'}</p></div>
+              <div className="p-3 border rounded-lg text-center bg-background"><p className="text-[9px] font-bold text-muted-foreground uppercase">规则</p><p className="text-sm font-black">{receivedInvite?.rules === 'chinese' ? '中' : '日韩'}</p></div>
             </div>
           </div>
-
           <DialogFooter className="grid grid-cols-2 gap-4 pt-4 border-t">
             <Button variant="outline" className="h-12 font-bold border-2" onClick={handleDeclineInvite}>婉言谢绝</Button>
             <Button className="h-12 font-bold bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={handleAcceptInvite}>接受挑战</Button>
@@ -420,60 +394,40 @@ export default function OnlineLobbyPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 对局设置弹窗 */}
+      {/* 挑战设置弹窗 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
         <DialogContent className="sm:max-w-md border-2">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 font-headline text-xl">
-              <Settings2 className="h-5 w-5 text-blue-500" /> 发起挑战设置
-            </DialogTitle>
-            <DialogDescription>
-              向 <span className="text-foreground font-bold">{invitingPlayer?.name}</span> 发送对局邀请。
-            </DialogDescription>
+            <DialogTitle className="flex items-center gap-2 font-headline text-xl"><Settings2 className="h-5 w-5 text-blue-500" /> 发起挑战设置</DialogTitle>
           </DialogHeader>
-          
           <div className="space-y-6 py-4">
             <div className="space-y-3">
               <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">棋盘尺寸</Label>
               <Tabs value={selectedSize} onValueChange={setSelectedSize} className="w-full">
-                <TabsList className="grid w-full grid-cols-3 h-10">
-                  <TabsTrigger value="9">9 x 9</TabsTrigger>
-                  <TabsTrigger value="13">13 x 13</TabsTrigger>
-                  <TabsTrigger value="19">19 x 19</TabsTrigger>
-                </TabsList>
+                <TabsList className="grid w-full grid-cols-3 h-10"><TabsTrigger value="9">9x9</TabsTrigger><TabsTrigger value="13">13x13</TabsTrigger><TabsTrigger value="19">19x19</TabsTrigger></TabsList>
               </Tabs>
             </div>
-
             <div className="space-y-3">
               <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">落子规则</Label>
               <Tabs value={selectedRule} onValueChange={setSelectedRule} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 h-10">
-                  <TabsTrigger value="chinese">中国规则</TabsTrigger>
-                  <TabsTrigger value="territory">日韩规则</TabsTrigger>
-                </TabsList>
+                <TabsList className="grid w-full grid-cols-2 h-10"><TabsTrigger value="chinese">中国规则</TabsTrigger><TabsTrigger value="territory">日韩规则</TabsTrigger></TabsList>
               </Tabs>
             </div>
-
             <div className="space-y-3">
               <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">对手执子</Label>
               <RadioGroup value={opponentColor} onValueChange={(val) => setOpponentColor(val as 'black' | 'white')} className="grid grid-cols-2 gap-4">
-                <div className={cn("flex items-center gap-2 border-2 p-3 rounded-lg cursor-pointer transition-colors", opponentColor === 'black' && "border-blue-500 bg-blue-500/5")}>
-                  <RadioGroupItem value="black" id="opt-black" />
-                  <Label htmlFor="opt-black" className="cursor-pointer font-bold">对手执黑</Label>
+                <div className={cn("flex items-center gap-2 border-2 p-3 rounded-lg cursor-pointer", opponentColor === 'black' && "border-blue-500 bg-blue-500/5")}>
+                  <RadioGroupItem value="black" id="opt-black" /><Label htmlFor="opt-black" className="cursor-pointer font-bold">对手执黑</Label>
                 </div>
-                <div className={cn("flex items-center gap-2 border-2 p-3 rounded-lg cursor-pointer transition-colors", opponentColor === 'white' && "border-blue-500 bg-blue-500/5")}>
-                  <RadioGroupItem value="white" id="opt-white" />
-                  <Label htmlFor="opt-white" className="cursor-pointer font-bold">对手执白</Label>
+                <div className={cn("flex items-center gap-2 border-2 p-3 rounded-lg cursor-pointer", opponentColor === 'white' && "border-blue-500 bg-blue-500/5")}>
+                  <RadioGroupItem value="white" id="opt-white" /><Label htmlFor="opt-white" className="cursor-pointer font-bold">对手执白</Label>
                 </div>
               </RadioGroup>
             </div>
           </div>
-
           <DialogFooter className="pt-4 border-t">
             <Button variant="ghost" onClick={() => setInvitingPlayer(null)} className="h-11 px-6">取消</Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 font-bold h-11 px-8 shadow-md" onClick={confirmInvite}>
-              发送邀请
-            </Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 font-bold h-11 px-8 shadow-md" onClick={confirmInvite}>发送邀请</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

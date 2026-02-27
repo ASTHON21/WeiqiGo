@@ -2,27 +2,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 移除 Firebase Auth 依赖后，为了支持 FingerprintJS 标识
-    // 针对原型阶段，我们允许所有请求进行读写。
-    // 在生产环境下，应通过后端验证或自定义 Token 强化安全。
-
-    match /userProfiles/{userId} {
-      allow read, write: if true;
-    }
-
-    match /games/{gameId} {
-      allow read, write: if true;
-      
-      match /moves/{moveId} {
-        allow read, write: if true;
-      }
-      
-      match /{allPaths=**} {
-        allow read, write: if true;
-      }
-    }
-
-    // 允许对所有集合进行查询（list 操作）
+    // 彻底放开权限，仅依赖应用层逻辑（FingerprintJS）进行棋手标识。
+    // 这将解决在移除 Auth 后，由于浏览器残留的旧 Token 导致的 list/get 权限错误。
     match /{allPaths=**} {
       allow read, write: if true;
     }
