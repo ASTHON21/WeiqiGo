@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -10,14 +9,14 @@ import { Users, Swords, Loader2, Book, Radio, Calculator, Lock, Wifi, WifiOff, S
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { MoveSetting, GameHistoryEntry, Player } from '@/lib/types';
+import { MoveSetting, Player } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
 import type Peer from 'peerjs';
 
@@ -40,20 +39,29 @@ export default function OnlineGamePage() {
   // P2P 状态
   const [peer, setPeer] = useState<Peer | null>(null);
   const [myPeerId, setMyPeerId] = useState<string | null>(null);
-  const [connection, setConnection] = useState<any>(null);
+  const connectionRef = useRef<any>(null);
   const [p2pStatus, setP2PStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [localMoves, setLocalMoves] = useState<any[]>([]);
 
+  // 获取对局主文档
   const { data: game, isLoading: loadingGame } = useDoc(roomId && user ? doc(db, "games", roomId) : null);
 
+  // 监听 Firestore 落子记录 (观战及 P2P 断连时的兜底)
   const movesQuery = useMemoFirebase(() => {
     if (!db || !roomId || !user) return null;
     return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
   }, [db, roomId, user]);
   const { data: firestoreMoves } = useCollection(movesQuery);
 
+  // 合并本地 P2P 落子与 Firestore 备份
   const moves = useMemo(() => {
-    return [...(firestoreMoves || []), ...localMoves].sort((a, b) => (a.moveNumber || 0) - (b.moveNumber || 0));
+    const combined = [...(firestoreMoves || [])];
+    localMoves.forEach(lm => {
+      if (!combined.find(cm => cm.moveNumber === lm.moveNumber)) {
+        combined.push(lm);
+      }
+    });
+    return combined.sort((a, b) => (a.moveNumber || 0) - (b.moveNumber || 0));
   }, [firestoreMoves, localMoves]);
 
   // 初始化 WebRTC (P2P)
@@ -76,46 +84,44 @@ export default function OnlineGamePage() {
           }
         });
         conn.on('open', () => {
-          setConnection(conn);
+          connectionRef.current = conn;
           setP2PStatus('connected');
         });
         conn.on('close', () => setP2PStatus('disconnected'));
+        conn.on('error', () => setP2PStatus('disconnected'));
       });
     });
 
     return () => {
       peerInstance?.destroy();
+      connectionRef.current?.close();
     };
   }, [roomId, user, isSpectating]);
 
-  // 同步 Peer ID 到 Firestore
+  // 同步我的 Peer ID 到 Firestore
   useEffect(() => {
     if (!myPeerId || !game || !user || !db || isSpectating) return;
     
     const field = user.uid === game.playerBlackId ? 'playerBlackPeerId' : 'playerWhitePeerId';
     if (game[field] === myPeerId) return;
 
-    updateDoc(doc(db, "games", roomId), { [field]: myPeerId })
-      .catch(async (err) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: `games/${roomId}`,
-          operation: 'update',
-          requestResourceData: { [field]: myPeerId }
-        }));
+    updateDoc(doc(db, "games", roomId), { [field]: myPeerId, lastActivityAt: serverTimestamp() })
+      .catch((err) => {
+        console.error("Peer ID Sync Error:", err);
       });
   }, [myPeerId, game, user, db, isSpectating, roomId]);
 
-  // 主动连接对手
+  // 主动尝试连接对手 (当监听到对手 Peer ID 出现时)
   useEffect(() => {
-    if (!peer || !game || connection || isSpectating || !user) return;
+    if (!peer || !game || connectionRef.current || isSpectating || !user || !myPeerId) return;
 
     const myRole = user.uid === game.playerBlackId ? 'black' : 'white';
     const opponentPeerId = myRole === 'black' ? game.playerWhitePeerId : game.playerBlackPeerId;
 
-    if (opponentPeerId) {
+    if (opponentPeerId && opponentPeerId !== myPeerId) {
       const conn = peer.connect(opponentPeerId);
       conn.on('open', () => {
-        setConnection(conn);
+        connectionRef.current = conn;
         setP2PStatus('connected');
       });
       conn.on('data', (data: any) => {
@@ -124,18 +130,18 @@ export default function OnlineGamePage() {
         }
       });
       conn.on('close', () => setP2PStatus('disconnected'));
+      conn.on('error', () => setP2PStatus('disconnected'));
     }
-  }, [peer, game, connection, isSpectating, user]);
+  }, [peer, game, isSpectating, user, myPeerId]);
 
+  // 加载规则文本
   useEffect(() => {
     if (game?.rules) {
       getRulesContent(game.rules as 'chinese' | 'territory', language).then(setRules);
-    } else {
-      getRulesContent('chinese', language).then(setRules);
     }
   }, [game?.rules, language]);
 
-  // 计算棋盘与提子
+  // 计算当前棋盘快照与提子
   const { board, prisoners } = useMemo(() => {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
     let p = { black: 0, white: 0 };
@@ -173,8 +179,8 @@ export default function OnlineGamePage() {
     if (!logicResult.success) {
       toast({
         variant: "destructive",
-        title: "无效落子",
-        description: logicResult.error === 'occupied' ? "该位置已有棋子" : "违反围棋规则",
+        title: "无法落子",
+        description: logicResult.error === 'ko' ? "禁止打劫" : "违反围棋规则",
       });
       return;
     }
@@ -189,33 +195,34 @@ export default function OnlineGamePage() {
       evaluation: 0.5,
     };
 
-    if (connection && p2pStatus === 'connected') {
-      connection.send({ type: 'move', payload: moveData });
+    // 1. 如果 P2P 已连通，通过数据通道发送
+    if (connectionRef.current && p2pStatus === 'connected') {
+      connectionRef.current.send({ type: 'move', payload: moveData });
       setLocalMoves(prev => [...prev, moveData]);
-    } else {
-      addDoc(collection(db, `games/${roomId}/moves`), moveData)
-        .catch(async (err) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `games/${roomId}/moves`,
-            operation: 'create',
-            requestResourceData: moveData
-          }));
-        });
-    }
+    } 
+    
+    // 2. 无论 P2P 是否连通，始终写入 Firestore 以便备份和观战
+    addDoc(collection(db, `games/${roomId}/moves`), moveData)
+      .catch((err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `games/${roomId}/moves`,
+          operation: 'create',
+          requestResourceData: moveData
+        }));
+      });
 
+    // 3. 更新对局状态（回合、步数、活跃时间）
     const nextTurn = playerColor === 'black' ? 'white' : 'black';
-    const updatePayload = {
+    updateDoc(doc(db, "games", roomId), {
       currentTurn: nextTurn,
       status: 'in-progress',
-      moveCount: (game.moveCount || 0) + 1
-    };
-    
-    updateDoc(doc(db, "games", roomId), updatePayload)
-      .catch(async (err) => {
+      moveCount: (game.moveCount || 0) + 1,
+      lastActivityAt: serverTimestamp()
+    }).catch((err) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `games/${roomId}`,
           operation: 'update',
-          requestResourceData: updatePayload
+          requestResourceData: { currentTurn: nextTurn }
         }));
       });
   };
@@ -236,21 +243,21 @@ export default function OnlineGamePage() {
       timestamp: Date.now(),
     };
 
-    if (connection && p2pStatus === 'connected') {
-      connection.send({ type: 'move', payload: moveData });
+    if (connectionRef.current && p2pStatus === 'connected') {
+      connectionRef.current.send({ type: 'move', payload: moveData });
       setLocalMoves(prev => [...prev, moveData]);
-    } else {
-      addDoc(collection(db, `games/${roomId}/moves`), moveData)
-        .catch(async (err) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `games/${roomId}/moves`,
-            operation: 'create',
-            requestResourceData: moveData
-          }));
-        });
     }
+    
+    addDoc(collection(db, `games/${roomId}/moves`), moveData).catch((err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `games/${roomId}/moves`,
+          operation: 'create',
+          requestResourceData: moveData
+        }));
+    });
 
     if (isConsecutivePass) {
+      // 触发结算逻辑
       const ruleType = game.rules as 'chinese' | 'territory';
       const score = ruleType === 'chinese' 
         ? GoLogic.calculateChineseScore(board)
@@ -260,6 +267,7 @@ export default function OnlineGamePage() {
         status: 'finished',
         finishedAt: serverTimestamp(),
         moveCount: (game.moveCount || 0) + 1,
+        lastActivityAt: serverTimestamp(),
         result: {
           winner: score.winner,
           reason: '双方连续弃权',
@@ -268,36 +276,19 @@ export default function OnlineGamePage() {
           details: (score as any).details || null,
           komi: score.komi
         }
-      }).catch(async (err) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `games/${roomId}`,
-            operation: 'update',
-            requestResourceData: { status: 'finished' }
-          }));
-        });
-
-      toast({
-        title: "对局结束",
-        description: "双方连续弃权，对局已完成并结算。",
       });
     } else {
       const nextTurn = playerColor === 'black' ? 'white' : 'black';
       updateDoc(doc(db, "games", roomId), {
         currentTurn: nextTurn,
-        moveCount: (game.moveCount || 0) + 1
-      }).catch(async (err) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `games/${roomId}`,
-            operation: 'update',
-            requestResourceData: { currentTurn: nextTurn }
-          }));
-        });
+        moveCount: (game.moveCount || 0) + 1,
+        lastActivityAt: serverTimestamp()
+      });
     }
   };
 
   const saveToLocalHistory = () => {
     if (!game || !moves || isSaved) return;
-
     const ruleType = game.rules as 'chinese' | 'territory';
     const score = game.result?.blackScore !== undefined ? game.result : (
       ruleType === 'chinese' 
@@ -305,7 +296,7 @@ export default function OnlineGamePage() {
         : GoLogic.calculateJapaneseScore(board, prisoners.black, prisoners.white)
     );
 
-    const entry: GameHistoryEntry = {
+    const entry: any = {
       id: `online-${roomId}-${Date.now()}`,
       date: new Date().toISOString(),
       mode: 'online',
@@ -316,8 +307,8 @@ export default function OnlineGamePage() {
         player: m.playerColor
       })),
       result: {
-        winner: score.winner as any,
-        reason: game.result?.reason || '双方连续弃权',
+        winner: score.winner,
+        reason: game.result?.reason || '对局已完成',
         blackScore: (score as any).blackTotal || (score as any).blackScore,
         whiteScore: (score as any).whiteTotal || (score as any).whiteScore,
         details: (score as any).details || null,
@@ -336,24 +327,18 @@ export default function OnlineGamePage() {
       const existing = JSON.parse(localStorage.getItem('goMasterHistory') || '[]');
       localStorage.setItem('goMasterHistory', JSON.stringify([entry, ...existing]));
       setIsSaved(true);
-      toast({
-        title: "保存成功",
-        description: "本局记录已存入本地历史记录。",
-      });
+      toast({ title: "已存入本地历史" });
     } catch (e) {
-      toast({
-        title: "保存失败",
-        variant: "destructive"
-      });
+      toast({ title: "保存失败", variant: "destructive" });
     }
   };
 
   if (loadingGame || loadingUser) {
     return (
-      <div className="h-screen flex items-center justify-center bg-background/50 backdrop-blur-sm">
+      <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-blue-500 mx-auto" />
-          <p className="text-muted-foreground font-medium">正在连接对局服务...</p>
+          <p className="text-muted-foreground font-bold">建立对局同步连接...</p>
         </div>
       </div>
     );
@@ -364,17 +349,17 @@ export default function OnlineGamePage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
          <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-500 font-headline">
            {isSpectating ? <Radio className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
-           {isSpectating ? "正在观战" : "在线对局"}
-           {isFinished && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局已结束</Badge>}
+           {isSpectating ? "观摩名局" : "在线连线对弈"}
+           {isFinished && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局结算完毕</Badge>}
          </h1>
          <div className="flex flex-wrap items-center gap-3">
-           {!isSpectating && (
-             <Badge variant={p2pStatus === 'connected' ? 'default' : 'outline'} className={cn("gap-1.5 h-7", p2pStatus === 'connected' ? "bg-green-600" : "text-yellow-600")}>
+           {!isSpectating && !isFinished && (
+             <Badge variant={p2pStatus === 'connected' ? 'default' : 'outline'} className={cn("gap-1.5 h-7", p2pStatus === 'connected' ? "bg-green-600" : "text-yellow-600 animate-pulse")}>
                {p2pStatus === 'connected' ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
-               {p2pStatus === 'connected' ? 'P2P 已加密连接' : 'P2P 握手中...'}
+               {p2pStatus === 'connected' ? 'P2P 加密直连' : '寻找 P2P 隧道...'}
              </Badge>
            )}
-           <Badge variant="outline">{game?.boardSize}x{game?.boardSize}</Badge>
+           <Badge variant="outline" className="font-mono">{game?.boardSize}x{game?.boardSize}</Badge>
            <Badge variant="secondary">{game?.rules === 'chinese' ? '中国规则' : '日韩规则'}</Badge>
          </div>
       </div>
@@ -393,19 +378,19 @@ export default function OnlineGamePage() {
             />
             
             {game?.status === 'pending' && !isSpectating && (
-               <div className="absolute inset-0 z-50 bg-background/60 backdrop-blur-[2px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted">
+               <div className="absolute inset-0 z-50 bg-background/60 backdrop-blur-[2px] flex items-center justify-center rounded-lg border-4 border-dashed border-muted animate-in fade-in duration-500">
                   <div className="text-center space-y-4">
                      <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto" />
-                     <p className="text-muted-foreground font-bold">等待对手进入房间...</p>
+                     <p className="text-muted-foreground font-black font-headline">等待对手接入房间...</p>
                   </div>
                </div>
             )}
             
             {isFinished && !dismissGameOver && (
                <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg p-4 overflow-y-auto">
-                  <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                  <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl animate-in zoom-in-95 duration-200">
                     <CardHeader className="bg-blue-600 text-white py-5 text-center">
-                      <CardTitle className="flex items-center justify-center gap-2 text-xl font-headline uppercase tracking-tight">
+                      <CardTitle className="flex items-center justify-center gap-2 text-xl font-headline uppercase">
                         <Calculator className="h-6 w-6" /> 对局结算报告
                       </CardTitle>
                     </CardHeader>
@@ -423,36 +408,8 @@ export default function OnlineGamePage() {
                          </div>
                        </div>
 
-                       {game.result?.details && (
-                         <div className="bg-muted/40 p-5 rounded-xl space-y-2 border text-left shadow-inner">
-                            <p className="text-[11px] font-black border-b pb-2 flex items-center gap-2 text-foreground uppercase tracking-wider">
-                              <Book className="h-3.5 w-3.5 text-blue-500" /> 计分细节 Breakdown
-                            </p>
-                            <div className="grid grid-cols-1 gap-y-1.5 text-[12px] font-medium text-muted-foreground">
-                              <div className="flex justify-between items-center">
-                                <span>黑方围空:</span> 
-                                <span className="text-foreground font-bold">{game.result.details.blackTerritory} 目</span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span>白方围空:</span> 
-                                <span className="text-foreground font-bold">{game.result.details.whiteTerritory} 目</span>
-                              </div>
-                              <div className="flex justify-between items-center text-red-600/80">
-                                <span>黑方损子:</span> 
-                                <span className="font-bold">-{game.result.details.blackPrisoners + game.result.details.blackDeadOnBoard} 子</span>
-                              </div>
-                              <div className="flex justify-between items-center text-red-600/80">
-                                <span>白方损子:</span> 
-                                <span className="font-bold">-{game.result.details.whitePrisoners + game.result.details.whiteDeadOnBoard} 子</span>
-                              </div>
-                            </div>
-                         </div>
-                       )}
-
                        <div className="p-6 bg-blue-500/10 rounded-2xl border-4 border-blue-500/20 space-y-2">
-                          <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">
-                            最终判定 (Komi: {game.result?.komi})
-                          </p>
+                          <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终判定</p>
                           <p className="text-4xl font-black font-headline text-blue-800">
                             {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {Math.abs((game.result?.blackScore || 0) - (game.result?.whiteScore || 0)).toFixed(1)} 目
                           </p>
@@ -460,21 +417,16 @@ export default function OnlineGamePage() {
                     </CardContent>
                     <CardFooter className="flex flex-col gap-3 bg-muted/30 p-6 border-t">
                        <div className="grid grid-cols-2 w-full gap-3">
-                         <Button variant="ghost" className="h-12 font-bold gap-2 border-2 bg-background hover:bg-muted" onClick={() => router.push('/')}>
+                         <Button variant="ghost" className="h-12 font-bold gap-2 border-2 bg-background" onClick={() => router.push('/')}>
                            <Home className="h-4 w-4" /> 返回主页
                          </Button>
                          <Button variant="outline" className="h-12 font-bold border-2 bg-background" onClick={() => setDismissGameOver(true)}>
-                           留在房内复盘
+                           留房复盘
                          </Button>
                        </div>
-                       <div className="grid grid-cols-2 w-full gap-3">
-                         <Button variant="secondary" className="h-12 font-bold gap-2 border-2 border-blue-600/20" onClick={saveToLocalHistory} disabled={isSaved}>
-                           <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存本地记录'}
-                         </Button>
-                         <Button className="h-12 font-bold bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={() => router.push('/game/online/lobby')}>
-                           返回竞技大厅
-                         </Button>
-                       </div>
+                       <Button className="w-full h-12 font-bold bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={saveToLocalHistory} disabled={isSaved}>
+                         <Save className="h-4 w-4" /> {isSaved ? '已保存本地记录' : '保存本地记录'}
+                       </Button>
                     </CardFooter>
                   </Card>
                </div>
@@ -493,14 +445,14 @@ export default function OnlineGamePage() {
               <div className="flex items-center justify-between">
                  <div className="flex items-center gap-2">
                    <div className="w-8 h-8 rounded-full bg-black border-2 border-white shadow-sm" />
-                   <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerBlackName || '匿名黑方'}</span>
+                   <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerBlackName || '黑方选手'}</span>
                  </div>
                  {game?.playerBlackId === user?.uid && <Badge variant="secondary">您</Badge>}
               </div>
               <div className="flex items-center justify-between">
                  <div className="flex items-center gap-2">
                    <div className="w-8 h-8 rounded-full bg-white border-2 border-black shadow-sm" />
-                   <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerWhiteName || '匿名白方'}</span>
+                   <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerWhiteName || '白方选手'}</span>
                  </div>
                  {game?.playerWhiteId === user?.uid && <Badge variant="secondary">您</Badge>}
               </div>
@@ -509,37 +461,13 @@ export default function OnlineGamePage() {
 
           {!isFinished && (
             <div className="p-4 bg-muted/50 rounded-lg border-2 text-center border-blue-500/20 shadow-inner">
-              <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1 tracking-wider">当前落子方</p>
+              <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1 tracking-wider">落子状态</p>
               <div className="text-lg font-black flex items-center justify-center gap-2 font-headline">
                 <div className={cn("w-3 h-3 rounded-full border shadow-sm", game?.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
                 {game?.currentTurn === 'black' ? '黑方回合' : '白方回合'}
               </div>
             </div>
           )}
-
-          <Sheet>
-            <SheetTrigger asChild>
-              <Card className="border-2 cursor-pointer hover:bg-muted/50 transition-colors group">
-                <CardContent className="p-4 flex items-center justify-between">
-                   <div className="flex items-center gap-2">
-                      <Book className="h-4 w-4 text-accent group-hover:scale-110 transition-transform" />
-                      <span className="text-sm font-bold">查阅竞赛规则</span>
-                   </div>
-                   <Badge variant="outline" className="text-[10px]">Rulebook</Badge>
-                </CardContent>
-              </Card>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-full md:max-w-[90vw] lg:max-w-[1200px]">
-              <SheetHeader>
-                <SheetTitle className="font-headline">{game?.rules === 'chinese' ? '中国围棋竞赛规则' : '日韩规则目数计算法'}</SheetTitle>
-              </SheetHeader>
-              <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                   <pre className="whitespace-pre-wrap font-sans text-sm p-4 md:p-8 bg-muted/30 rounded-lg border leading-relaxed break-words">{rules}</pre>
-                </div>
-              </ScrollArea>
-            </SheetContent>
-          </Sheet>
 
           <ToolPanel 
             onPass={canMove ? handlePass : undefined} 

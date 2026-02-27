@@ -41,7 +41,7 @@ export function useUser() {
             const lastLoginAt = data.lastLoginAt?.toDate ? data.lastLoginAt.toDate() : new Date(data.lastLoginAt);
             const now = new Date();
             
-            // 检查是否超过 3 天未登录 (3 * 24 * 60 * 60 * 1000)
+            // 严格检查是否超过 3 天未活跃 (3 * 24 * 60 * 60 * 1000)
             const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
             if (now.getTime() - lastLoginAt.getTime() > threeDaysInMs) {
               console.log("检测到账号超过3天未活跃，正在执行自动销户...");
@@ -58,16 +58,17 @@ export function useUser() {
               return;
             }
 
-            // 未过期，刷新登录时间
+            // 未过期，刷新登录时间与活跃心跳
             await setDoc(userRef, { 
               lastLoginAt: serverTimestamp(),
               lastSeen: serverTimestamp(),
-              deviceId: deviceId
+              deviceId: deviceId,
+              displayName: localStorage.getItem('tempDisplayName') || data.displayName // 允许本地同步改名
             }, { merge: true });
 
             setUser({ 
               uid: fbUser.uid, 
-              displayName: data.displayName || "匿名棋手",
+              displayName: localStorage.getItem('tempDisplayName') || data.displayName || "匿名棋手",
               deviceId: deviceId
             });
           } else {
