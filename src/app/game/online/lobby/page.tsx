@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -12,7 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, User, Wifi, WifiOff, Clock, Trophy, History } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, User, Wifi, WifiOff, Clock, Trophy, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -33,7 +34,6 @@ export default function OnlineLobbyPage() {
   const [receivedInvite, setReceivedInvite] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Heartbeat
   useEffect(() => {
     if (!user?.uid || !db) return;
     const updateStatus = async () => {
@@ -49,7 +49,6 @@ export default function OnlineLobbyPage() {
     return () => clearInterval(heartbeat);
   }, [user?.uid, db, acceptInvites]);
 
-  // Active Players
   const usersQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(50));
@@ -67,24 +66,19 @@ export default function OnlineLobbyPage() {
     });
   }, [allProfiles, user?.uid]);
 
-  // Recent Replays (1h)
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    return query(collection(db, "games"), orderBy("finishedAt", "desc"), limit(50));
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    return query(
+      collection(db, "games"), 
+      where("status", "==", "finished"),
+      where("finishedAt", ">=", Timestamp.fromDate(oneHourAgo)),
+      orderBy("finishedAt", "desc"), 
+      limit(50)
+    );
   }, [db, user?.uid]);
-  const { data: rawRecentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
+  const { data: filteredRecentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
 
-  const filteredRecentGames = useMemo(() => {
-    if (!rawRecentGames) return [];
-    const oneHourAgo = Date.now() - 60 * 60 * 1000;
-    return rawRecentGames.filter(g => {
-      if (g.status !== 'finished' || !g.finishedAt) return false;
-      const finishedTime = g.finishedAt.toDate ? g.finishedAt.toDate().getTime() : new Date(g.finishedAt).getTime();
-      return finishedTime > oneHourAgo;
-    });
-  }, [rawRecentGames]);
-
-  // Directed Invitation Listeners
   const invitesBlackQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(collection(db, "games"), where("status", "==", "pending"), where("playerBlackId", "==", user.uid));
@@ -151,7 +145,6 @@ export default function OnlineLobbyPage() {
 
   const handleAcceptInvite = async () => {
     if (!receivedInvite || !db) return;
-    // Update to in-progress FIRST, ensuring the sync gates open correctly
     updateDoc(doc(db, "games", receivedInvite.id), {
       status: 'in-progress',
       startedAt: serverTimestamp(),
@@ -216,7 +209,7 @@ export default function OnlineLobbyPage() {
             <Users className="h-4 w-4" /> {t('lobby.tab.players')} ({activePlayers.length})
           </TabsTrigger>
           <TabsTrigger value="games" className="gap-2">
-            <History className="h-4 w-4" /> {t('lobby.tab.recent')} ({filteredRecentGames.length})
+            <History className="h-4 w-4" /> {t('lobby.tab.recent')} ({filteredRecentGames?.length || 0})
           </TabsTrigger>
         </TabsList>
 
@@ -276,7 +269,7 @@ export default function OnlineLobbyPage() {
         <TabsContent value="games">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {!loadingGames ? (
-              filteredRecentGames.length ? (
+              filteredRecentGames?.length ? (
                 filteredRecentGames.map((game) => (
                   <Card key={game.id} className="border-2 overflow-hidden flex flex-col group hover:border-blue-500/50 transition-all shadow-sm">
                     <div className="bg-blue-500/10 p-3 border-b flex items-center justify-between">
@@ -336,16 +329,18 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Invitation Modal */}
       <Dialog open={!!receivedInvite} onOpenChange={(open) => !open && handleDeclineInvite()}>
         <DialogContent className="sm:max-w-md border-4 border-blue-600 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle>收到对局挑战</DialogTitle>
+          </DialogHeader>
           <div className="py-6 space-y-6">
             <div className="flex items-center gap-4 bg-blue-500/5 p-4 rounded-xl border border-blue-500/20">
                <Avatar className="h-14 w-14 border-2 border-blue-600">
                  <AvatarFallback className="bg-blue-600 text-white text-xl font-bold font-headline">{receivedInvite?.challengerName?.[0]}</AvatarFallback>
                </Avatar>
                <div>
-                 <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">收到对局挑战</p>
+                 <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">在线挑战邀请</p>
                  <h3 className="text-xl font-black">{receivedInvite?.challengerName}</h3>
                </div>
             </div>
@@ -362,9 +357,11 @@ export default function OnlineLobbyPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Setup Challenge Modal */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
         <DialogContent className="sm:max-w-md border-2">
+          <DialogHeader>
+            <DialogTitle>发起对局挑战</DialogTitle>
+          </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="space-y-3">
               <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">棋盘尺寸</Label>
