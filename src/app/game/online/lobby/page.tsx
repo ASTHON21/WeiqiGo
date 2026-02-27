@@ -1,16 +1,15 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, User, Wifi, WifiOff, Clock, Trophy, History } from 'lucide-react';
@@ -34,10 +33,9 @@ export default function OnlineLobbyPage() {
   const [receivedInvite, setReceivedInvite] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // 定时发送心跳
+  // Heartbeat
   useEffect(() => {
     if (!user?.uid || !db) return;
-
     const updateStatus = async () => {
       const userRef = doc(db, "userProfiles", user.uid);
       updateDoc(userRef, {
@@ -46,18 +44,16 @@ export default function OnlineLobbyPage() {
       }).then(() => setIsConnected(true))
         .catch(() => setIsConnected(false));
     };
-
     updateStatus();
     const heartbeat = setInterval(updateStatus, 30000); 
     return () => clearInterval(heartbeat);
   }, [user?.uid, db, acceptInvites]);
 
-  // 活跃棋手查询
+  // Active Players
   const usersQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(50));
   }, [db, user?.uid]);
-  
   const { data: allProfiles, isLoading: loadingPlayers } = useCollection(usersQuery);
 
   const activePlayers = useMemo(() => {
@@ -71,16 +67,11 @@ export default function OnlineLobbyPage() {
     });
   }, [allProfiles, user?.uid]);
 
-  // 名局回放查询 (仅基于时间线排序，避免复合索引报错，在内存中过滤 status)
+  // Recent Replays (1h)
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    return query(
-      collection(db, "games"), 
-      orderBy("finishedAt", "desc"),
-      limit(50)
-    );
+    return query(collection(db, "games"), orderBy("finishedAt", "desc"), limit(50));
   }, [db, user?.uid]);
-  
   const { data: rawRecentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
 
   const filteredRecentGames = useMemo(() => {
@@ -93,24 +84,14 @@ export default function OnlineLobbyPage() {
     });
   }, [rawRecentGames]);
 
-  // 邀请查询 (黑方)
+  // Directed Invitation Listeners
   const invitesBlackQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    return query(
-      collection(db, "games"), 
-      where("status", "==", "pending"), 
-      where("playerBlackId", "==", user.uid)
-    );
+    return query(collection(db, "games"), where("status", "==", "pending"), where("playerBlackId", "==", user.uid));
   }, [db, user?.uid]);
-
-  // 邀请查询 (白方)
   const invitesWhiteQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    return query(
-      collection(db, "games"), 
-      where("status", "==", "pending"), 
-      where("playerWhiteId", "==", user.uid)
-    );
+    return query(collection(db, "games"), where("status", "==", "pending"), where("playerWhiteId", "==", user.uid));
   }, [db, user?.uid]);
   
   const { data: invitesBlack } = useCollection(invitesBlackQuery);
@@ -122,6 +103,8 @@ export default function OnlineLobbyPage() {
     const invite = allInvites.find(g => g.createdBy !== user.uid);
     if (invite && (!receivedInvite || invite.id !== receivedInvite.id)) {
       setReceivedInvite(invite);
+    } else if (!invite && receivedInvite) {
+      setReceivedInvite(null);
     }
   }, [invitesBlack, invitesWhite, user?.uid, receivedInvite]);
 
@@ -159,19 +142,16 @@ export default function OnlineLobbyPage() {
       lastActivityAt: serverTimestamp()
     };
 
-    addDoc(collection(db, "games"), newGame)
-      .then((gameRef) => {
-        toast({ title: "已发送邀请", description: `等待 ${invitingPlayer.name} 响应...` });
-        setInvitingPlayer(null);
-        router.push(`/game/online/${gameRef.id}`);
-      })
-      .catch((err) => {
-        console.error("Invite failed:", err);
-      });
+    addDoc(collection(db, "games"), newGame).then((gameRef) => {
+      toast({ title: "挑战书已送达", description: `等待 ${invitingPlayer.name} 开启对局...` });
+      setInvitingPlayer(null);
+      router.push(`/game/online/${gameRef.id}`);
+    }).catch(console.error);
   };
 
   const handleAcceptInvite = async () => {
     if (!receivedInvite || !db) return;
+    // Update to in-progress FIRST, ensuring the sync gates open correctly
     updateDoc(doc(db, "games", receivedInvite.id), {
       status: 'in-progress',
       startedAt: serverTimestamp(),
@@ -179,7 +159,7 @@ export default function OnlineLobbyPage() {
       moveCount: 0
     }).then(() => {
       router.push(`/game/online/${receivedInvite.id}`);
-    });
+    }).catch(console.error);
   };
 
   const handleDeclineInvite = async () => {
@@ -190,7 +170,7 @@ export default function OnlineLobbyPage() {
       finishedAt: serverTimestamp()
     }).then(() => {
       setReceivedInvite(null);
-    });
+    }).catch(console.error);
   };
 
   if (loadingUser) {
@@ -218,11 +198,11 @@ export default function OnlineLobbyPage() {
              </div>
              <div className="flex items-center gap-2">
                 <Badge variant={acceptInvites ? "outline" : "destructive"} className="h-7 px-3 border-2">
-                    {acceptInvites ? "等待对局" : "暂不接受挑战"}
+                    {acceptInvites ? "等待挑战中" : "免打扰模式"}
                 </Badge>
                 <Badge variant="ghost" className={cn("h-7 gap-1.5", isConnected ? "text-green-500" : "text-red-500")}>
                   {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                  {isConnected ? "云端同步正常" : "同步连接中断"}
+                  {isConnected ? "云端同步中" : "连接异常"}
                 </Badge>
              </div>
           </div>
@@ -305,7 +285,7 @@ export default function OnlineLobbyPage() {
                         <Badge variant="secondary" className="text-[10px]">{game.rules === 'chinese' ? '中' : '日韩'}</Badge>
                       </div>
                       <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[10px] font-headline uppercase tracking-wider">
-                        <Trophy className="h-3 w-3" /> 已完赛
+                        <Trophy className="h-3 w-3" /> 名局回看
                       </div>
                     </div>
                     <CardContent className="p-6 flex-1 flex flex-col gap-6">
@@ -316,7 +296,7 @@ export default function OnlineLobbyPage() {
                            {game.result?.winner === 'black' && <Badge variant="secondary" className="text-[10px] py-0">{t('lobby.game.winner')}</Badge>}
                         </div>
                         <div className="text-center">
-                          <p className="text-[10px] font-black text-muted-foreground bg-muted px-2 py-1 rounded italic mb-1">RESULT</p>
+                          <p className="text-[10px] font-black text-muted-foreground bg-muted px-2 py-1 rounded italic mb-1">SCORE</p>
                           <p className="text-sm font-bold font-headline">{game.result?.blackScore?.toFixed(1)} : {game.result?.whiteScore?.toFixed(1)}</p>
                         </div>
                         <div className="text-center space-y-2 flex-1">
@@ -332,7 +312,7 @@ export default function OnlineLobbyPage() {
                          </div>
                          <div className="flex items-center gap-2 text-xs text-muted-foreground justify-end">
                            <History className="h-3 w-3" />
-                           <span><span className="font-bold text-foreground">{game.moveCount || 0}</span> 手</span>
+                           <span>{game.moveCount || 0} 手</span>
                          </div>
                       </div>
                     </CardContent>
@@ -356,43 +336,35 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
-      {/* 收到挑战弹窗 */}
+      {/* Invitation Modal */}
       <Dialog open={!!receivedInvite} onOpenChange={(open) => !open && handleDeclineInvite()}>
-        <DialogContent className="sm:max-w-md border-4 border-blue-600 shadow-2xl animate-in zoom-in-95">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-2xl text-blue-600 font-headline">
-              <BellRing className="h-6 w-6 animate-bounce" /> 您有新的挑战！
-            </DialogTitle>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-md border-4 border-blue-600 shadow-2xl">
           <div className="py-6 space-y-6">
             <div className="flex items-center gap-4 bg-blue-500/5 p-4 rounded-xl border border-blue-500/20">
                <Avatar className="h-14 w-14 border-2 border-blue-600">
                  <AvatarFallback className="bg-blue-600 text-white text-xl font-bold font-headline">{receivedInvite?.challengerName?.[0]}</AvatarFallback>
                </Avatar>
                <div>
-                 <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">Challenger</p>
+                 <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">收到对局挑战</p>
                  <h3 className="text-xl font-black">{receivedInvite?.challengerName}</h3>
                </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="p-3 border rounded-lg text-center bg-background"><p className="text-[9px] font-bold text-muted-foreground uppercase">棋盘</p><p className="text-sm font-black">{receivedInvite?.boardSize}x{receivedInvite?.boardSize}</p></div>
-              <div className="p-3 border rounded-lg text-center bg-background"><p className="text-[9px] font-bold text-muted-foreground uppercase">您执</p><p className="text-sm font-black">{receivedInvite?.playerBlackId === user?.uid ? '黑棋' : '白棋'}</p></div>
+              <div className="p-3 border rounded-lg text-center bg-background"><p className="text-[9px] font-bold text-muted-foreground uppercase">角色</p><p className="text-sm font-black">{receivedInvite?.playerBlackId === user?.uid ? '执黑' : '执白'}</p></div>
               <div className="p-3 border rounded-lg text-center bg-background"><p className="text-[9px] font-bold text-muted-foreground uppercase">规则</p><p className="text-sm font-black">{receivedInvite?.rules === 'chinese' ? '中' : '日韩'}</p></div>
             </div>
           </div>
           <DialogFooter className="grid grid-cols-2 gap-4 pt-4 border-t">
-            <Button variant="outline" className="h-12 font-bold border-2" onClick={handleDeclineInvite}>婉言谢绝</Button>
-            <Button className="h-12 font-bold bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={handleAcceptInvite}>接受挑战</Button>
+            <Button variant="outline" className="h-12 font-bold border-2" onClick={handleDeclineInvite}>拒绝</Button>
+            <Button className="h-12 font-bold bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={handleAcceptInvite}>接受并进入</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* 挑战设置弹窗 */}
+      {/* Setup Challenge Modal */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
         <DialogContent className="sm:max-w-md border-2">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 font-headline text-xl"><Settings2 className="h-5 w-5 text-blue-500" /> 发起挑战设置</DialogTitle>
-          </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="space-y-3">
               <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">棋盘尺寸</Label>
@@ -401,13 +373,13 @@ export default function OnlineLobbyPage() {
               </Tabs>
             </div>
             <div className="space-y-3">
-              <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">落子规则</Label>
+              <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">对局规则</Label>
               <Tabs value={selectedRule} onValueChange={setSelectedRule} className="w-full">
                 <TabsList className="grid w-full grid-cols-2 h-10"><TabsTrigger value="chinese">中国规则</TabsTrigger><TabsTrigger value="territory">日韩规则</TabsTrigger></TabsList>
               </Tabs>
             </div>
             <div className="space-y-3">
-              <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">对手执子</Label>
+              <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">对手颜色</Label>
               <RadioGroup value={opponentColor} onValueChange={(val) => setOpponentColor(val as 'black' | 'white')} className="grid grid-cols-2 gap-4">
                 <div className={cn("flex items-center gap-2 border-2 p-3 rounded-lg cursor-pointer", opponentColor === 'black' && "border-blue-500 bg-blue-500/5")}>
                   <RadioGroupItem value="black" id="opt-black" /><Label htmlFor="opt-black" className="cursor-pointer font-bold">对手执黑</Label>
@@ -418,9 +390,9 @@ export default function OnlineLobbyPage() {
               </RadioGroup>
             </div>
           </div>
-          <DialogFooter className="pt-4 border-t">
-            <Button variant="ghost" onClick={() => setInvitingPlayer(null)} className="h-11 px-6">取消</Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 font-bold h-11 px-8 shadow-md" onClick={confirmInvite}>发送邀请</Button>
+          <DialogFooter className="pt-4 border-t flex gap-2">
+            <Button variant="ghost" onClick={() => setInvitingPlayer(null)} className="flex-1 h-11">取消</Button>
+            <Button className="flex-1 bg-blue-600 hover:bg-blue-700 font-bold h-11" onClick={confirmInvite}>下战书</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
