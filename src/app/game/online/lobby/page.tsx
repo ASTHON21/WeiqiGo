@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
@@ -103,7 +103,7 @@ export default function OnlineLobbyPage() {
     return lastSeenDate > threshold;
   }) || [];
 
-  // 监听实时对局 (过滤掉超过24小时的僵尸对局)
+  // 监听实时对局
   const liveGamesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     const yesterday = new Date(Date.now() - 24 * 60 * 60000);
@@ -116,23 +116,37 @@ export default function OnlineLobbyPage() {
   
   const { data: liveGames, isLoading: loadingGames } = useCollection(liveGamesQuery);
 
-  // 监听受到的邀请：使用 useCollection 替换手动监听以提高稳定性
-  const invitationsQuery = useMemoFirebase(() => {
+  // 监听受到的邀请：针对当前用户的特定查询，提高安全性并修复权限争议
+  const invitesBlackQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(collection(db, "games"), where("status", "==", "pending"));
+    return query(
+      collection(db, "games"), 
+      where("status", "==", "pending"), 
+      where("playerBlackId", "==", user.uid)
+    );
+  }, [db, user]);
+
+  const invitesWhiteQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(
+      collection(db, "games"), 
+      where("status", "==", "pending"), 
+      where("playerWhiteId", "==", user.uid)
+    );
   }, [db, user]);
   
-  const { data: invitations } = useCollection(invitationsQuery);
+  const { data: invitesBlack } = useCollection(invitesBlackQuery);
+  const { data: invitesWhite } = useCollection(invitesWhiteQuery);
 
+  // 合并邀请并检测
   useEffect(() => {
-    if (!invitations || !user) return;
-    const invite = invitations.find(g => 
-      (g.playerBlackId === user.uid || g.playerWhiteId === user.uid) && g.createdBy !== user.uid
-    );
+    if (!user) return;
+    const allInvites = [...(invitesBlack || []), ...(invitesWhite || [])];
+    const invite = allInvites.find(g => g.createdBy !== user.uid);
     if (invite && (!receivedInvite || invite.id !== receivedInvite.id)) {
       setReceivedInvite(invite);
     }
-  }, [invitations, user, receivedInvite]);
+  }, [invitesBlack, invitesWhite, user, receivedInvite]);
 
   const handleInviteClick = (id: string, name: string, isAccepting: boolean) => {
     if (!isAccepting) {

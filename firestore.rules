@@ -14,16 +14,17 @@ service cloud.firestore {
     // 用户档案：所有人可读（用于大厅显示），本人可写
     match /userProfiles/{userId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isOwner(userId);
+      allow write: if isOwner(userId);
     }
 
-    // 对局数据：所有人可读（观战及大厅），已认证用户可写（创建及同步状态）
+    // 对局数据：为了支持大厅列表及 P2P 信令，允许所有已认证用户读写
+    // 实际生产环境建议根据 playerBlackId/playerWhiteId 进行更细粒度的控制
     match /games/{gameId} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow read, write: if isAuthenticated();
       
-      // 落子记录：所有人可读（观战），已认证用户可写
-      match /moves/{moveId} {
-        allow read, create: if isAuthenticated();
+      // 落子记录及子集合：同样继承父级权限逻辑
+      match /{allPaths=**} {
+        allow read, write: if isAuthenticated();
       }
     }
   }
