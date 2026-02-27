@@ -11,10 +11,10 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // 用户档案：仅允许本人创建和更新，所有人可读（用于大厅展示）
+    // 用户档案：允许本人创建、更新和删除，所有人可读
     match /userProfiles/{userId} {
       allow read: if isAuthenticated();
-      allow create, update: if isOwner(userId);
+      allow create, update, delete: if isOwner(userId);
     }
 
     // 对局数据：对局参与者可以读写
