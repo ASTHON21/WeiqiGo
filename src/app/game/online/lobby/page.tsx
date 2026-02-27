@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -10,9 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/dialog";
-import { RadioGroup, RadioGroupItem } from "@/radio-group";
-import { Label } from "@/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { Swords, Users, PlayCircle, Loader2, UserPlus, Settings2, Ban, BellRing, User, Wifi, WifiOff, Clock, Trophy, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -71,7 +70,6 @@ export default function OnlineLobbyPage() {
   // 名局回放查询 (1小时内完成)
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
-    // 使用 Timestamp.fromDate 确保查询精确度，防止 73 小时僵尸数据漏网
     const oneHourAgo = Timestamp.fromDate(new Date(Date.now() - 60 * 60 * 1000));
     return query(
       collection(db, "games"), 
