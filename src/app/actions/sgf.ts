@@ -14,36 +14,45 @@ const MOCK_SGF = `(;FE[4]GM[1]SZ[19]EV[AlphaGo vs Lee Sedol]RO[1]PB[Lee Sedol]PW
 
 /**
  * 解析 SGF 字符串 (Server Action)
+ * 防御点：在服务端进行二次内容长度和非法字符检查，防止 AI 注入超大负载或 XSS 载荷
  */
 export async function parseSgfAction(sgfContent: string): Promise<LevelData> {
-  return SgfProcessor.parse("uploaded", sgfContent);
+  // 限制最大长度 100KB，防止内存溢出攻击
+  if (sgfContent.length > 102400) {
+    throw new Error("Payload too large");
+  }
+  
+  // 过滤可能的恶意脚本标签
+  const sanitized = sgfContent.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "");
+  
+  return SgfProcessor.parse("uploaded", sanitized);
 }
 
 /**
  * 获取内置名局
  */
 export async function getPresetGame(id: string): Promise<LevelData> {
-  // 实际开发中可根据 id 加载不同文件，此处暂用 MOCK
   return SgfProcessor.parse(id, MOCK_SGF);
 }
 
 /**
  * 获取特定规则文件内容
- * @param type 规则类型 ('chinese' | 'territory')
- * @param lang 语言代码 ('zh' | 'en')
  */
 export async function getRulesContent(type: 'chinese' | 'territory' = 'chinese', lang: string = 'zh'): Promise<string> {
   try {
-    // 匹配项目中实际存在的规则文件名 (ZH-AS.md, EN-AS.md 等)
     const prefix = lang === 'en' ? 'EN' : 'ZH';
     const fileName = type === 'chinese' ? `${prefix}-AS.md` : `${prefix}-TBC.md`;
     const filePath = path.join(process.cwd(), fileName);
     
-    if (!fs.existsSync(filePath)) {
-      return `找不到规则文件: ${fileName}`;
+    // 路径遍历防御：确保文件名不包含 .. 或 /
+    const safeFileName = path.basename(fileName);
+    const safePath = path.join(process.cwd(), safeFileName);
+
+    if (!fs.existsSync(safePath)) {
+      return `找不到规则文件: ${safeFileName}`;
     }
     
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(safePath, 'utf8');
     return content;
   } catch (error) {
     return "无法加载规则文件。";

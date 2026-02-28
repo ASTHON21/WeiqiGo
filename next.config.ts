@@ -1,7 +1,7 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -30,6 +30,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // 核心防御：注入安全标头防止 Clickjacking, XSS 和 MIME 嗅探
   async headers() {
     return [
       {
@@ -45,7 +46,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Referrer-Policy',
-            value: 'origin-when-cross-origin',
+            value: 'strict-origin-when-cross-origin',
           },
           {
             key: 'Strict-Transport-Security',
