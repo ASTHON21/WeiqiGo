@@ -3,39 +3,44 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // 基础函数：判断是否为本人
-    function isOwner(userId) {
-      return request.auth != null || request.headers.get('x-device-id', '') == userId;
+    // 权限校验函数：必须经过 Firebase Auth 认证且 UID 匹配
+    function isAuthenticated() {
+      return request.auth != null;
     }
     
-    // 用户档案规则
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 用户档案：所有人可读，仅本人可写
     match /userProfiles/{userId} {
       allow read: if true;
-      // 仅允许用户更新自己的档案，且禁止修改 ID
-      allow write: if (request.resource.data.id == userId);
+      allow write: if isOwner(userId);
     }
     
-    // 对局规则
+    // 对局数据
     match /games/{gameId} {
       allow read: if true;
       
-      // 仅允许参与者创建对局
-      allow create: if request.resource.data.playerBlackId != null && 
-                      request.resource.data.playerWhiteId != null;
+      // 仅允许登录用户创建对局
+      allow create: if isAuthenticated() && 
+                      (request.resource.data.playerBlackId == request.auth.uid || 
+                       request.resource.data.playerWhiteId == request.auth.uid);
       
-      // 仅允许参与者更新对局状态或分数
-      allow update: if (request.auth.uid == resource.data.playerBlackId || 
-                        request.auth.uid == resource.data.playerWhiteId ||
-                        request.headers.get('x-device-id', '') == resource.data.playerBlackId ||
-                        request.headers.get('x-device-id', '') == resource.data.playerWhiteId);
+      // 仅允许对局参与者更新状态
+      allow update: if isAuthenticated() && 
+                      (request.auth.uid == resource.data.playerBlackId || 
+                       request.auth.uid == resource.data.playerWhiteId);
       
-      // 严禁物理删除对局，仅能通过状态置为 finished
       allow delete: if false;
 
-      // 移动记录规则：仅允许在对局进行中由参与者添加
+      // 移动记录：仅允许参与者在对局进行中添加
       match /moves/{moveId} {
         allow read: if true;
-        allow create: if get(/databases/$(database)/documents/games/$(gameId)).data.status == 'in-progress';
+        allow create: if isAuthenticated() && 
+                        get(/databases/$(database)/documents/games/$(gameId)).data.status == 'in-progress' &&
+                        (request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.playerBlackId || 
+                         request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.playerWhiteId);
       }
     }
   }

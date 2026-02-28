@@ -1,44 +1,14 @@
+
 "use client";
 
-import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Github, Globe, Mail, User, Info, Smartphone, Monitor, Database, Zap } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function AboutPage() {
   const router = useRouter();
-  const { toast } = useToast();
-  const [clickCount, setClickCount] = useState(0);
-
-  const handleAdminTrigger = () => {
-    const nextCount = clickCount + 1;
-    setClickCount(nextCount);
-
-    if (nextCount === 10) {
-      setClickCount(0);
-      const password = prompt("请输入项目经理管理员密码：");
-      if (password === "ShadowGoAdmin888") {
-        localStorage.setItem('tempPlayerId', 'PM-EXCLUSIVE-ID');
-        localStorage.setItem('tempDisplayName', 'ASTHON SAM JUN AN (PM)');
-        toast({
-          title: "专属身份已激活",
-          description: "欢迎回来，项目经理。正在重启会话...",
-        });
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
-      } else if (password !== null) {
-        toast({
-          variant: "destructive",
-          title: "认证失败",
-          description: "密码错误，请联系技术支持。",
-        });
-      }
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background p-6 flex flex-col items-center justify-center">
@@ -58,15 +28,12 @@ export default function AboutPage() {
             <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed">
               <p>
                 <strong>WEIQI GO (弈道)</strong> 是一款专为围棋爱好者打造的现代化交互平台。
-                我们致力于通过简洁、优雅的设计，结合强大的实时交互技术，为棋手提供一个纯粹的博弈空间。
+                我们致力于通过简洁、优雅的设计，结合强大的云端实时同步技术，为棋手提供一个纯粹的博弈空间。
               </p>
               
               <div className="bg-muted/30 p-4 rounded-lg border-l-4 border-accent">
                 <h3 className="text-foreground font-bold flex items-center gap-2 mb-1">
-                  <User 
-                    className="h-4 w-4 text-accent cursor-pointer hover:scale-110 transition-transform" 
-                    onClick={handleAdminTrigger}
-                  /> 项目管理
+                  <User className="h-4 w-4 text-accent" /> 项目管理
                 </h3>
                 <p className="text-lg font-bold text-foreground">ASTHON SAM JUN AN</p>
                 <p className="text-xs">Project Manager</p>
@@ -81,14 +48,14 @@ export default function AboutPage() {
                   <AlertDescription className="space-y-2 mt-2">
                     <div className="flex items-start gap-2">
                       <Monitor className="h-4 w-4 mt-1 shrink-0" />
-                      <p><strong>窗口 A (正常模式)</strong>: 进入竞技大厅，确保“接受邀请”开启。</p>
+                      <p><strong>窗口 A</strong>: 进入竞技大厅，保持“接受邀请”开启。</p>
                     </div>
                     <div className="flex items-start gap-2">
                       <Smartphone className="h-4 w-4 mt-1 shrink-0" />
-                      <p><strong>窗口 B (无痕模式)</strong>: 打开另一个无痕窗口，这会为您分配一个新的独立棋手 ID。</p>
+                      <p><strong>窗口 B (无痕/另一浏览器)</strong>: 系统会自动为您分配一个新的匿名身份。</p>
                     </div>
                     <p className="text-xs pt-2 border-t mt-2">
-                      在任意窗口的“活跃棋手”列表中找到另一个账号，发送挑战即可。对局采用 <strong>WebRTC P2P</strong> 技术，落子几乎零延迟。
+                      在任意窗口的“活跃棋手”列表中找到另一个账号，发送挑战即可。对局采用 <strong>Firestore Real-time Sync</strong>，确保全平台数据一致性。
                     </p>
                   </AlertDescription>
                 </Alert>
@@ -98,15 +65,14 @@ export default function AboutPage() {
               <ul className="list-disc pl-5 space-y-2">
                 <li className="flex items-start gap-2">
                   <Zap className="h-4 w-4 text-yellow-500 mt-1 shrink-0" />
-                  <span><strong>WebRTC P2P 对弈</strong>：基于对等网络技术，落子直接点对点传输。Firebase 仅作为信令中继，极大降低了对局延迟和后端开销。</span>
+                  <span><strong>云端实时同步</strong>：完全基于 Firestore 监听机制，支持断线重连与跨设备对弈，比传统 P2P 更稳定可靠。</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Database className="h-4 w-4 text-blue-500 mt-1 shrink-0" />
-                  <span><strong>Cloud Firestore 数据库</strong>：使用 Google Cloud 的 NoSQL 数据库存储棋手档案、对局元数据及存在心跳。</span>
+                  <span><strong>Firebase Auth 安全防护</strong>：通过匿名身份验证技术，为每个设备分配唯一加密 Token，从根本上防止 AI 自动化脚本伪造身份。</span>
                 </li>
                 <li><strong>名局阅览</strong>：支持标准的 SGF/GIB 格式导入，线性复刻历史名局。</li>
                 <li><strong>双重规则</strong>：全面支持**中国规则**（数子法）与**日韩规则**（数目法）。</li>
-                <li><strong>持久身份</strong>：基于设备指纹的本地身份标识，刷新页面亦可延续博弈。</li>
               </ul>
             </div>
 

@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 import { useFirebase } from '@/firebase';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
@@ -17,8 +17,8 @@ export interface SessionUser {
 }
 
 /**
- * React hook to manage a persistent player identity based on device fingerprint.
- * Completely decoupled from Firebase Auth.
+ * 强化版身份管理钩子
+ * 集成了 Firebase 匿名登录与设备指纹，确保 Firestore 安全规则中的 request.auth 有效。
  */
 export function useUser() {
   const { firestore, auth } = useFirebase();
@@ -30,51 +30,40 @@ export function useUser() {
 
     const initializeIdentity = async () => {
       try {
-        // 1. 彻底清除残留的 Firebase Auth 会话，确保请求不携带任何过期 Token
-        // 这一步至关重要，防止无效 Token 干扰 Firestore 规则判定
-        if (auth.currentUser) {
-          await signOut(auth);
-        }
-
-        // 2. 获取设备唯一指纹
+        // 1. 获取设备指纹作为本地识别参考
         const fp = await FingerprintJS.load();
-        const result = await fp.get();
-        const deviceId = result.visitorId;
+        const fpResult = await fp.get();
+        const deviceId = fpResult.visitorId;
 
-        // 3. 使用指纹 ID 作为用户唯一标识
-        const userRef = doc(firestore, "userProfiles", deviceId);
+        // 2. 启用 Firebase 匿名登录
+        // 只有这样，Firestore 安全规则中的 request.auth 才会生效，防止攻击者通过控制台直接伪造请求
+        const authResult = await signInAnonymously(auth);
+        const uid = authResult.user.uid;
+
+        // 3. 同步用户档案
+        const userRef = doc(firestore, "userProfiles", uid);
         const userSnap = await getDoc(userRef);
+
+        let displayName = localStorage.getItem('tempDisplayName');
 
         if (userSnap.exists()) {
           const data = userSnap.data();
-          const lastLoginAt = data.lastLoginAt?.toDate ? data.lastLoginAt.toDate() : new Date(data.lastLoginAt);
-          const now = new Date();
-          
-          // 检查是否超过 3 天未活跃
-          const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
-          if (now.getTime() - lastLoginAt.getTime() > threeDaysInMs) {
-            await deleteDoc(userRef);
-            localStorage.removeItem('tempDisplayName');
-            window.location.reload();
-            return;
-          }
+          if (!displayName) displayName = data.displayName;
 
-          // 刷新活跃状态
-          let displayName = localStorage.getItem('tempDisplayName') || data.displayName;
           await setDoc(userRef, { 
             lastLoginAt: serverTimestamp(),
             lastSeen: serverTimestamp(),
-            displayName: displayName
+            deviceId: deviceId, // 更新最新的设备指纹
+            displayName: displayName || data.displayName
           }, { merge: true });
 
           setUser({ 
-            uid: deviceId, 
-            displayName: displayName || "匿名棋手",
+            uid: uid, 
+            displayName: displayName || data.displayName || "匿名棋手",
             deviceId: deviceId
           });
         } else {
           // 初始化新档案
-          let displayName = localStorage.getItem('tempDisplayName');
           if (!displayName) {
             const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
             displayName = `棋手-${randomSuffix}`;
@@ -82,7 +71,7 @@ export function useUser() {
           }
 
           await setDoc(userRef, {
-            id: deviceId,
+            id: uid,
             displayName: displayName,
             deviceId: deviceId,
             createdAt: serverTimestamp(),
@@ -91,10 +80,10 @@ export function useUser() {
             acceptingInvites: true
           });
 
-          setUser({ uid: deviceId, displayName, deviceId });
+          setUser({ uid, displayName, deviceId });
         }
       } catch (error) {
-        console.error("Identity initialization failed:", error);
+        console.error("Critical Security Failure during Identity Initialization:", error);
       } finally {
         setLoading(false);
       }
