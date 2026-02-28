@@ -305,8 +305,8 @@ export default function OnlineGamePage() {
             
             {isFinished && !dismissGameOver && !isDeclined && !isCancelled && (
                <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg p-4">
-                  <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl animate-in zoom-in-95 duration-200">
-                    <CardHeader className="bg-blue-600 text-white py-5 text-center">
+                  <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl animate-in zoom-in-95 duration-200 overflow-y-auto max-h-full">
+                    <CardHeader className="bg-blue-600 text-white py-5 text-center sticky top-0 z-10">
                       <CardTitle className="flex items-center justify-center gap-2 text-xl font-headline uppercase">
                         <ShieldAlert className="h-6 w-6" /> 对局结算报告
                       </CardTitle>
@@ -334,7 +334,7 @@ export default function OnlineGamePage() {
                           </p>
                        </div>
                     </CardContent>
-                    <CardFooter className="flex flex-col gap-3 bg-muted/30 p-6 border-t">
+                    <CardFooter className="flex flex-col gap-3 bg-muted/30 p-6 border-t sticky bottom-0 z-10">
                        <div className="grid grid-cols-2 w-full gap-3">
                          <Button variant="ghost" className="h-12 font-bold gap-2 border-2 bg-background" onClick={() => router.push('/')}>
                            <Home className="h-4 w-4" /> 返回主页

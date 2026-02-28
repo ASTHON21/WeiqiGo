@@ -266,8 +266,8 @@ export default function PracticePage() {
       </div>
 
       <AlertDialog open={!!scoreResult} onOpenChange={(open) => !open && setScoreResult(null)}>
-        <AlertDialogContent className="max-w-md border-4 border-primary p-0 overflow-hidden">
-          <AlertDialogHeader className="bg-primary text-primary-foreground p-6">
+        <AlertDialogContent className="max-w-md border-4 border-primary p-0 overflow-y-auto max-h-[95vh] shadow-2xl">
+          <AlertDialogHeader className="bg-primary text-primary-foreground p-6 sticky top-0 z-10">
             <AlertDialogTitle className="flex items-center justify-center gap-2 text-xl font-headline uppercase tracking-tight">
               <Calculator className="h-6 w-6" /> {scoreResult?.ruleName} 结算报告
             </AlertDialogTitle>
@@ -322,7 +322,7 @@ export default function PracticePage() {
             </div>
           </div>
           
-          <AlertDialogFooter className="p-6 bg-muted/30 border-t flex-col sm:flex-row gap-3">
+          <AlertDialogFooter className="p-6 bg-muted/30 border-t flex-col sm:flex-row gap-3 sticky bottom-0 z-10">
             <div className="grid grid-cols-2 w-full gap-3">
               <Button variant="ghost" className="h-12 font-bold gap-2 border-2 hover:bg-background" onClick={() => router.push('/')}>
                 <Home className="h-4 w-4" /> 主页
