@@ -3,8 +3,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, Timestamp, getDoc } from 'firebase/firestore';
+import { useUser, useDoc, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, getDoc, Timestamp } from 'firebase/firestore';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Hourglass, XCircle, ShieldAlert } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Hourglass } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -25,7 +25,7 @@ export default function OnlineLobbyPage() {
   const { user, loading: loadingUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
 
   const [invitingPlayer, setInvitingPlayer] = useState<{ id: string, name: string } | null>(null);
   const [selectedSize, setSelectedSize] = useState<string>("19");
@@ -69,16 +69,13 @@ export default function OnlineLobbyPage() {
     });
   }, [allProfiles, user?.uid]);
 
-  // Recent Replays (1h)
+  // Recent Replays (1h) - Simplifed query for stability
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(
-      collection(db, "games"), 
-      orderBy("finishedAt", "desc"), 
-      limit(20)
-    );
+    return query(collection(db, "games"), orderBy("finishedAt", "desc"), limit(20));
   }, [db]);
   const { data: allRecentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
+  
   const filteredRecentGames = useMemo(() => {
     if (!allRecentGames) return [];
     const oneHourInMs = 60 * 60 * 1000;
@@ -102,7 +99,6 @@ export default function OnlineLobbyPage() {
   const { data: invitesBlack } = useCollection(invitesBlackQuery);
   const { data: invitesWhite } = useCollection(invitesWhiteQuery);
 
-  // Monitor incoming invites reactively
   useEffect(() => {
     if (!user?.uid) return;
     const allInvites = [...(invitesBlack || []), ...(invitesWhite || [])];
@@ -113,19 +109,16 @@ export default function OnlineLobbyPage() {
         setReceivedInvite(validInvite);
       }
     } else {
-      if (receivedInvite) {
-        setReceivedInvite(null); // Challenger cancelled or something else happened
-      }
+      if (receivedInvite) setReceivedInvite(null);
     }
   }, [invitesBlack, invitesWhite, user?.uid, receivedInvite]);
 
-  // Outgoing Invitation Status Watcher
+  // Outgoing Invitation Watcher
   const { data: pendingGameData } = useDoc(pendingGameId ? doc(db, "games", pendingGameId) : null);
   useEffect(() => {
     if (!pendingGameData) return;
     
     if (pendingGameData.status === 'in-progress') {
-      toast({ title: "对方已应战", description: "建立同步通道中..." });
       router.push(`/game/online/${pendingGameId}`);
       setPendingGameId(null);
     } else if (pendingGameData.status === 'finished' && (pendingGameData.reason === 'declined' || pendingGameData.reason === 'cancelled')) {
@@ -192,8 +185,6 @@ export default function OnlineLobbyPage() {
 
   const handleAcceptInvite = async () => {
     if (!receivedInvite || !db) return;
-
-    // Double check status before entering
     const gameRef = doc(db, "games", receivedInvite.id);
     const snap = await getDoc(gameRef);
     if (!snap.exists() || snap.data().status !== 'pending') {
