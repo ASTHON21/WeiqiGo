@@ -47,7 +47,7 @@ export default function OnlineGamePage() {
   const isCancelled = game?.status === 'finished' && game?.reason === 'cancelled';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
 
-  // 处理邀请终止（拒绝或取消）
+  // 处理对局异常终止
   useEffect(() => {
     if ((isDeclined || isCancelled) && isPlayer && !isSpectating) {
       const title = isDeclined ? "挑战被拒绝" : "对局已取消";
@@ -65,9 +65,9 @@ export default function OnlineGamePage() {
       
       return () => clearTimeout(timer);
     }
-  }, [isDeclined, isCancelled, isPlayer, isSpectating, router]);
+  }, [isDeclined, isCancelled, isPlayer, isSpectating, router, toast]);
 
-  // 从云端同步初始时间
+  // 同步云端初始用时
   useEffect(() => {
     if (game) {
       setTimeUsed({
@@ -75,11 +75,11 @@ export default function OnlineGamePage() {
         white: game.playerWhiteTimeUsed || 0
       });
     }
-  }, [game?.id]);
+  }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
-  // 本地计时器逻辑（仅在进行中且非观战时激活）
+  // 活跃计时器
   useEffect(() => {
-    if (isInProgress && !isFinished && !isSpectating && isPlayer) {
+    if (isInProgress && !isFinished && !isSpectating && isPlayer && game?.currentTurn) {
       const interval = setInterval(() => {
         setTimeUsed(prev => ({
           ...prev,
@@ -90,21 +90,21 @@ export default function OnlineGamePage() {
     }
   }, [isInProgress, isFinished, isSpectating, isPlayer, game?.currentTurn]);
 
-  // 核心：实时监听 Moves 集合（取代 P2P）
+  // 监听 Moves 实时子集合
   const movesQuery = useMemoFirebase(() => {
     if (!db || !roomId || !user || (!isInProgress && !isFinished)) return null;
     return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
   }, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
 
-  // 加载规则指南
+  // 规则加载
   useEffect(() => {
     if (game?.rules) {
       getRulesContent(game.rules as 'chinese' | 'territory', language).then(setRules);
     }
   }, [game?.rules, language]);
 
-  // 棋盘实时推演
+  // 棋盘状态推演
   const { board, prisoners } = useMemo(() => {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
     let p = { black: 0, white: 0 };
@@ -117,7 +117,7 @@ export default function OnlineGamePage() {
            tempBoard = result.newBoard;
            if (result.capturedCount > 0) {
              const color = m.playerColor as 'black' | 'white';
-             p[color] += result.capturedCount;
+             p[color === 'black' ? 'black' : 'white'] += result.capturedCount;
            }
         }
       }
@@ -157,7 +157,6 @@ export default function OnlineGamePage() {
       evaluation: 0.5,
     };
 
-    // 提交落子到云端
     addDoc(collection(db, `games/${roomId}/moves`), moveData).catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `games/${roomId}/moves`,
@@ -166,7 +165,6 @@ export default function OnlineGamePage() {
         }));
     });
 
-    // 切换回合并同步时间
     const nextTurn = playerColor === 'black' ? 'white' : 'black';
     updateDoc(doc(db, "games", roomId), {
       currentTurn: nextTurn,
@@ -231,7 +229,7 @@ export default function OnlineGamePage() {
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -246,33 +244,14 @@ export default function OnlineGamePage() {
     );
   }
 
-  // 邀请取消/拒绝界面
-  if ((isDeclined || isCancelled) && !isSpectating) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <Card className="max-w-md w-full border-4 border-red-500 shadow-2xl p-8 text-center space-y-6">
-           <div className="mx-auto w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center">
-              <XCircle className="h-12 w-12 text-red-600" />
-           </div>
-           <div className="space-y-2">
-              <h2 className="text-2xl font-black font-headline text-foreground">{isCancelled ? '挑战已取消' : '对局已取消'}</h2>
-              <p className="text-muted-foreground">{isCancelled ? '发起方已撤回了本次挑战。' : '对方已婉拒了您的邀请。'} 正在为您重回大厅...</p>
-           </div>
-           <Button variant="outline" className="w-full border-2" onClick={() => router.push('/game/online/lobby')}>立即返回</Button>
-        </Card>
-      </div>
-    );
-  }
-
-  // 等待接受界面
   if (isPending && !isSpectating) {
     return (
       <div className="h-screen flex items-center justify-center bg-background/95">
         <div className="text-center space-y-8 max-w-sm px-6">
           <div className="relative mx-auto w-32 h-32">
-             <Hourglass className="h-full w-full text-blue-500 animate-spin-slow opacity-20" />
+             <Hourglass className="h-full w-full text-blue-500 animate-pulse opacity-20" />
              <div className="absolute inset-0 flex items-center justify-center">
-                <Cloud className="h-12 w-12 text-blue-600 animate-pulse" />
+                <Cloud className="h-12 w-12 text-blue-600 animate-bounce" />
              </div>
           </div>
           <div className="space-y-3">
@@ -295,9 +274,9 @@ export default function OnlineGamePage() {
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
          <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-500 font-headline">
-           {isSpectating ? <Cloud className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
+           <Cloud className={cn("h-6 w-6", isSpectating && "animate-pulse")} />
            {isSpectating ? "云端名局观摩" : "在线同步对弈"}
-           {isFinished && !isDeclined && !isCancelled && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局结算完毕</Badge>}
+           {isFinished && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局结算完毕</Badge>}
          </h1>
          <div className="flex flex-wrap items-center gap-3">
            {!isSpectating && !isFinished && isInProgress && (
@@ -324,7 +303,6 @@ export default function OnlineGamePage() {
               moveSetting={moveSetting}
             />
             
-            {/* 结算面板 */}
             {isFinished && !dismissGameOver && !isDeclined && !isCancelled && (
                <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg p-4">
                   <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl animate-in zoom-in-95 duration-200">
