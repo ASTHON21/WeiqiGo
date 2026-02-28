@@ -298,14 +298,18 @@ export default function PracticePage() {
                     <span>白方围空 (Territory):</span> 
                     <span className="text-foreground font-bold">{scoreResult.details.whiteTerritory} 目</span>
                   </div>
-                  <div className="flex justify-between items-center text-red-600/80">
-                    <span>黑方被提/死子 (Prisoners):</span> 
-                    <span className="font-bold">-{scoreResult.details.blackPrisoners + scoreResult.details.blackDeadOnBoard} 子</span>
-                  </div>
-                  <div className="flex justify-between items-center text-red-600/80">
-                    <span>白方被提/死子 (Prisoners):</span> 
-                    <span className="font-bold">-{scoreResult.details.whitePrisoners + scoreResult.details.whiteDeadOnBoard} 子</span>
-                  </div>
+                  {ruleType === 'territory' && (
+                    <>
+                      <div className="flex justify-between items-center text-red-600/80">
+                        <span>黑方被提/死子 (Prisoners):</span> 
+                        <span className="font-bold">-{scoreResult.details.blackPrisoners + scoreResult.details.blackDeadOnBoard} 子</span>
+                      </div>
+                      <div className="flex justify-between items-center text-red-600/80">
+                        <span>白方被提/死子 (Prisoners):</span> 
+                        <span className="font-bold">-{scoreResult.details.whitePrisoners + scoreResult.details.whiteDeadOnBoard} 子</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

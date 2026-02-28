@@ -117,7 +117,7 @@ export default function OnlineGamePage() {
            tempBoard = result.newBoard;
            if (result.capturedCount > 0) {
              const color = m.playerColor as 'black' | 'white';
-             p[color === 'black' ? 'white' : 'black'] += result.capturedCount; // 逻辑：落子方提子，对方子数减少
+             p[color === 'black' ? 'black' : 'white'] += result.capturedCount; 
            }
         }
       }
@@ -211,7 +211,7 @@ export default function OnlineGamePage() {
           reason: '双方连续弃权',
           blackScore: score.blackTotal,
           whiteScore: score.whiteTotal,
-          details: (score as any).details || null,
+          details: score.details || null,
           komi: score.komi
         }
       });

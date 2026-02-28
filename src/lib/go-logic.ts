@@ -1,9 +1,10 @@
-
 import { BoardState, Player, Move } from './types';
+import { ChineseScoring } from './scoring/chinese-scoring';
+import { JapaneseScoring } from './scoring/japanese-scoring';
 
 /**
  * 围棋竞赛规则逻辑实现
- * 包含：中国规则 (v2.0 数子法) 与 日韩规则 (数目法)
+ * 包含：基础物理规则与策略模式胜负计算
  */
 export const GoLogic = {
     /**
@@ -52,7 +53,7 @@ export const GoLogic = {
             return { success: false, error: 'suicide' };
         }
 
-        // 打劫校验 (劫争规则：禁止立即回提导致棋盘局面重复)
+        // 打劫校验 (劫争规则)
         if (boardHistory.length > 0) {
             const isRepeat = boardHistory.some(prevBoard => GoLogic.isSameBoard(newBoard, prevBoard));
             if (isRepeat) {
@@ -68,136 +69,31 @@ export const GoLogic = {
     },
 
     /**
-     * 中国规则数子法 (Area Counting)
-     * 黑胜 ⇔ B ≥ T/2 + K (T=总点数, K=贴子3.75)
+     * 中国规则数子法 (Area Counting Strategy)
      */
     calculateChineseScore: (board: BoardState) => {
-        const size = board.length;
-        const totalPoints = size * size;
-        const halfPoints = totalPoints / 2;
-        
-        // 根据棋盘大小设置贴子 (Komi in Zi)
-        let KOMI = 3.75; 
-        if (size === 13) KOMI = 3.25;
-        if (size === 9) KOMI = 2.75;
-
-        // 1. 识别并清理死子
-        const allGroups = GoLogic.getAllGroups(board);
-        const countingBoard = board.map(row => [...row]);
-        allGroups.forEach(group => {
-            if (!GoLogic.isGroupAlive(board, group)) {
-                group.positions.forEach(([r, c]) => {
-                    countingBoard[r][c] = null;
-                });
-            }
-        });
-        
-        let blackStones = 0;
-        let visited = new Set<string>();
-        
-        // 2. 数活子
-        for (let r = 0; r < size; r++) {
-            for (let c = 0; c < size; c++) {
-                if (countingBoard[r][c] === 'black') blackStones++;
-            }
-        }
-
-        // 3. 数围空 (包含公气平分)
-        let blackTerritory = 0;
-        for (let r = 0; r < size; r++) {
-            for (let c = 0; c < size; c++) {
-                const key = `${r},${c}`;
-                if (countingBoard[r][c] === null && !visited.has(key)) {
-                    const { points, owner } = GoLogic.findEnclosedArea(countingBoard, r, c, visited);
-                    if (owner === 'black') {
-                        blackTerritory += points.length;
-                    } else if (owner === 'seki') {
-                        // 中国规则：双活公气双方平分
-                        blackTerritory += points.length / 2;
-                    }
-                }
-            }
-        }
-
-        const blackTotal = blackStones + blackTerritory;
-        const whiteTotal = totalPoints - blackTotal;
-        const winThreshold = halfPoints + KOMI;
-        
-        const diff = blackTotal - winThreshold;
-        const winner = diff >= 0 ? 'black' : 'white';
-
+        const strategy = new ChineseScoring();
+        const result = strategy.calculate(board, { black: 0, white: 0 });
         return {
-            blackTotal,
-            whiteTotal,
-            komi: `${KOMI}子 (约${KOMI * 2}目)`,
-            winner,
-            diff: Math.abs(diff),
-            details: {
-                blackStones,
-                blackTerritory,
-                totalPoints,
-                halfPoints,
-                komiZi: KOMI
-            }
+            ...result,
+            blackTotal: result.blackScore,
+            whiteTotal: result.whiteScore,
         };
     },
 
     /**
-     * 日韩规则数目法 (Territory Based Counting)
+     * 日韩规则数目法 (Territory Counting Strategy)
      */
-    calculateJapaneseScore: (board: BoardState, blackPrisoners: number, whitePrisoners: number) => {
-        const size = board.length;
-        const KOMI = 6.5; 
-
-        const allGroups = GoLogic.getAllGroups(board);
-        const deadStones = { black: 0, white: 0 };
-        const liveBoard = board.map(row => [...row]);
-
-        allGroups.forEach(group => {
-            if (!GoLogic.isGroupAlive(board, group)) {
-                group.positions.forEach(([r, c]) => {
-                    deadStones[group.player as 'black' | 'white']++;
-                    liveBoard[r][c] = null;
-                });
-            }
-        });
-
-        let blackTerritory = 0;
-        let whiteTerritory = 0;
-        let visited = new Set<string>();
-
-        for (let r = 0; r < size; r++) {
-            for (let c = 0; c < size; c++) {
-                const key = `${r},${c}`;
-                if (liveBoard[r][c] === null && !visited.has(key)) {
-                    const { points, owner } = GoLogic.findEnclosedArea(liveBoard, r, c, visited);
-                    if (owner === 'black') blackTerritory += points.length;
-                    if (owner === 'white') whiteTerritory += points.length;
-                }
-            }
-        }
-
-        const blackFinal = blackTerritory - blackPrisoners - deadStones.black;
-        const whiteFinal = whiteTerritory - whitePrisoners - deadStones.white;
-
-        const diff = blackFinal - (whiteFinal + KOMI);
-        const winner = diff > 0 ? 'black' : 'white';
-
+    calculateJapaneseScore: (board: BoardState, blackPrisoners: number = 0, whitePrisoners: number = 0) => {
+        const strategy = new JapaneseScoring();
+        // Ensure values are numbers to prevent NaN
+        const bP = isNaN(blackPrisoners) ? 0 : blackPrisoners;
+        const wP = isNaN(whitePrisoners) ? 0 : whitePrisoners;
+        const result = strategy.calculate(board, { black: bP, white: wP });
         return {
-            blackTotal: blackFinal,
-            whiteTotal: whiteFinal + KOMI,
-            komi: KOMI,
-            winner,
-            diff: Math.abs(diff),
-            details: {
-                blackTerritory,
-                whiteTerritory,
-                blackPrisoners,
-                whitePrisoners,
-                blackDeadOnBoard: deadStones.black,
-                whiteDeadOnBoard: deadStones.white,
-                komi: KOMI
-            }
+            ...result,
+            blackTotal: result.blackScore,
+            whiteTotal: result.whiteScore,
         };
     },
 
