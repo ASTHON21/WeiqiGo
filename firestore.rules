@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // 权限校验函数：必须经过 Firebase Auth 认证且 UID 匹配
+    // 权限校验函数：必须经过 Firebase Auth 认证
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -15,22 +15,30 @@ service cloud.firestore {
     // 用户档案：所有人可读，仅本人可写
     match /userProfiles/{userId} {
       allow read: if true;
-      allow write: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && 
+                    request.resource.data.id == resource.data.id; // 禁止修改 UID
+      allow delete: if false; // 严禁物理删除用户数据
     }
     
     // 对局数据
     match /games/{gameId} {
       allow read: if true;
       
-      // 仅允许登录用户创建对局
+      // 仅允许登录用户创建对局，且必须是参与者之一
       allow create: if isAuthenticated() && 
                       (request.resource.data.playerBlackId == request.auth.uid || 
-                       request.resource.data.playerWhiteId == request.auth.uid);
+                       request.resource.data.playerWhiteId == request.auth.uid) &&
+                      request.resource.data.status == 'pending';
       
       // 仅允许对局参与者更新状态
       allow update: if isAuthenticated() && 
                       (request.auth.uid == resource.data.playerBlackId || 
-                       request.auth.uid == resource.data.playerWhiteId);
+                       request.auth.uid == resource.data.playerWhiteId) &&
+                      resource.data.status != 'finished' && // 禁止修改已结束的对局
+                      request.resource.data.playerBlackId == resource.data.playerBlackId &&
+                      request.resource.data.playerWhiteId == resource.data.playerWhiteId &&
+                      request.resource.data.boardSize == resource.data.boardSize;
       
       allow delete: if false;
 
@@ -41,6 +49,7 @@ service cloud.firestore {
                         get(/databases/$(database)/documents/games/$(gameId)).data.status == 'in-progress' &&
                         (request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.playerBlackId || 
                          request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.playerWhiteId);
+        allow update, delete: if false;
       }
     }
   }

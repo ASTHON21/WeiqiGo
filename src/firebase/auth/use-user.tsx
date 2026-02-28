@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 import { useFirebase } from '@/firebase';
 
@@ -17,6 +17,7 @@ export interface SessionUser {
 /**
  * 身份管理钩子
  * 集成了 Firebase 匿名登录，确保 Firestore 安全规则中的 request.auth 有效。
+ * 移除了 FingerprintJS，采用原生的 Firebase 身份持久化。
  */
 export function useUser() {
   const { firestore, auth } = useFirebase();
@@ -28,8 +29,7 @@ export function useUser() {
 
     const initializeIdentity = async () => {
       try {
-        // 1. 启用 Firebase 匿名登录
-        // 只有这样，Firestore 安全规则中的 request.auth 才会生效
+        // 1. 执行 Firebase 匿名登录
         const authResult = await signInAnonymously(auth);
         const uid = authResult.user.uid;
 
@@ -41,17 +41,18 @@ export function useUser() {
 
         if (userSnap.exists()) {
           const data = userSnap.data();
-          if (!displayName) displayName = data.displayName;
+          const finalName = displayName || data.displayName || "匿名棋手";
 
-          await setDoc(userRef, { 
+          // 使用 updateDoc 仅同步活跃时间
+          await updateDoc(userRef, { 
             lastLoginAt: serverTimestamp(),
             lastSeen: serverTimestamp(),
-            displayName: displayName || data.displayName
-          }, { merge: true });
+            displayName: finalName
+          });
 
           setUser({ 
             uid: uid, 
-            displayName: displayName || data.displayName || "匿名棋手"
+            displayName: finalName
           });
         } else {
           // 初始化新档案
