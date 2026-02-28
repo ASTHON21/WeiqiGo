@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useDoc, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, getDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,7 +35,7 @@ export default function OnlineLobbyPage() {
   const [pendingGameId, setPendingGameId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Heartbeat and Status Sync
+  // 心跳与状态同步
   useEffect(() => {
     if (!user?.uid || !db) return;
     const updateStatus = async () => {
@@ -51,7 +51,7 @@ export default function OnlineLobbyPage() {
     return () => clearInterval(heartbeat);
   }, [user?.uid, db, acceptInvitesFromUrl]);
 
-  // Player List
+  // 获取在线玩家列表
   const usersQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(50));
@@ -69,7 +69,7 @@ export default function OnlineLobbyPage() {
     });
   }, [allProfiles, user?.uid]);
 
-  // Recent Replays (1h) - Simplifed query for stability
+  // 最近完赛记录 (1小时内)
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collection(db, "games"), orderBy("finishedAt", "desc"), limit(20));
@@ -87,7 +87,7 @@ export default function OnlineLobbyPage() {
     });
   }, [allRecentGames]);
 
-  // Incoming Invites
+  // 监听收到的邀请
   const invitesBlackQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(collection(db, "games"), where("status", "==", "pending"), where("playerBlackId", "==", user.uid));
@@ -113,7 +113,7 @@ export default function OnlineLobbyPage() {
     }
   }, [invitesBlack, invitesWhite, user?.uid, receivedInvite]);
 
-  // Outgoing Invitation Watcher
+  // 发起方：监听挑战是否被接受
   const { data: pendingGameData } = useDoc(pendingGameId ? doc(db, "games", pendingGameId) : null);
   useEffect(() => {
     if (!pendingGameData) return;
@@ -381,7 +381,7 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Outgoing Invite Pending Modal */}
+      {/* 发起方：等待窗口 */}
       <Dialog open={!!pendingGameId} onOpenChange={(open) => !open && handleCancelChallenge()}>
         <DialogContent className="sm:max-w-md border-4 border-yellow-500 shadow-2xl">
           <DialogHeader>
@@ -410,7 +410,7 @@ export default function OnlineLobbyPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Received Invite Modal */}
+      {/* 受邀方：收到挑战窗口 */}
       <Dialog open={!!receivedInvite} onOpenChange={(open) => !open && handleDeclineInvite()}>
         <DialogContent className="sm:max-w-md border-4 border-blue-600 shadow-2xl">
           <DialogHeader>
@@ -442,7 +442,7 @@ export default function OnlineLobbyPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Sending Invite Modal (Config) */}
+      {/* 配置挑战窗口 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && setInvitingPlayer(null)}>
         <DialogContent className="sm:max-w-md border-2">
           <DialogHeader>

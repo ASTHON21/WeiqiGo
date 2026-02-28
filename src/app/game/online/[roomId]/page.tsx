@@ -33,13 +33,13 @@ export default function OnlineGamePage() {
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [dismissGameOver, setDismissGameOver] = useState(false);
   
-  // Time tracking
+  // 实时计时状态
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
 
-  // Get main game document
+  // 监听主对局文档
   const { data: game, isLoading: loadingGame } = useDoc(roomId && user ? doc(db, "games", roomId) : null);
 
-  // Status flags
+  // 状态标志
   const isFinished = game?.status === 'finished';
   const isPending = game?.status === 'pending';
   const isInProgress = game?.status === 'in-progress';
@@ -47,7 +47,7 @@ export default function OnlineGamePage() {
   const isCancelled = game?.status === 'finished' && game?.reason === 'cancelled';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
 
-  // Handle Invitation Termination
+  // 处理邀请终止（拒绝或取消）
   useEffect(() => {
     if ((isDeclined || isCancelled) && isPlayer && !isSpectating) {
       const title = isDeclined ? "挑战被拒绝" : "对局已取消";
@@ -67,7 +67,7 @@ export default function OnlineGamePage() {
     }
   }, [isDeclined, isCancelled, isPlayer, isSpectating, router]);
 
-  // Sync initial time from game doc
+  // 从云端同步初始时间
   useEffect(() => {
     if (game) {
       setTimeUsed({
@@ -77,7 +77,7 @@ export default function OnlineGamePage() {
     }
   }, [game?.id]);
 
-  // Timer logic
+  // 本地计时器逻辑（仅在进行中且非观战时激活）
   useEffect(() => {
     if (isInProgress && !isFinished && !isSpectating && isPlayer) {
       const interval = setInterval(() => {
@@ -90,21 +90,21 @@ export default function OnlineGamePage() {
     }
   }, [isInProgress, isFinished, isSpectating, isPlayer, game?.currentTurn]);
 
-  // Firestore moves listener - Pure cloud sync, no P2P
+  // 核心：实时监听 Moves 集合（取代 P2P）
   const movesQuery = useMemoFirebase(() => {
     if (!db || !roomId || !user || (!isInProgress && !isFinished)) return null;
     return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
   }, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
 
-  // Load Rules
+  // 加载规则指南
   useEffect(() => {
     if (game?.rules) {
       getRulesContent(game.rules as 'chinese' | 'territory', language).then(setRules);
     }
   }, [game?.rules, language]);
 
-  // Calculate Board
+  // 棋盘实时推演
   const { board, prisoners } = useMemo(() => {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
     let p = { black: 0, white: 0 };
@@ -157,6 +157,7 @@ export default function OnlineGamePage() {
       evaluation: 0.5,
     };
 
+    // 提交落子到云端
     addDoc(collection(db, `games/${roomId}/moves`), moveData).catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `games/${roomId}/moves`,
@@ -165,6 +166,7 @@ export default function OnlineGamePage() {
         }));
     });
 
+    // 切换回合并同步时间
     const nextTurn = playerColor === 'black' ? 'white' : 'black';
     updateDoc(doc(db, "games", roomId), {
       currentTurn: nextTurn,
@@ -238,12 +240,13 @@ export default function OnlineGamePage() {
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-blue-500 mx-auto" />
-          <p className="text-muted-foreground font-bold">同步云端博弈状态...</p>
+          <p className="text-muted-foreground font-bold font-headline">同步云端博弈状态...</p>
         </div>
       </div>
     );
   }
 
+  // 邀请取消/拒绝界面
   if ((isDeclined || isCancelled) && !isSpectating) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
@@ -261,6 +264,7 @@ export default function OnlineGamePage() {
     );
   }
 
+  // 等待接受界面
   if (isPending && !isSpectating) {
     return (
       <div className="h-screen flex items-center justify-center bg-background/95">
@@ -320,6 +324,7 @@ export default function OnlineGamePage() {
               moveSetting={moveSetting}
             />
             
+            {/* 结算面板 */}
             {isFinished && !dismissGameOver && !isDeclined && !isCancelled && (
                <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg p-4">
                   <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl animate-in zoom-in-95 duration-200">
@@ -368,7 +373,7 @@ export default function OnlineGamePage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="border-2">
+          <Card className="border-2 shadow-sm">
             <CardHeader className="py-3 bg-blue-500/10 border-b">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Users className="h-4 w-4 text-blue-500" /> 对局选手
@@ -383,7 +388,7 @@ export default function OnlineGamePage() {
                     <span className="text-[10px] text-muted-foreground font-mono">{formatDuration(timeUsed.black)}</span>
                    </div>
                  </div>
-                 {game?.playerBlackId === user?.uid && <Badge variant="secondary">您</Badge>}
+                 {game?.playerBlackId === user?.uid && <Badge variant="secondary" className="text-[10px] px-2">您</Badge>}
               </div>
               <div className="flex items-center justify-between">
                  <div className="flex items-center gap-2">
@@ -393,14 +398,14 @@ export default function OnlineGamePage() {
                     <span className="text-[10px] text-muted-foreground font-mono">{formatDuration(timeUsed.white)}</span>
                    </div>
                  </div>
-                 {game?.playerWhiteId === user?.uid && <Badge variant="secondary">您</Badge>}
+                 {game?.playerWhiteId === user?.uid && <Badge variant="secondary" className="text-[10px] px-2">您</Badge>}
               </div>
             </CardContent>
           </Card>
 
           {!isFinished && isInProgress && (
             <div className="p-4 bg-muted/50 rounded-lg border-2 text-center border-blue-500/20 shadow-inner">
-              <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1 tracking-wider">落子状态</p>
+              <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1 tracking-wider">当前落子</p>
               <div className="text-lg font-black flex items-center justify-center gap-2 font-headline">
                 <div className={cn("w-3 h-3 rounded-full border shadow-sm", game?.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
                 {game?.currentTurn === 'black' ? '黑方回合' : '白方回合'}
