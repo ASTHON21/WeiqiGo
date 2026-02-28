@@ -44,15 +44,19 @@ export default function OnlineGamePage() {
   const isPending = game?.status === 'pending';
   const isInProgress = game?.status === 'in-progress';
   const isDeclined = game?.status === 'finished' && game?.reason === 'declined';
+  const isCancelled = game?.status === 'finished' && game?.reason === 'cancelled';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
 
-  // Handle Invitation Declined
+  // Handle Invitation Declined or Cancelled
   useEffect(() => {
-    if (isDeclined && isPlayer && !isSpectating) {
+    if ((isDeclined || isCancelled) && isPlayer && !isSpectating) {
+      const title = isDeclined ? "挑战被拒绝" : "对局已取消";
+      const desc = isDeclined ? "对方已婉拒您的对局邀请。" : "发起方已取消了本次对局邀请。";
+      
       toast({
         variant: "destructive",
-        title: "挑战被拒绝",
-        description: "对方已婉拒您的对局邀请。正在返回大厅...",
+        title: title,
+        description: desc + " 正在返回大厅...",
       });
       
       const timer = setTimeout(() => {
@@ -61,7 +65,7 @@ export default function OnlineGamePage() {
       
       return () => clearTimeout(timer);
     }
-  }, [isDeclined, isPlayer, isSpectating, router]);
+  }, [isDeclined, isCancelled, isPlayer, isSpectating, router]);
 
   // Sync initial time from game doc
   useEffect(() => {
@@ -88,7 +92,7 @@ export default function OnlineGamePage() {
 
   // Firestore moves listener
   const movesQuery = useMemoFirebase(() => {
-    if (!db || !roomId || !user || !isInProgress && !isFinished) return null;
+    if (!db || !roomId || !user || (!isInProgress && !isFinished)) return null;
     return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
   }, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
@@ -240,7 +244,7 @@ export default function OnlineGamePage() {
     );
   }
 
-  if (isDeclined && !isSpectating) {
+  if ((isDeclined || isCancelled) && !isSpectating) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <Card className="max-w-md w-full border-4 border-red-500 shadow-2xl p-8 text-center space-y-6">
@@ -248,8 +252,8 @@ export default function OnlineGamePage() {
               <XCircle className="h-12 w-12 text-red-600" />
            </div>
            <div className="space-y-2">
-              <h2 className="text-2xl font-black font-headline text-foreground">对局已取消</h2>
-              <p className="text-muted-foreground">对方已婉拒了您的邀请。正在为您重回大厅...</p>
+              <h2 className="text-2xl font-black font-headline text-foreground">{isCancelled ? '挑战已取消' : '对局已取消'}</h2>
+              <p className="text-muted-foreground">{isCancelled ? '发起方已撤回了本次挑战。' : '对方已婉拒了您的邀请。'} 正在为您重回大厅...</p>
            </div>
            <Button variant="outline" className="w-full border-2" onClick={() => router.push('/game/online/lobby')}>立即返回</Button>
         </Card>
@@ -290,7 +294,7 @@ export default function OnlineGamePage() {
          <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-500 font-headline">
            {isSpectating ? <Cloud className="h-6 w-6 animate-pulse" /> : <Swords className="h-6 w-6" />}
            {isSpectating ? "云端名局观摩" : "在线同步对弈"}
-           {isFinished && !isDeclined && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局结算完毕</Badge>}
+           {isFinished && !isDeclined && !isCancelled && <Badge variant="destructive" className="gap-1"><Lock className="h-3 w-3" /> 对局结算完毕</Badge>}
          </h1>
          <div className="flex flex-wrap items-center gap-3">
            {!isSpectating && !isFinished && isInProgress && (
@@ -317,7 +321,7 @@ export default function OnlineGamePage() {
               moveSetting={moveSetting}
             />
             
-            {isFinished && !dismissGameOver && !isDeclined && (
+            {isFinished && !dismissGameOver && !isDeclined && !isCancelled && (
                <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg p-4">
                   <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl animate-in zoom-in-95 duration-200">
                     <CardHeader className="bg-blue-600 text-white py-5 text-center">

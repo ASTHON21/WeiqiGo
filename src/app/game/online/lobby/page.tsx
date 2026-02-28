@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, Timestamp, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Bell, Hourglass, XCircle, ShieldAlert } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Hourglass, XCircle, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -21,11 +21,11 @@ import { useLanguage } from '@/context/language-context';
 export default function OnlineLobbyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const acceptInvites = searchParams.get('acceptInvites') !== 'false';
+  const acceptInvitesFromUrl = searchParams.get('acceptInvites') !== 'false';
   const { user, loading: loadingUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const [invitingPlayer, setInvitingPlayer] = useState<{ id: string, name: string } | null>(null);
   const [selectedSize, setSelectedSize] = useState<string>("19");
@@ -42,14 +42,14 @@ export default function OnlineLobbyPage() {
       const userRef = doc(db, "userProfiles", user.uid);
       updateDoc(userRef, {
         lastSeen: serverTimestamp(),
-        acceptingInvites: acceptInvites
+        acceptingInvites: acceptInvitesFromUrl
       }).then(() => setIsConnected(true))
         .catch(() => setIsConnected(false));
     };
     updateStatus();
     const heartbeat = setInterval(updateStatus, 30000); 
     return () => clearInterval(heartbeat);
-  }, [user?.uid, db, acceptInvites]);
+  }, [user?.uid, db, acceptInvitesFromUrl]);
 
   // Player List
   const usersQuery = useMemoFirebase(() => {
@@ -72,10 +72,8 @@ export default function OnlineLobbyPage() {
   // Recent Replays (1h)
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    const oneHourAgo = Timestamp.fromDate(new Date(Date.now() - 60 * 60 * 1000));
     return query(
       collection(db, "games"), 
-      where("finishedAt", ">=", oneHourAgo),
       orderBy("finishedAt", "desc"), 
       limit(20)
     );
@@ -83,7 +81,13 @@ export default function OnlineLobbyPage() {
   const { data: allRecentGames, isLoading: loadingGames } = useCollection(recentGamesQuery);
   const filteredRecentGames = useMemo(() => {
     if (!allRecentGames) return [];
-    return allRecentGames.filter(g => g.status === 'finished' && g.reason !== 'declined');
+    const oneHourInMs = 60 * 60 * 1000;
+    const now = Date.now();
+    return allRecentGames.filter(g => {
+      if (g.status !== 'finished' || g.reason === 'declined' || g.reason === 'cancelled') return false;
+      const finishedDate = g.finishedAt?.toDate ? g.finishedAt.toDate().getTime() : new Date(g.finishedAt).getTime();
+      return (now - finishedDate) < oneHourInMs;
+    });
   }, [allRecentGames]);
 
   // Incoming Invites
@@ -98,14 +102,20 @@ export default function OnlineLobbyPage() {
   const { data: invitesBlack } = useCollection(invitesBlackQuery);
   const { data: invitesWhite } = useCollection(invitesWhiteQuery);
 
+  // Monitor incoming invites reactively
   useEffect(() => {
     if (!user?.uid) return;
     const allInvites = [...(invitesBlack || []), ...(invitesWhite || [])];
-    const invite = allInvites.find(g => g.createdBy !== user.uid);
-    if (invite && (!receivedInvite || invite.id !== receivedInvite.id)) {
-      setReceivedInvite(invite);
-    } else if (!invite && receivedInvite) {
-      setReceivedInvite(null);
+    const validInvite = allInvites.find(g => g.createdBy !== user.uid && g.status === 'pending');
+    
+    if (validInvite) {
+      if (!receivedInvite || receivedInvite.id !== validInvite.id) {
+        setReceivedInvite(validInvite);
+      }
+    } else {
+      if (receivedInvite) {
+        setReceivedInvite(null); // Challenger cancelled or something else happened
+      }
     }
   }, [invitesBlack, invitesWhite, user?.uid, receivedInvite]);
 
@@ -115,11 +125,13 @@ export default function OnlineLobbyPage() {
     if (!pendingGameData) return;
     
     if (pendingGameData.status === 'in-progress') {
-      toast({ title: "对手已应战", description: "建立同步通道中..." });
+      toast({ title: "对方已应战", description: "建立同步通道中..." });
       router.push(`/game/online/${pendingGameId}`);
       setPendingGameId(null);
-    } else if (pendingGameData.status === 'finished' && pendingGameData.reason === 'declined') {
-      toast({ variant: "destructive", title: "挑战被拒绝", description: "对方目前无法进行对局。" });
+    } else if (pendingGameData.status === 'finished' && (pendingGameData.reason === 'declined' || pendingGameData.reason === 'cancelled')) {
+      if (pendingGameData.reason === 'declined') {
+        toast({ variant: "destructive", title: "挑战被拒绝", description: "对方目前无法进行对局。" });
+      }
       setPendingGameId(null);
     }
   }, [pendingGameData, pendingGameId, router]);
@@ -166,9 +178,31 @@ export default function OnlineLobbyPage() {
     }).catch(console.error);
   };
 
+  const handleCancelChallenge = async () => {
+    if (!pendingGameId || !db) return;
+    updateDoc(doc(db, "games", pendingGameId), {
+      status: 'finished',
+      reason: 'cancelled',
+      finishedAt: serverTimestamp()
+    }).then(() => {
+      setPendingGameId(null);
+      toast({ title: "已取消挑战", description: "挑战书已撤回。" });
+    });
+  };
+
   const handleAcceptInvite = async () => {
     if (!receivedInvite || !db) return;
-    await updateDoc(doc(db, "games", receivedInvite.id), {
+
+    // Double check status before entering
+    const gameRef = doc(db, "games", receivedInvite.id);
+    const snap = await getDoc(gameRef);
+    if (!snap.exists() || snap.data().status !== 'pending') {
+      toast({ variant: "destructive", title: "挑战失效", description: "发起方已取消了该挑战。" });
+      setReceivedInvite(null);
+      return;
+    }
+
+    await updateDoc(gameRef, {
       status: 'in-progress',
       startedAt: serverTimestamp(),
       lastActivityAt: serverTimestamp()
@@ -217,8 +251,8 @@ export default function OnlineLobbyPage() {
                 </span>
              </div>
              <div className="flex items-center gap-2">
-                <Badge variant={acceptInvites ? "outline" : "destructive"} className="h-7 px-3 border-2">
-                    {acceptInvites ? "等待挑战中" : "免打扰模式"}
+                <Badge variant={acceptInvitesFromUrl ? "outline" : "destructive"} className="h-7 px-3 border-2">
+                    {acceptInvitesFromUrl ? "等待挑战中" : "免打扰模式"}
                 </Badge>
                 <Badge variant="ghost" className={cn("h-7 gap-1.5", isConnected ? "text-green-500" : "text-red-500")}>
                   {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
@@ -357,7 +391,7 @@ export default function OnlineLobbyPage() {
       </Tabs>
 
       {/* Outgoing Invite Pending Modal */}
-      <Dialog open={!!pendingGameId} onOpenChange={(open) => !open && setPendingGameId(null)}>
+      <Dialog open={!!pendingGameId} onOpenChange={(open) => !open && handleCancelChallenge()}>
         <DialogContent className="sm:max-w-md border-4 border-yellow-500 shadow-2xl">
           <DialogHeader>
             <DialogTitle>正在等待应战</DialogTitle>
@@ -378,7 +412,7 @@ export default function OnlineLobbyPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="w-full h-11 border-2" onClick={() => setPendingGameId(null)}>
+            <Button variant="outline" className="w-full h-11 border-2" onClick={handleCancelChallenge}>
               取消挑战
             </Button>
           </DialogFooter>
