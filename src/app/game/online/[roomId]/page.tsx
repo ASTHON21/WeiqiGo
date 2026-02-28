@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -33,13 +32,10 @@ export default function OnlineGamePage() {
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [dismissGameOver, setDismissGameOver] = useState(false);
   
-  // 实时计时状态
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
 
-  // 监听主对局文档
   const { data: game, isLoading: loadingGame } = useDoc(roomId && user ? doc(db, "games", roomId) : null);
 
-  // 状态标志
   const isFinished = game?.status === 'finished';
   const isPending = game?.status === 'pending';
   const isInProgress = game?.status === 'in-progress';
@@ -47,7 +43,6 @@ export default function OnlineGamePage() {
   const isCancelled = game?.status === 'finished' && game?.reason === 'cancelled';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
 
-  // 处理对局异常终止
   useEffect(() => {
     if ((isDeclined || isCancelled) && isPlayer && !isSpectating) {
       const title = isDeclined ? "挑战被拒绝" : "对局已取消";
@@ -67,7 +62,6 @@ export default function OnlineGamePage() {
     }
   }, [isDeclined, isCancelled, isPlayer, isSpectating, router, toast]);
 
-  // 同步云端初始用时
   useEffect(() => {
     if (game) {
       setTimeUsed({
@@ -77,7 +71,6 @@ export default function OnlineGamePage() {
     }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
-  // 活跃计时器
   useEffect(() => {
     if (isInProgress && !isFinished && !isSpectating && isPlayer && game?.currentTurn) {
       const interval = setInterval(() => {
@@ -90,21 +83,18 @@ export default function OnlineGamePage() {
     }
   }, [isInProgress, isFinished, isSpectating, isPlayer, game?.currentTurn]);
 
-  // 监听 Moves 实时子集合
   const movesQuery = useMemoFirebase(() => {
     if (!db || !roomId || !user || (!isInProgress && !isFinished)) return null;
     return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
   }, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
 
-  // 规则加载
   useEffect(() => {
     if (game?.rules) {
       getRulesContent(game.rules as 'chinese' | 'territory', language).then(setRules);
     }
   }, [game?.rules, language]);
 
-  // 棋盘状态推演
   const { board, prisoners } = useMemo(() => {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
     let p = { black: 0, white: 0 };
@@ -212,7 +202,8 @@ export default function OnlineGamePage() {
           blackScore: score.blackTotal,
           whiteScore: score.whiteTotal,
           details: score.details || null,
-          komi: score.komi
+          komi: score.komi,
+          diff: score.diff
         }
       });
     } else {
@@ -330,7 +321,7 @@ export default function OnlineGamePage() {
                        <div className="p-6 bg-blue-500/10 rounded-2xl border-4 border-blue-500/20 space-y-2">
                           <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终判定 (总手数: {game.moveCount})</p>
                           <p className="text-4xl font-black font-headline text-blue-800">
-                            {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {Math.abs((game.result?.blackScore || 0) - (game.result?.whiteScore || 0)).toFixed(1)} 目
+                            {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {game.rules === 'chinese' ? (game.result?.diff * 2).toFixed(1) : game.result?.diff.toFixed(1)} 目
                           </p>
                        </div>
                     </CardContent>
@@ -381,7 +372,6 @@ export default function OnlineGamePage() {
             </CardContent>
           </Card>
 
-          {/* 仅在日韩规则下显示在线对局统计 */}
           {game?.rules === 'territory' && (
             <Card className="border-2 border-blue-500/20 bg-blue-500/5">
               <CardHeader className="py-3 border-b">

@@ -43,4 +43,3 @@
  * 后续在部署 Server Actions 时，请注意 sgf.ts 仅需处理字符串逻辑，无需读写 Firestore 集合来存储临时上传的文件。
  * Gemini 协作：在请求代码实现时，请明确指出代码所属的模式。
    * 示例：“请基于 useSgfViewer 的 currentIndex 逻辑，编写左/右导航按钮的 UI 组件。”
-   * 示例：“请修改 GoLogic 以便在自对弈模式下能正确处理‘打劫’(Ko) 限制。”

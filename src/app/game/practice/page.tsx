@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -183,7 +182,6 @@ export default function PracticePage() {
             onMoveSettingChange={setMoveSetting}
           />
 
-          {/* 仅在日韩规则下显示提子统计 */}
           {ruleType === 'territory' && (
             <Card className="border-2 border-primary/20 bg-primary/5">
               <CardHeader className="py-3 border-b">
@@ -317,7 +315,7 @@ export default function PracticePage() {
             <div className="p-6 rounded-2xl bg-blue-600/10 border-4 border-blue-600/20 text-center space-y-2">
               <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终胜负判定 (Komi: {scoreResult?.komi})</p>
               <h3 className="text-4xl font-black text-blue-800 font-headline">
-                {scoreResult?.winner === 'black' ? '黑方胜' : '白方胜'} {scoreResult?.diff.toFixed(1)} 目
+                {scoreResult?.winner === 'black' ? '黑方胜' : '白方胜'} {ruleType === 'chinese' ? (scoreResult?.diff * 2).toFixed(1) : scoreResult?.diff.toFixed(1)} 目
               </h3>
             </div>
           </div>
