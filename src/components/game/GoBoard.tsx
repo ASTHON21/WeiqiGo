@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import type { BoardState, Move, Player, MoveSetting } from "@/lib/types"; 
 import { cn } from "@/lib/utils";
 import { Icons } from "@/components/icons";
@@ -47,6 +47,45 @@ export function GoBoard({
   const [pendingMove, setPendingMove] = useState<{ r: number; c: number } | null>(null);
   const [lastClicked, setLastClicked] = useState<{ r: number; c: number; time: number } | null>(null);
   
+  // 音效引用
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const prevBoardRef = useRef<BoardState | null>(null);
+  
+  // 初始化音效 (使用高品质木质打击音效模拟落子)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
+      audioRef.current.volume = 0.5;
+    }
+  }, []);
+
+  // 监听棋盘变化播放音效
+  useEffect(() => {
+    // 只有在已有前一次棋盘快照时才进行对比，防止页面初次加载时鸣响
+    if (prevBoardRef.current) {
+      let stoneAdded = false;
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          // 检测是否有格子从空变为有子
+          if (board[r][c] !== null && prevBoardRef.current[r][c] === null) {
+            stoneAdded = true;
+            break;
+          }
+        }
+        if (stoneAdded) break;
+      }
+      
+      if (stoneAdded && audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(() => {
+          // 忽略浏览器由于缺乏用户交互而拦截自动播放的错误
+        });
+      }
+    }
+    // 更新棋盘快照用于下一次对比
+    prevBoardRef.current = board.map(row => [...row]);
+  }, [board, size]);
+
   const starPoints = useMemo(() => getStarPoints(size), [size]);
   const interactiveCellSize = `${(1 / (size - 1)) * 100}%`;
   const isInteractionDisabled = disabled || readOnly;
