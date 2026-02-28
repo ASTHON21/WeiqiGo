@@ -183,23 +183,26 @@ export default function PracticePage() {
             onMoveSettingChange={setMoveSetting}
           />
 
-          <Card className="border-2 border-primary/20 bg-primary/5">
-            <CardHeader className="py-3 border-b">
-              <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-                <Trophy className="h-3 w-3" /> 对局统计
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 grid grid-cols-2 gap-4">
-              <div className="text-center">
-                <p className="text-[10px] text-muted-foreground font-bold uppercase">黑方提子</p>
-                <p className="text-xl font-black">{practice.prisoners.black}</p>
-              </div>
-              <div className="text-center border-l">
-                <p className="text-[10px] text-muted-foreground font-bold uppercase">白方提子</p>
-                <p className="text-xl font-black">{practice.prisoners.white}</p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* 仅在日韩规则下显示提子统计 */}
+          {ruleType === 'territory' && (
+            <Card className="border-2 border-primary/20 bg-primary/5">
+              <CardHeader className="py-3 border-b">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-accent" /> 实时对局统计
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 grid grid-cols-2 gap-4">
+                <div className="text-center">
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">黑方提子</p>
+                  <p className="text-2xl font-black">{practice.prisoners.black}</p>
+                </div>
+                <div className="text-center border-l">
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">白方提子</p>
+                  <p className="text-2xl font-black">{practice.prisoners.white}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Sheet>
             <SheetTrigger asChild>

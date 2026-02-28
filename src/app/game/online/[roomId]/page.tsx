@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Cloud, Lock, Wifi, WifiOff, Home, Hourglass, ShieldAlert, XCircle } from 'lucide-react';
+import { Users, Swords, Loader2, Cloud, Lock, Wifi, WifiOff, Home, Hourglass, ShieldAlert, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
@@ -117,7 +117,7 @@ export default function OnlineGamePage() {
            tempBoard = result.newBoard;
            if (result.capturedCount > 0) {
              const color = m.playerColor as 'black' | 'white';
-             p[color === 'black' ? 'black' : 'white'] += result.capturedCount;
+             p[color === 'black' ? 'white' : 'black'] += result.capturedCount; // 逻辑：落子方提子，对方子数减少
            }
         }
       }
@@ -380,6 +380,27 @@ export default function OnlineGamePage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* 仅在日韩规则下显示在线对局统计 */}
+          {game?.rules === 'territory' && (
+            <Card className="border-2 border-blue-500/20 bg-blue-500/5">
+              <CardHeader className="py-3 border-b">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-blue-600" /> 实时对局统计
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 grid grid-cols-2 gap-4">
+                <div className="text-center">
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">黑方提子</p>
+                  <p className="text-2xl font-black">{prisoners.black}</p>
+                </div>
+                <div className="text-center border-l">
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">白方提子</p>
+                  <p className="text-2xl font-black">{prisoners.white}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {!isFinished && isInProgress && (
             <div className="p-4 bg-muted/50 rounded-lg border-2 text-center border-blue-500/20 shadow-inner">
