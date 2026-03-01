@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Hourglass } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Ban, User, Wifi, WifiOff, Clock, Trophy, History, Hourglass, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -49,6 +49,23 @@ export default function OnlineLobbyPage() {
     const heartbeat = setInterval(updateStatus, 30000); 
     return () => clearInterval(heartbeat);
   }, [user?.uid, db, acceptInvitesFromUrl]);
+
+  // 监控当前用户作为黑方或白方的活跃对局数量
+  const activeBlackQuery = useMemoFirebase(() => {
+    if (!db || !user?.uid) return null;
+    return query(collection(db, "games"), where("playerBlackId", "==", user.uid), where("status", "==", "in-progress"));
+  }, [db, user?.uid]);
+
+  const activeWhiteQuery = useMemoFirebase(() => {
+    if (!db || !user?.uid) return null;
+    return query(collection(db, "games"), where("playerWhiteId", "==", user.uid), where("status", "==", "in-progress"));
+  }, [db, user?.uid]);
+
+  const { data: aB } = useCollection(activeBlackQuery);
+  const { data: aW } = useCollection(activeWhiteQuery);
+
+  const myActiveCount = (aB?.length || 0) + (aW?.length || 0);
+  const MAX_CONCURRENT_GAMES = 30;
 
   // 在线玩家列表
   const usersQuery = useMemoFirebase(() => {
@@ -107,7 +124,7 @@ export default function OnlineLobbyPage() {
     }
   }, [iB, iW, user?.uid, receivedInvite]);
 
-  // 发起方状态监听 - 核心修复：记忆化 pendingGame 引用
+  // 发起方状态监听
   const pendingGameRef = useMemoFirebase(() => {
     if (!db || !pendingGameId) return null;
     return doc(db, "games", pendingGameId);
@@ -129,6 +146,14 @@ export default function OnlineLobbyPage() {
   const handleInviteClick = (id: string, name: string, isAccepting: boolean) => {
     if (!isAccepting) {
       toast({ variant: "destructive", title: "无法邀请", description: `${name} 当前不接受邀请。` });
+      return;
+    }
+    if (myActiveCount >= MAX_CONCURRENT_GAMES) {
+      toast({ 
+        variant: "destructive", 
+        title: "达到对局上限", 
+        description: `您当前已有 ${MAX_CONCURRENT_GAMES} 个正在进行的对局。请先完成部分对局后再发起新挑战。` 
+      });
       return;
     }
     setInvitingPlayer({ id, name });
@@ -160,6 +185,7 @@ export default function OnlineLobbyPage() {
     };
 
     addDoc(collection(db, "games"), newGame).then((ref) => setPendingGameId(ref.id)).catch(console.error);
+    setInvitingPlayer(null);
   };
 
   const handleCancelChallenge = async () => {
@@ -172,6 +198,15 @@ export default function OnlineLobbyPage() {
 
   const handleAcceptInvite = async () => {
     if (!receivedInvite || !db) return;
+    if (myActiveCount >= MAX_CONCURRENT_GAMES) {
+      toast({ 
+        variant: "destructive", 
+        title: "无法应战", 
+        description: `您当前已有 ${MAX_CONCURRENT_GAMES} 个正在进行的对局。请先完成部分对局后再接受新挑战。` 
+      });
+      return;
+    }
+
     const gameRef = doc(db, "games", receivedInvite.id);
     const snap = await getDoc(gameRef);
     if (!snap.exists() || snap.data().status !== 'pending') {
@@ -207,6 +242,10 @@ export default function OnlineLobbyPage() {
              <div className="flex items-center gap-1.5 bg-blue-500/5 px-3 py-1.5 rounded-full border border-blue-500/20 shadow-sm">
                 <User className="h-4 w-4 text-blue-400" />
                 <span className="text-xs text-muted-foreground">棋手: <span className="font-mono text-foreground font-bold">{user?.displayName}</span></span>
+             </div>
+             <div className="flex items-center gap-1.5 bg-muted/50 px-3 py-1.5 rounded-full border shadow-sm">
+                <PlayCircle className="h-4 w-4 text-primary" />
+                <span className="text-xs text-muted-foreground">活跃对局: <span className={cn("font-bold", myActiveCount >= MAX_CONCURRENT_GAMES ? "text-red-500" : "text-foreground")}>{myActiveCount} / {MAX_CONCURRENT_GAMES}</span></span>
              </div>
              <Badge variant={acceptInvitesFromUrl ? "outline" : "destructive"} className="h-7 px-3 border-2">{acceptInvitesFromUrl ? "等待挑战中" : "免打扰模式"}</Badge>
              <Badge variant="ghost" className={cn("h-7 gap-1.5", isConnected ? "text-green-500" : "text-red-500")}>{isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}{isConnected ? "云端同步中" : "连接异常"}</Badge>
@@ -285,13 +324,22 @@ export default function OnlineLobbyPage() {
                <Avatar className="h-14 w-14 border-2 border-blue-600"><AvatarFallback className="bg-blue-600 text-white text-xl font-bold font-headline">{receivedInvite?.challengerName?.[0]}</AvatarFallback></Avatar>
                <div><p className="text-xs text-blue-600 font-bold uppercase tracking-wider">在线挑战邀请</p><h3 className="text-xl font-black">{receivedInvite?.challengerName}</h3></div>
             </div>
+            {myActiveCount >= MAX_CONCURRENT_GAMES && (
+              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 text-xs font-bold">
+                 <AlertCircle className="h-4 w-4" />
+                 <span>您当前已达到 {MAX_CONCURRENT_GAMES} 个对局上限，必须先完成部分对局才能接受新挑战。</span>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div className="p-3 border rounded-lg text-center bg-background"><p className="text-[9px] font-bold text-muted-foreground uppercase">棋盘</p><p className="text-sm font-black">{receivedInvite?.boardSize}x{receivedInvite?.boardSize}</p></div>
               <div className="p-3 border rounded-lg text-center bg-background"><p className="text-[9px] font-bold text-muted-foreground uppercase">角色</p><p className="text-sm font-black">{receivedInvite?.playerBlackId === user?.uid ? '执黑' : '执白'}</p></div>
               <div className="p-3 border rounded-lg text-center bg-background"><p className="text-[9px] font-bold text-muted-foreground uppercase">规则</p><p className="text-sm font-black">{receivedInvite?.rules === 'chinese' ? '中' : '日韩'}</p></div>
             </div>
           </div>
-          <DialogFooter className="grid grid-cols-2 gap-4 pt-4 border-t"><Button variant="outline" className="h-12 font-bold border-2" onClick={handleDeclineInvite}>拒绝</Button><Button className="h-12 font-bold bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={handleAcceptInvite}>接受并进入</Button></DialogFooter>
+          <DialogFooter className="grid grid-cols-2 gap-4 pt-4 border-t">
+            <Button variant="outline" className="h-12 font-bold border-2" onClick={handleDeclineInvite}>拒绝</Button>
+            <Button className="h-12 font-bold bg-blue-600 hover:bg-blue-700 shadow-lg" onClick={handleAcceptInvite} disabled={myActiveCount >= MAX_CONCURRENT_GAMES}>接受并进入</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
