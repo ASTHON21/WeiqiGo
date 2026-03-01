@@ -8,16 +8,23 @@ import path from 'path';
 
 /**
  * 解析 SGF 字符串 (Server Action)
- * 防御点：在服务端进行二次内容长度和非法字符检查，防止负载攻击。
+ * 安全加固：强化了内容消毒和长度校验。
  */
 export async function parseSgfAction(sgfContent: string): Promise<LevelData> {
-  // 限制最大长度 100KB
-  if (sgfContent.length > 102400) {
-    throw new Error("Payload too large");
+  // 严格限制最大长度 64KB (防止内存耗尽攻击)
+  if (!sgfContent || sgfContent.length > 65536) {
+    throw new Error("Payload rejected: file size exceeded safety limit.");
   }
   
-  // 基础消毒处理
-  const sanitized = sgfContent.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "");
+  // 基础消毒处理：移除脚本和潜在的 HTML 标签
+  const sanitized = sgfContent
+    .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "")
+    .replace(/<\/?[^>]+(>|$)/g, "");
+  
+  // 检查是否包含不可见字符（二进制特征检查）
+  if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(sanitized)) {
+    throw new Error("Payload rejected: binary data detected in text field.");
+  }
   
   return SgfProcessor.parse("uploaded", sanitized);
 }

@@ -11,7 +11,7 @@ import { NavControls } from '@/components/game/NavControls';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSgfViewer } from '@/hooks/useSgfViewer';
-import { FileUp, BookOpen, RotateCcw, ArrowLeft, FileCode } from 'lucide-react';
+import { FileUp, BookOpen, RotateCcw, ArrowLeft, FileCode, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -27,13 +27,13 @@ export default function SgfViewerPage() {
 
     const extension = file.name.split('.').pop()?.toLowerCase();
     
-    // 限制文件大小为 99kB
-    const MAX_SIZE = 99 * 1024;
-    if (file.size > MAX_SIZE) {
+    // 严格安全限制：文件不能超过 64KB (标准 SGF 通常 < 20KB)
+    const MAX_SAFE_SIZE = 64 * 1024;
+    if (file.size > MAX_SAFE_SIZE) {
       toast({
         variant: "destructive",
-        title: "文件过大",
-        description: "为了保证加载速度，棋谱文件不能超过 99kB。",
+        title: "安全拒绝：文件过大",
+        description: "为了系统安全，棋谱文件严禁超过 64KB。",
       });
       e.target.value = '';
       return;
@@ -42,6 +42,18 @@ export default function SgfViewerPage() {
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
+
+      // 深度防御：检查文件是否包含二进制特征 (防止伪装成 SGF 的木马)
+      if (content.includes('\u0000') || /[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(content)) {
+        toast({
+          variant: "destructive",
+          title: "检测到非法内容",
+          description: "该文件包含非文本特征，疑似伪装的二进制负载，解析已终止。",
+        });
+        e.target.value = '';
+        return;
+      }
+
       try {
         let data: LevelData;
         if (extension === 'gib') {
@@ -52,15 +64,15 @@ export default function SgfViewerPage() {
         
         setGameData(data);
         toast({
-          title: "导入成功",
-          description: `已成功加载 ${extension?.toUpperCase()} 格式棋谱。`,
+          title: "安全导入成功",
+          description: `已通过特征扫描并成功加载 ${extension?.toUpperCase()} 棋谱。`,
         });
-      } catch (err) {
-        console.error("棋谱解析失败:", err);
+      } catch (err: any) {
+        console.error("棋谱解析安全异常:", err);
         toast({
           variant: "destructive",
           title: "解析失败",
-          description: "该文件格式可能已损坏或不支持，请重试。",
+          description: err.message || "文件结构不符合标准，已被安全引擎拦截。",
         });
       }
     };
@@ -75,14 +87,16 @@ export default function SgfViewerPage() {
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold font-headline">棋谱查看器 (SGF/GIB)</h1>
           <p className="text-muted-foreground">上传 .sgf 或 .gib 文件，支持步进查看与多尺寸棋盘自动适配。</p>
-          <p className="text-[10px] text-muted-foreground/60">最大支持文件大小: 99kB | 适配 Tygem/弈城格式</p>
+          <div className="flex items-center justify-center gap-2 text-[10px] text-green-600 font-bold bg-green-500/5 px-3 py-1 rounded-full border border-green-500/20">
+            <ShieldCheck className="h-3 w-3" /> 静态内容特征扫描已启用
+          </div>
         </div>
         
-        <Card className="w-full max-w-md border-2 border-dashed bg-muted/20 hover:bg-muted/30 transition-colors cursor-pointer relative">
+        <Card className="w-full max-w-md border-2 border-dashed bg-muted/20 hover:bg-muted/30 transition-colors cursor-pointer relative group">
           <label className="flex flex-col items-center justify-center p-12 cursor-pointer">
-            <FileUp className="h-12 w-12 text-accent mb-4" />
+            <FileUp className="h-12 w-12 text-accent mb-4 group-hover:scale-110 transition-transform" />
             <span className="text-lg font-bold">点击选择文件</span>
-            <span className="text-xs text-muted-foreground mt-1">支持 .sgf 和 .gib 格式</span>
+            <span className="text-xs text-muted-foreground mt-1">支持受信任的 .sgf 和 .gib 格式</span>
             <input 
               type="file" 
               accept=".sgf,.gib" 
@@ -92,9 +106,14 @@ export default function SgfViewerPage() {
           </label>
         </Card>
 
-        <Button variant="ghost" onClick={() => router.push('/')} className="gap-2">
-          <ArrowLeft className="h-4 w-4" /> 返回首页
-        </Button>
+        <div className="flex flex-col items-center gap-4">
+          <Button variant="ghost" onClick={() => router.push('/')} className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> 返回首页
+          </Button>
+          <div className="flex items-center gap-2 text-[9px] text-muted-foreground opacity-60">
+            <AlertTriangle className="h-3 w-3" /> 仅支持解析纯文本格式，包含任何二进制指令的文件将被拒绝。
+          </div>
+        </div>
       </div>
     );
   }
