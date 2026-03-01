@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -108,8 +107,14 @@ export default function OnlineLobbyPage() {
     }
   }, [iB, iW, user?.uid, receivedInvite]);
 
-  // 发起方状态监听
-  const { data: pendingGameData } = useDoc(pendingGameId ? doc(db, "games", pendingGameId) : null);
+  // 发起方状态监听 - 核心修复：记忆化 pendingGame 引用
+  const pendingGameRef = useMemoFirebase(() => {
+    if (!db || !pendingGameId) return null;
+    return doc(db, "games", pendingGameId);
+  }, [db, pendingGameId]);
+
+  const { data: pendingGameData } = useDoc(pendingGameRef);
+
   useEffect(() => {
     if (!pendingGameData) return;
     if (pendingGameData.status === 'in-progress') {

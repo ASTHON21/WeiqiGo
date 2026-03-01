@@ -34,7 +34,13 @@ export default function OnlineGamePage() {
   
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
 
-  const { data: game, isLoading: loadingGame } = useDoc(roomId && user ? doc(db, "games", roomId) : null);
+  // 核心修复：必须使用 useMemoFirebase 记忆化文档引用
+  const gameRef = useMemoFirebase(() => {
+    if (!db || !roomId || !user) return null;
+    return doc(db, "games", roomId);
+  }, [db, roomId, user]);
+
+  const { data: game, isLoading: loadingGame } = useDoc(gameRef);
 
   const isFinished = game?.status === 'finished';
   const isPending = game?.status === 'pending';
