@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -8,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Save, Home, RefreshCw } from 'lucide-react';
+import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Save, Home, RefreshCw, Cpu, BrainCircuit } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -22,11 +23,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { GoLogic } from '@/lib/go-logic';
-import { MoveSetting, GameHistoryEntry } from '@/lib/types';
+import { MoveSetting, GameHistoryEntry, Player } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
+import { GoAiEngine, SearchNode } from '@/lib/ai/go-ai-engine';
+import { AiSearchTree } from '@/components/game/AiSearchTree';
 
 export default function PracticePage() {
   const router = useRouter();
@@ -45,12 +48,40 @@ export default function PracticePage() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
+  // AI 状态
+  const [aiOpponent, setAiOpponent] = useState<Player | 'none'>('none');
+  const [isThinking, setIsThinking] = useState(false);
+  const [searchTree, setSearchTree] = useState<SearchNode | null>(null);
+  const [evaluation, setEvaluation] = useState(0);
+
+  const aiEngine = useMemo(() => new GoAiEngine(size), [size]);
+
   useEffect(() => {
     getRulesContent(ruleType, language).then(setRules);
   }, [ruleType, language]);
 
+  // AI 回合监听
+  useEffect(() => {
+    if (!isGameOver && aiOpponent === practice.currentTurn && !isThinking) {
+      setIsThinking(true);
+      // 模拟思考延迟
+      setTimeout(() => {
+        const result = aiEngine.findBestMove(practice.board, practice.currentTurn, practice.moveHistory);
+        setSearchTree(result.tree || null);
+        setEvaluation(result.evaluation);
+        
+        if (result.r === -1) {
+          handlePass();
+        } else {
+          practice.makeMove(result.r, result.c);
+        }
+        setIsThinking(false);
+      }, 1000);
+    }
+  }, [practice.currentTurn, aiOpponent, isGameOver, practice.board, practice.moveHistory]);
+
   const handleMove = (r: number, c: number) => {
-    if (isGameOver) return;
+    if (isGameOver || isThinking) return;
     const result = practice.makeMove(r, c);
     if (!result.success) {
       toast({
@@ -98,6 +129,8 @@ export default function PracticePage() {
     setIsGameOver(false);
     setScoreResult(null);
     setIsSaved(false);
+    setSearchTree(null);
+    setEvaluation(0);
   };
 
   const saveToLocalHistory = () => {
@@ -112,10 +145,11 @@ export default function PracticePage() {
       result: {
         winner: scoreResult.winner,
         reason: '双方连续弃权',
-        blackScore: scoreResult.blackTotal,
-        whiteScore: scoreResult.whiteTotal,
+        blackScore: scoreResult.blackScore,
+        whiteScore: scoreResult.whiteScore,
         details: scoreResult.details,
-        komi: scoreResult.komi
+        komi: scoreResult.komi,
+        diff: scoreResult.diff
       }
     };
 
@@ -148,9 +182,14 @@ export default function PracticePage() {
          </div>
          <div className="flex flex-wrap items-center gap-3">
            {!isGameOver && (
-             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border">
+             <div className={cn(
+               "flex items-center gap-2 px-3 py-1 rounded-full border transition-all",
+               isThinking ? "bg-accent/10 border-accent animate-pulse" : "bg-muted/50 border-transparent"
+             )}>
                <div className={cn("w-3 h-3 rounded-full border transition-colors", practice.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
-               <span className="text-sm font-bold">{practice.currentTurn === 'black' ? '黑方' : '白方'}</span>
+               <span className="text-sm font-bold">
+                 {isThinking ? "AI 思考中..." : (practice.currentTurn === 'black' ? '黑方' : '白方')}
+               </span>
              </div>
            )}
            <Badge variant="outline" className="font-mono">{size}x{size}</Badge>
@@ -168,94 +207,77 @@ export default function PracticePage() {
             size={size} 
             onMove={handleMove}
             currentPlayer={practice.currentTurn}
-            readOnly={isGameOver}
+            readOnly={isGameOver || isThinking}
             lastMove={practice.moveHistory.length > 0 ? practice.moveHistory[practice.moveHistory.length - 1] : null}
             moveSetting={moveSetting}
           />
         </div>
 
         <div className="space-y-6">
+          <Card className="border-2 bg-muted/20">
+            <CardHeader className="py-3 border-b bg-muted/30">
+              <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                <BrainCircuit className="h-4 w-4 text-accent" /> AI 对手设定
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 grid grid-cols-3 gap-2">
+               <Button 
+                variant={aiOpponent === 'none' ? 'default' : 'outline'} 
+                size="sm" 
+                className="text-[10px]"
+                onClick={() => setAiOpponent('none')}
+                disabled={isThinking || isGameOver}
+               >
+                 无 AI
+               </Button>
+               <Button 
+                variant={aiOpponent === 'white' ? 'default' : 'outline'} 
+                size="sm" 
+                className="text-[10px]"
+                onClick={() => setAiOpponent('white')}
+                disabled={isThinking || isGameOver}
+               >
+                 AI 执白
+               </Button>
+               <Button 
+                variant={aiOpponent === 'black' ? 'default' : 'outline'} 
+                size="sm" 
+                className="text-[10px]"
+                onClick={() => setAiOpponent('black')}
+                disabled={isThinking || isGameOver}
+               >
+                 AI 执黑
+               </Button>
+            </CardContent>
+          </Card>
+
+          <AiSearchTree tree={searchTree} thinking={isThinking} evaluation={evaluation} />
+
           <ToolPanel 
             onReset={handleReset} 
-            onPass={isGameOver ? undefined : handlePass}
-            moveSetting={isGameOver ? undefined : moveSetting}
+            onPass={isGameOver || isThinking ? undefined : handlePass}
+            moveSetting={isGameOver || isThinking ? undefined : moveSetting}
             onMoveSettingChange={setMoveSetting}
           />
 
-          {ruleType === 'territory' && (
-            <Card className="border-2 border-primary/20 bg-primary/5">
-              <CardHeader className="py-3 border-b">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-accent" /> 实时对局统计
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">黑方提子</p>
-                  <p className="text-2xl font-black">{practice.prisoners.black}</p>
-                </div>
-                <div className="text-center border-l">
-                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">白方提子</p>
-                  <p className="text-2xl font-black">{practice.prisoners.white}</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <Sheet>
-            <SheetTrigger asChild>
-              <Card className="border-2 cursor-pointer hover:bg-muted/50 transition-colors group">
-                <CardContent className="p-4 flex items-center justify-between">
-                   <div className="flex items-center gap-2">
-                      <Book className="h-4 w-4 text-accent group-hover:scale-110 transition-transform" />
-                      <span className="text-sm font-bold">查看规则指南</span>
-                   </div>
-                   <Badge variant="outline" className="text-[10px]">
-                     Manual
-                   </Badge>
-                </CardContent>
-              </Card>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-full md:max-w-[90vw] lg:max-w-[1200px]">
-              <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">
-                  <Book className="h-5 w-5 text-accent" /> 
-                  {ruleType === 'chinese' ? '中国围棋竞赛规则 (v2.0)' : '日韩规则目数计算法指南'}
-                </SheetTitle>
-              </SheetHeader>
-              <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                   <div className="p-4 md:p-8 bg-muted/30 rounded-lg border font-sans text-sm whitespace-pre-wrap leading-relaxed break-words">
-                     {rules}
-                   </div>
-                </div>
-              </ScrollArea>
-            </SheetContent>
-          </Sheet>
-
-          <Card className="border-2 h-[220px] flex flex-col">
-            <CardHeader className="py-3 bg-muted/30 border-b">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <History className="h-4 w-4 text-primary" /> 棋谱记录
+          <Card className="border-2 h-[150px] flex flex-col">
+            <CardHeader className="py-2 bg-muted/30 border-b">
+              <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                <History className="h-3 w-3 text-primary" /> 棋谱步进
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 p-0 overflow-hidden">
               <ScrollArea className="h-full p-2">
                 <div className="grid grid-cols-2 gap-2">
                   {practice.moveHistory.map((m, i) => (
-                    <div key={i} className="flex items-center gap-2 p-1.5 text-xs border rounded bg-muted/10 hover:bg-muted/20 transition-colors">
+                    <div key={i} className="flex items-center gap-2 p-1 text-[10px] border rounded bg-muted/10">
                       <span className="text-muted-foreground w-4 font-mono">{i + 1}.</span>
-                      <div className={cn("w-2 h-2 rounded-full", m.player === 'black' ? 'bg-black' : 'bg-white border')} />
+                      <div className={cn("w-1.5 h-1.5 rounded-full", m.player === 'black' ? 'bg-black' : 'bg-white border')} />
                       <span className="font-mono font-bold">
                         {m.r === -1 ? 'PASS' : `${String.fromCharCode(m.c + 97).toUpperCase()}${size - m.r}`}
                       </span>
                     </div>
                   ))}
-                  {practice.moveHistory.length === 0 && (
-                    <div className="col-span-2 text-center py-12 text-muted-foreground text-xs italic">
-                      暂无落子记录
-                    </div>
-                  )}
                 </div>
               </ScrollArea>
             </CardContent>
@@ -274,66 +296,13 @@ export default function PracticePage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-black/5 border-2 border-primary/10 text-center space-y-1">
                 <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">黑方点数</p>
-                <p className="text-4xl font-black text-foreground font-headline leading-none">{scoreResult?.blackTotal.toFixed(1)}</p>
+                <p className="text-4xl font-black text-foreground font-headline leading-none">{scoreResult?.blackScore?.toFixed(1)}</p>
               </div>
               <div className="p-4 rounded-xl bg-black/5 border-2 border-primary/10 text-center space-y-1">
                 <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">白方点数</p>
-                <p className="text-4xl font-black text-foreground font-headline leading-none">{scoreResult?.whiteTotal.toFixed(1)}</p>
+                <p className="text-4xl font-black text-foreground font-headline leading-none">{scoreResult?.whiteScore?.toFixed(1)}</p>
               </div>
             </div>
-
-            {scoreResult?.details && (
-              <div className="bg-muted/40 p-5 rounded-xl space-y-3 border shadow-inner">
-                <p className="text-xs font-black border-b pb-2 flex items-center gap-2 text-foreground uppercase tracking-wider">
-                  <Info className="h-4 w-4 text-blue-500" /> 目数详情 breakdown
-                </p>
-                <div className="grid grid-cols-1 gap-y-2 text-[12px] font-medium text-muted-foreground">
-                  {ruleType === 'chinese' ? (
-                    <>
-                      <div className="flex justify-between items-center">
-                        <span>黑方子数 (Stones):</span> 
-                        <span className="text-foreground font-bold">{scoreResult.details.blackStones}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>黑方围地 (Territory):</span> 
-                        <span className="text-foreground font-bold">{scoreResult.details.blackTerritory}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>白方子数 (Stones):</span> 
-                        <span className="text-foreground font-bold">{scoreResult.details.whiteStones}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>白方围地 (Territory):</span> 
-                        <span className="text-foreground font-bold">{scoreResult.details.whiteTerritory}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-blue-500">
-                        <span>公气/单官 (Neutral):</span> 
-                        <span className="font-bold">{scoreResult.details.neutralPoints}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex justify-between items-center">
-                        <span>黑方围空 (Territory):</span> 
-                        <span className="text-foreground font-bold">{scoreResult.details.blackTerritory} 目</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>白方围空 (Territory):</span> 
-                        <span className="text-foreground font-bold">{scoreResult.details.whiteTerritory} 目</span>
-                      </div>
-                      <div className="flex justify-between items-center text-red-600/80">
-                        <span>黑方被提子 (Prisoners):</span> 
-                        <span className="font-bold">+{scoreResult.details.blackPrisoners}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-red-600/80">
-                        <span>白方被提子 (Prisoners):</span> 
-                        <span className="font-bold">+{scoreResult.details.whitePrisoners}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
 
             <div className="p-6 rounded-2xl bg-blue-600/10 border-4 border-blue-600/20 text-center space-y-2">
               <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终胜负判定 (Komi: {scoreResult?.komi})</p>
