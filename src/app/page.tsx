@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages, Moon, Sun, Bell, Settings2, Loader2, ArrowRight } from 'lucide-react';
+import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages, Moon, Sun, Bell, Loader2, ArrowRight } from 'lucide-react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -78,25 +78,18 @@ export default function HomePage() {
 
   const announcements = [
     {
+      date: '2026-03-01',
+      version: 'v2.2.2',
+      content: language === 'zh' 
+        ? '移除了开发实验性功能，优化了核心博弈引擎的稳定性。' 
+        : 'Removed experimental features, optimized core engine stability.'
+    },
+    {
       date: '2026-02-28',
       version: 'v2.2.1',
       content: language === 'zh' 
         ? '在线对局新增“弃权(Pass)”与“认输(Resign)”功能；优化了结算弹窗在小屏设备上的显示。' 
         : 'Added "Pass" and "Resign" features to online games; optimized settlement dialogs for small screens.'
-    },
-    {
-      date: '2026-02-25',
-      version: 'v2.2.0',
-      content: language === 'zh' 
-        ? '新增对局状态锁定机制；集成落子音效；增强了棋谱导入功能的安全性。' 
-        : 'Added game state locking; integrated move sound effects; enhanced security for SGF imports.'
-    },
-    {
-      date: '2026-02-10',
-      version: 'v2.0.5',
-      content: language === 'zh' 
-        ? '全面适配日韩规则（数目法）；增加历史记录导出 SGF 功能。' 
-        : 'Full support for Japanese rules; added SGF export to history.'
     }
   ];
 
@@ -337,7 +330,7 @@ export default function HomePage() {
           </div>
 
           <div className="text-xs text-center text-muted-foreground opacity-50">
-            Weiqi Go Hub v2.2.1 · Powered by Firebase Studio
+            Weiqi Go Hub v2.2.2 · Powered by Firebase Studio
           </div>
         </div>
       </div>
