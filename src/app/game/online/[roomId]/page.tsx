@@ -47,7 +47,7 @@ export default function OnlineGamePage() {
   
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
 
-  // 记忆化对局引用
+  // Memoize document reference to prevent loading loops
   const gameRef = useMemoFirebase(() => {
     if (!db || !roomId || !user) return null;
     return doc(db, "games", roomId);
@@ -62,7 +62,7 @@ export default function OnlineGamePage() {
   const isCancelled = game?.status === 'finished' && game?.reason === 'cancelled';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
 
-  // 监听拒绝/取消状态
+  // Monitor decline/cancel status
   useEffect(() => {
     if ((isDeclined || isCancelled) && isPlayer && !isSpectating) {
       const title = isDeclined ? "挑战被拒绝" : "对局已取消";
@@ -82,7 +82,7 @@ export default function OnlineGamePage() {
     }
   }, [isDeclined, isCancelled, isPlayer, isSpectating, router, toast]);
 
-  // 同步用时
+  // Sync timers from cloud
   useEffect(() => {
     if (game) {
       setTimeUsed({
@@ -92,7 +92,7 @@ export default function OnlineGamePage() {
     }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
-  // 计时器逻辑
+  // Local timer increment for responsive UI
   useEffect(() => {
     if (isInProgress && !isFinished && !isSpectating && isPlayer && game?.currentTurn) {
       const interval = setInterval(() => {
@@ -105,21 +105,21 @@ export default function OnlineGamePage() {
     }
   }, [isInProgress, isFinished, isSpectating, isPlayer, game?.currentTurn]);
 
-  // 记忆化移动记录查询
+  // Memoize moves query
   const movesQuery = useMemoFirebase(() => {
     if (!db || !roomId || !user || (!isInProgress && !isFinished)) return null;
     return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
   }, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
 
-  // 加载规则指南
+  // Load rules guide
   useEffect(() => {
     if (game?.rules) {
       getRulesContent(game.rules as 'chinese' | 'territory', language).then(setRules);
     }
   }, [game?.rules, language]);
 
-  // 计算本地棋盘镜像与提子
+  // Local calculation of board state and prisoners
   const { board, prisoners } = useMemo(() => {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
     let p = { black: 0, white: 0 };
@@ -147,11 +147,12 @@ export default function OnlineGamePage() {
   
   const canMove = !isSpectating && isPlayer && isInProgress && isMyTurn;
 
-  // 处理落子
+  // Handle standard moves
   const handleMove = async (r: number, c: number) => {
     if (!canMove || !user || !game) return;
 
     const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
+    // Deep logic verification
     const logicResult = GoLogic.processMove(board, r, c, playerColor, []);
     
     if (!logicResult.success) {
@@ -173,6 +174,7 @@ export default function OnlineGamePage() {
       evaluation: 0.5,
     };
 
+    // Non-blocking firestore write
     addDoc(collection(db, `games/${roomId}/moves`), moveData).catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `games/${roomId}/moves`,
@@ -191,7 +193,7 @@ export default function OnlineGamePage() {
     });
   };
 
-  // 处理弃权 (Pass)
+  // Handle Pass action
   const handlePass = async () => {
     if (!canMove || !user || !game) return;
     const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
@@ -212,6 +214,7 @@ export default function OnlineGamePage() {
     addDoc(collection(db, `games/${roomId}/moves`), moveData);
 
     if (isConsecutivePass) {
+      // Automatic referee scoring
       const ruleType = game.rules as 'chinese' | 'territory';
       const score = ruleType === 'chinese' 
         ? GoLogic.calculateChineseScore(board)
@@ -248,7 +251,7 @@ export default function OnlineGamePage() {
     }
   };
 
-  // 处理认输 (Resign)
+  // Handle Resignation
   const handleResign = async () => {
     if (!isPlayer || !game || isFinished || !user) return;
     
@@ -529,7 +532,7 @@ export default function OnlineGamePage() {
         </div>
       </div>
 
-      {/* 弃权确认对话框 */}
+      {/* Pass Confirmation */}
       <AlertDialog open={showPassConfirm} onOpenChange={setShowPassConfirm}>
         <AlertDialogContent className="max-w-sm border-2">
           <AlertDialogHeader>
@@ -549,7 +552,7 @@ export default function OnlineGamePage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* 认输确认对话框 */}
+      {/* Resignation Confirmation */}
       <AlertDialog open={showResignConfirm} onOpenChange={setShowResignConfirm}>
         <AlertDialogContent className="max-w-sm border-2">
           <AlertDialogHeader>

@@ -30,7 +30,7 @@ export default function HomePage() {
   const [ruleViewType, setRuleViewType] = useState<'chinese' | 'territory'>('chinese');
   const [rules, setRules] = useState("");
 
-  // 监听活跃对局 (作为黑方)
+  // Monitor active games as Black
   const blackGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(
@@ -41,7 +41,7 @@ export default function HomePage() {
     );
   }, [db, user?.uid]);
 
-  // 监听活跃对局 (作为白方)
+  // Monitor active games as White
   const whiteGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(
@@ -76,8 +76,6 @@ export default function HomePage() {
     setLanguage(language === 'zh' ? 'en' : 'zh');
   };
 
-  // --- 公告管理区域 (Announcements Management) ---
-  // 您可以在此处新增、修改或删除公告对象
   const announcements = [
     {
       date: '2026-02-28',
@@ -104,7 +102,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[url('https://images.unsplash.com/photo-1529697210530-8c4bb1358ce5?q=80&w=2070')] bg-cover bg-center">
-      {/* Top Right Controls */}
+      {/* Top Controls */}
       <div className="absolute top-4 right-4 z-50 flex gap-2">
         <Button 
           variant="outline" 
