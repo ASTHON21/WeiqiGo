@@ -93,6 +93,22 @@ export default function OnlineGamePage() {
     }
   }, [isDeclined, isCancelled, isPlayer, isSpectating, router, toast]);
 
+  // Monitor real-time resignation
+  useEffect(() => {
+    if (isFinished && game?.result?.reason === '对手认输' && isPlayer && !isSpectating && !dismissGameOver) {
+      const myColor = user?.uid === game.playerBlackId ? 'black' : 'white';
+      const winnerColor = game.result.winner;
+      
+      if (myColor === winnerColor) {
+        toast({
+          title: "对方已认输",
+          description: "恭喜！对方选择了认输，本局您获得了胜利。",
+          variant: "default",
+        });
+      }
+    }
+  }, [isFinished, game?.result?.reason, game?.result?.winner, isPlayer, isSpectating, user?.uid, game?.playerBlackId, toast, dismissGameOver]);
+
   // Sync timers from cloud
   useEffect(() => {
     if (game) {
