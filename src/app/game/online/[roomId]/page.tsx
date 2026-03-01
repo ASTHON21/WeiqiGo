@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Cloud, Lock, Wifi, WifiOff, Home, Hourglass, ShieldAlert, Trophy, Info, Calculator, SkipForward, Flag } from 'lucide-react';
+import { Users, Swords, Loader2, Cloud, Lock, Wifi, WifiOff, Home, Hourglass, ShieldAlert, Trophy, Info, Calculator, SkipForward, Flag, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
@@ -27,6 +27,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+const BOARD_TIME_LIMITS: Record<number, number> = {
+  19: 3 * 3600, // 3 hours
+  13: 2 * 3600, // 2 hours
+  9: 1 * 3600   // 1 hour
+};
 
 export default function OnlineGamePage() {
   const params = useParams();
@@ -62,6 +68,11 @@ export default function OnlineGamePage() {
   const isCancelled = game?.status === 'finished' && game?.reason === 'cancelled';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
 
+  // Time limit based on board size
+  const timeLimit = useMemo(() => {
+    return BOARD_TIME_LIMITS[game?.boardSize || 19] || 10800;
+  }, [game?.boardSize]);
+
   // Monitor decline/cancel status
   useEffect(() => {
     if ((isDeclined || isCancelled) && isPlayer && !isSpectating) {
@@ -92,18 +103,46 @@ export default function OnlineGamePage() {
     }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
-  // Local timer increment for responsive UI
+  // Local timer increment and timeout detection
   useEffect(() => {
     if (isInProgress && !isFinished && !isSpectating && isPlayer && game?.currentTurn) {
       const interval = setInterval(() => {
-        setTimeUsed(prev => ({
-          ...prev,
-          [game.currentTurn]: prev[game.currentTurn as 'black' | 'white'] + 1
-        }));
+        setTimeUsed(prev => {
+          const color = game.currentTurn as 'black' | 'white';
+          const nextValue = prev[color] + 1;
+          
+          // Timeout Detection Logic
+          if (nextValue >= timeLimit) {
+            clearInterval(interval);
+            const winnerId = color === 'black' ? game.playerWhiteId : game.playerBlackId;
+            const winnerColor = color === 'black' ? 'white' : 'black';
+            
+            updateDoc(doc(db, "games", roomId), {
+              status: 'finished',
+              winnerId: winnerId,
+              finishedAt: serverTimestamp(),
+              playerBlackTimeUsed: color === 'black' ? timeLimit : prev.black,
+              playerWhiteTimeUsed: color === 'white' ? timeLimit : prev.white,
+              lastActivityAt: serverTimestamp(),
+              result: {
+                winner: winnerColor,
+                reason: '超时负',
+                blackScore: 0,
+                whiteScore: 0,
+                diff: 0
+              }
+            });
+          }
+
+          return {
+            ...prev,
+            [color]: nextValue
+          };
+        });
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [isInProgress, isFinished, isSpectating, isPlayer, game?.currentTurn]);
+  }, [isInProgress, isFinished, isSpectating, isPlayer, game, timeLimit, db, roomId]);
 
   // Memoize moves query
   const movesQuery = useMemoFirebase(() => {
@@ -438,9 +477,9 @@ export default function OnlineGamePage() {
                        )}
 
                        <div className="p-6 bg-blue-500/10 rounded-2xl border-4 border-blue-500/20 space-y-2">
-                          <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终判定 (总手数: {game.moveCount})</p>
+                          <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终判定 ({game.result?.reason})</p>
                           <p className="text-4xl font-black font-headline text-blue-800">
-                            {game.result?.reason === '对手认输' ? (game.result.winner === 'black' ? '黑方中盘胜' : '白方中盘胜') : 
+                            {game.result?.reason === '对手认输' || game.result?.reason === '超时负' ? (game.result.winner === 'black' ? '黑方胜' : '白方胜') : 
                             (`${game.result?.winner === 'black' ? '黑方胜' : '白方胜'} ${game.rules === 'chinese' ? (game.result?.diff * 2).toFixed(1) : game.result?.diff.toFixed(1)} 目`)}
                           </p>
                        </div>
@@ -474,7 +513,9 @@ export default function OnlineGamePage() {
                    <div className="w-8 h-8 rounded-full bg-black border-2 border-white shadow-sm" />
                    <div className="flex flex-col">
                     <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerBlackName || '黑方选手'}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">{formatDuration(timeUsed.black)}</span>
+                    <span className={cn("text-[10px] font-mono flex items-center gap-1", timeUsed.black >= timeLimit * 0.9 ? "text-red-500 animate-pulse font-bold" : "text-muted-foreground")}>
+                      <Timer className="h-3 w-3" /> {formatDuration(timeUsed.black)} / {formatDuration(timeLimit)}
+                    </span>
                    </div>
                  </div>
                  {game?.playerBlackId === user?.uid && <Badge variant="secondary" className="text-[10px] px-2">您</Badge>}
@@ -484,7 +525,9 @@ export default function OnlineGamePage() {
                    <div className="w-8 h-8 rounded-full bg-white border-2 border-black shadow-sm" />
                    <div className="flex flex-col">
                     <span className="text-sm font-bold truncate max-w-[120px]">{game?.playerWhiteName || '白方选手'}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">{formatDuration(timeUsed.white)}</span>
+                    <span className={cn("text-[10px] font-mono flex items-center gap-1", timeUsed.white >= timeLimit * 0.9 ? "text-red-500 animate-pulse font-bold" : "text-muted-foreground")}>
+                      <Timer className="h-3 w-3" /> {formatDuration(timeUsed.white)} / {formatDuration(timeLimit)}
+                    </span>
                    </div>
                  </div>
                  {game?.playerWhiteId === user?.uid && <Badge variant="secondary" className="text-[10px] px-2">您</Badge>}
