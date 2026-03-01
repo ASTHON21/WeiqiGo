@@ -1,10 +1,10 @@
 
-import { BoardState, Player, Move } from './types';
+import { BoardState, Player, Stone } from './types';
 import { ChineseScoring } from './scoring/chinese-scoring';
 import { JapaneseScoring } from './scoring/japanese-scoring';
 
 /**
- * 围棋竞赛规则逻辑加固版
+ * 围棋竞赛规则逻辑加固版 - 生产构建安全优化
  */
 export const GoLogic = {
     processMove: (
@@ -13,17 +13,17 @@ export const GoLogic = {
         c: number, 
         player: Player, 
         boardHistory: BoardState[] = []
-    ) => {
+    ): { success: boolean; newBoard: BoardState; capturedCount: number; error?: string } => {
         const size = board.length;
         if (r === -1 || c === -1) return { success: true, newBoard: board, capturedCount: 0 };
-        if (board[r][c] !== null) return { success: false, error: 'occupied' };
+        if (board[r] && board[r][c] !== null) return { success: false, error: 'occupied', newBoard: board, capturedCount: 0 };
 
         let newBoard = board.map(row => [...row]);
         newBoard[r][c] = player;
 
-        const opponent = player === 'black' ? 'white' : 'black';
+        const opponent: Player = player === 'black' ? 'white' : 'black';
         let capturedStones: [number, number][] = [];
-        const neighbors = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]];
+        const neighbors: [number, number][] = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]];
 
         for (const [nr, nc] of neighbors) {
             if (nr >= 0 && nr < size && nc >= 0 && nc < size && newBoard[nr][nc] === opponent) {
@@ -37,11 +37,13 @@ export const GoLogic = {
             }
         }
 
-        if (GoLogic.calculateLiberties(newBoard, r, c) === 0) return { success: false, error: 'suicide' };
+        if (GoLogic.calculateLiberties(newBoard, r, c) === 0) {
+          return { success: false, error: 'suicide', newBoard: board, capturedCount: 0 };
+        }
 
         if (boardHistory.length > 0) {
             const isRepeat = boardHistory.some(prevBoard => GoLogic.isSameBoard(newBoard, prevBoard));
-            if (isRepeat) return { success: false, error: 'ko' };
+            if (isRepeat) return { success: false, error: 'ko', newBoard: board, capturedCount: 0 };
         }
 
         return { success: true, newBoard, capturedCount: capturedStones.length };
@@ -71,19 +73,22 @@ export const GoLogic = {
         return internalBoard;
     },
 
-    isGroupAliveHeuristic: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
-        const [r, c] = group.positions[0];
+    isGroupAliveHeuristic: (board: BoardState, group: { positions: [number, number][], player: Player }): boolean => {
+        const firstPos = group.positions[0];
+        if (!firstPos) return false;
+        const [r, c] = firstPos;
         if (GoLogic.calculateLiberties(board, r, c) >= 4) return true;
         if (GoLogic.countTrueEyes(board, group) >= 2) return true;
         return GoLogic.checkSekiSimple(board, group);
     },
 
-    countTrueEyes: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
+    countTrueEyes: (board: BoardState, group: { positions: [number, number][], player: Player }): number => {
         let trueEyes = 0;
         const size = board.length;
         const visited = new Set<string>();
         group.positions.forEach(([r, c]) => {
-            [[r-1, c], [r+1, c], [r, c-1], [r, c+1]].forEach(([nr, nc]) => {
+            const neighbors: [number, number][] = [[r-1, c], [r+1, c], [r, c-1], [r, c+1]];
+            neighbors.forEach(([nr, nc]) => {
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === null && !visited.has(`${nr},${nc}`)) {
                     const { points, owner } = GoLogic.findEnclosedArea(board, nr, nc, visited);
                     if (owner === group.player && points.length <= 2) trueEyes++;
@@ -93,12 +98,13 @@ export const GoLogic = {
         return trueEyes;
     },
 
-    checkSekiSimple: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
+    checkSekiSimple: (board: BoardState, group: { positions: [number, number][], player: Player }): boolean => {
         const size = board.length;
         const visited = new Set<string>();
         let isSeki = false;
         group.positions.forEach(([r, c]) => {
-            [[r-1, c], [r+1, c], [r, c-1], [r, c+1]].forEach(([nr, nc]) => {
+            const neighbors: [number, number][] = [[r-1, c], [r+1, c], [r, c-1], [r, c+1]];
+            neighbors.forEach(([nr, nc]) => {
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === null && !visited.has(`${nr},${nc}`)) {
                     const { owner } = GoLogic.findEnclosedArea(board, nr, nc, visited);
                     if (owner === 'seki') isSeki = true;
@@ -108,7 +114,7 @@ export const GoLogic = {
         return isSeki;
     },
 
-    findEnclosedArea: (board: BoardState, r: number, c: number, globalVisited: Set<string>) => {
+    findEnclosedArea: (board: BoardState, r: number, c: number, globalVisited: Set<string>): { points: [number, number][], owner: Player | 'seki' | null } => {
         const size = board.length;
         const queue: [number, number][] = [[r, c]];
         const points: [number, number][] = [];
@@ -116,11 +122,14 @@ export const GoLogic = {
         const owners = new Set<Player>();
 
         while (queue.length > 0) {
-            const [currR, currC] = queue.shift()!;
+            const current = queue.shift();
+            if (!current) break;
+            const [currR, currC] = current;
             points.push([currR, currC]);
             globalVisited.add(`${currR},${currC}`);
 
-            [[currR - 1, currC], [currR + 1, currC], [currR, currC - 1], [currR, currC + 1]].forEach(([nr, nc]) => {
+            const neighbors: [number, number][] = [[currR - 1, currC], [currR + 1, currC], [currR, currC - 1], [currR, currC + 1]];
+            neighbors.forEach(([nr, nc]) => {
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
                     if (board[nr][nc] === null) {
                         if (!localVisited.has(`${nr},${nc}`)) {
@@ -128,20 +137,24 @@ export const GoLogic = {
                             queue.push([nr, nc]);
                         }
                     } else {
-                        owners.add(board[nr][nc] as Player);
+                        const cellPlayer = board[nr][nc] as Player;
+                        owners.add(cellPlayer);
                     }
                 }
             });
         }
 
         let owner: Player | 'seki' | null = null;
-        if (owners.size === 1) owner = Array.from(owners)[0];
-        else if (owners.size > 1) owner = 'seki';
+        if (owners.size === 1) {
+          owner = Array.from(owners)[0];
+        } else if (owners.size > 1) {
+          owner = 'seki';
+        }
 
         return { points, owner };
     },
 
-    getAllGroups: (board: BoardState) => {
+    getAllGroups: (board: BoardState): { positions: [number, number][], player: Player }[] => {
         const size = board.length;
         const visited = new Set<string>();
         const groups: { positions: [number, number][], player: Player }[] = [];
@@ -162,7 +175,8 @@ export const GoLogic = {
         const liberties = new Set<string>();
         const size = board.length;
         group.forEach(([gr, gc]) => {
-            [[gr - 1, gc], [gr + 1, gc], [gr, gc - 1], [gr, gc + 1]].forEach(([nr, nc]) => {
+            const neighbors: [number, number][] = [[gr - 1, gc], [gr + 1, gc], [gr, gc - 1], [gr, gc + 1]];
+            neighbors.forEach(([nr, nc]) => {
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === null) {
                     liberties.add(`${nr},${nc}`);
                 }
@@ -179,9 +193,12 @@ export const GoLogic = {
         const queue: [number, number][] = [[r, c]];
         const visited = new Set<string>([`${r},${c}`]);
         while (queue.length > 0) {
-            const [currR, currC] = queue.shift()!;
+            const current = queue.shift();
+            if (!current) break;
+            const [currR, currC] = current;
             group.push([currR, currC]);
-            [[currR - 1, currC], [currR + 1, currC], [currR, currC - 1], [currR, currC + 1]].forEach(([nr, nc]) => {
+            const neighbors: [number, number][] = [[currR - 1, currC], [currR + 1, currC], [currR, currC - 1], [currR, currC + 1]];
+            neighbors.forEach(([nr, nc]) => {
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === player && !visited.has(`${nr},${nc}`)) {
                     visited.add(`${nr},${nc}`);
                     queue.push([nr, nc]);

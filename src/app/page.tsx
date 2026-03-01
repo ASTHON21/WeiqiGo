@@ -29,6 +29,11 @@ export default function HomePage() {
   
   const [ruleViewType, setRuleViewType] = useState<'chinese' | 'territory'>('chinese');
   const [rules, setRules] = useState("");
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Monitor active games as Black
   const blackGamesQuery = useMemoFirebase(() => {
@@ -61,8 +66,10 @@ export default function HomePage() {
   }, [bGames, wGames]);
 
   useEffect(() => {
-    getRulesContent(ruleViewType, language).then(setRules);
-  }, [ruleViewType, language]);
+    if (hasMounted) {
+      getRulesContent(ruleViewType, language).then(setRules);
+    }
+  }, [ruleViewType, language, hasMounted]);
 
   const handleStartPractice = () => {
     router.push(`/game/practice?size=${practiceSize}&rule=${practiceRule}`);
@@ -76,7 +83,7 @@ export default function HomePage() {
     setLanguage(language === 'zh' ? 'en' : 'zh');
   };
 
-  const announcements = [
+  const announcements = useMemo(() => [
     {
       date: '2026-03-01',
       version: 'v2.2.2',
@@ -91,11 +98,12 @@ export default function HomePage() {
         ? '在线对局新增“弃权(Pass)”与“认输(Resign)”功能；优化了结算弹窗在小屏设备上的显示。' 
         : 'Added "Pass" and "Resign" features to online games; optimized settlement dialogs for small screens.'
     }
-  ];
+  ], [language]);
+
+  if (!hasMounted) return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
 
   return (
     <div className="min-h-screen bg-[url('https://images.unsplash.com/photo-1529697210530-8c4bb1358ce5?q=80&w=2070')] bg-cover bg-center">
-      {/* Top Controls */}
       <div className="absolute top-4 right-4 z-50 flex gap-2">
         <Button 
           variant="outline" 
