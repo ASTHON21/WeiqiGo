@@ -4,7 +4,7 @@ import { ChineseScoring } from './scoring/chinese-scoring';
 import { JapaneseScoring } from './scoring/japanese-scoring';
 
 /**
- * 围棋竞赛规则逻辑加固版 - 生产构建安全优化
+ * 围棋竞赛规则逻辑加固版 - 解决隐式 any 与 Null 引用问题
  */
 export const GoLogic = {
     processMove: (
@@ -16,7 +16,8 @@ export const GoLogic = {
     ): { success: boolean; newBoard: BoardState; capturedCount: number; error?: string } => {
         const size = board.length;
         if (r === -1 || c === -1) return { success: true, newBoard: board, capturedCount: 0 };
-        if (board[r] && board[r][c] !== null) return { success: false, error: 'occupied', newBoard: board, capturedCount: 0 };
+        if (r < 0 || r >= size || c < 0 || c >= size) return { success: false, error: 'out_of_bounds', newBoard: board, capturedCount: 0 };
+        if (board[r][c] !== null) return { success: false, error: 'occupied', newBoard: board, capturedCount: 0 };
 
         let newBoard = board.map(row => [...row]);
         newBoard[r][c] = player;

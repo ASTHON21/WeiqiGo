@@ -3,14 +3,14 @@ import { Move, Player, LevelData, SgfMetadata } from '../types';
 
 /**
  * SGF 处理器：负责 SGF 字符串与 Move[] 数组、Metadata 的转换
- * 安全加固版：包含内容消毒、深度限制和非法标签防御。
+ * 安全加固版：修复了静态类成员语法错误，增强了正则匹配的鲁棒性。
  */
-export const SgfProcessor = {
+export class SgfProcessor {
   /**
    * 解析 SGF 内容并返回完整数据
    */
-  parse(id: string, rawSgf: string): LevelData {
-    // 1. 内容初步消毒：移除潜在的内联 HTML 和脚本，防止 XSS
+  static parse(id: string, rawSgf: string): LevelData {
+    // 1. 内容初步消毒：移除潜在的内联 HTML 和脚本
     const sgfContent = rawSgf
       .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, "")
       .replace(/<\/?[^>]+(>|$)/g, "");
@@ -18,7 +18,7 @@ export const SgfProcessor = {
     const handicaps: Move[] = [];
     const moves: Move[] = [];
 
-    // 2. 提取元数据 (11 项核心字段)
+    // 2. 提取元数据
     const metadata: SgfMetadata = {
       event: this.extractTag(sgfContent, 'EV'),
       round: this.extractTag(sgfContent, 'RO'),
@@ -33,7 +33,7 @@ export const SgfProcessor = {
       comment: this.extractTag(sgfContent, 'GC'),
     };
 
-    // 3. 解析棋盘大小 (限制 2-52)
+    // 3. 解析棋盘大小
     const boardSizeMatch = sgfContent.match(/SZ\[(\d+)\]/);
     let boardSize = boardSizeMatch ? parseInt(boardSizeMatch[1]) : 19;
     if (boardSize > 52) boardSize = 19;
@@ -42,11 +42,11 @@ export const SgfProcessor = {
     const setupBlackRegex = /AB(?:\[([a-z]{2})\])+/g;
     const setupWhiteRegex = /AW(?:\[([a-z]{2})\])+/g;
 
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = setupBlackRegex.exec(sgfContent)) !== null) {
       const coords = this.extractCoordsFromTag(match[0]);
       coords.forEach(c => handicaps.push({ ...c, player: 'black' }));
-      if (handicaps.length > 500) break; // 防止死循环攻击
+      if (handicaps.length > 500) break;
     }
     while ((match = setupWhiteRegex.exec(sgfContent)) !== null) {
       const coords = this.extractCoordsFromTag(match[0]);
@@ -63,7 +63,7 @@ export const SgfProcessor = {
       if (coords.r !== -1) {
         moves.push({ ...coords, player, index: index++ });
       }
-      if (moves.length > 1000) break; // 强制截断异常超长棋谱
+      if (moves.length > 1000) break;
     }
 
     return {
@@ -74,42 +74,39 @@ export const SgfProcessor = {
       moves,
       totalSteps: moves.length
     };
-  },
+  }
 
-  private extractTag(content: string, tag: string): string | undefined {
-    // 限制标签名为全大写字母，防止异常注入
+  private static extractTag(content: string, tag: string): string | undefined {
     if (!/^[A-Z]{1,2}$/.test(tag)) return undefined;
     
     const regex = new RegExp(`${tag}\\[(.*?)\\]`);
     const match = content.match(regex);
     if (!match) return undefined;
 
-    // 对提取的文本内容进行二次过滤
-    return match[1].replace(/[<>]/g, "").substring(0, 1024); // 限制单字段长度
-  },
+    return match[1].replace(/[<>]/g, "").substring(0, 1024);
+  }
 
-  private extractCoordsFromTag(tagContent: string): { r: number, c: number }[] {
+  private static extractCoordsFromTag(tagContent: string): { r: number, c: number }[] {
     const coords: { r: number, c: number }[] = [];
     const coordRegex = /\[([a-z]{2})\]/g;
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = coordRegex.exec(tagContent)) !== null) {
       coords.push(this.fromSgf(match[1]));
     }
     return coords;
-  },
+  }
 
-  fromSgf(sgf: string): { r: number; c: number } {
+  static fromSgf(sgf: string): { r: number; c: number } {
     if (!sgf || sgf.length < 2) return { r: -1, c: -1 };
     const c = sgf.charCodeAt(0) - 97;
     const r = sgf.charCodeAt(1) - 97;
     
-    // 范围合法性校验
     if (c < 0 || c > 51 || r < 0 || r > 51) return { r: -1, c: -1 };
     
     return { c, r };
-  },
+  }
 
-  toSgf(r: number, c: number): string {
+  static toSgf(r: number, c: number): string {
     return String.fromCharCode(c + 97) + String.fromCharCode(r + 97);
   }
-};
+}

@@ -5,7 +5,7 @@ import { GoLogic } from '../go-logic';
 
 /**
  * 中国规则数子法 (Area Scoring - Shuzi Fa)
- * 核心修正：确保总点数之和恒等于棋盘格点数 (如 19x19 = 361)
+ * 核心修正：确保总点数之和恒等于棋盘格点数，且 details 字段与接口保持严格一致。
  */
 export class ChineseScoring implements ScoringStrategy {
   calculate(board: BoardState, prisoners: { black: number, white: number } = { black: 0, white: 0 }): GameResult {
