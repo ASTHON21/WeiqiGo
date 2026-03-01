@@ -1,24 +1,24 @@
+
 import { BoardState, Player, GameResult } from '../types';
 import { ScoringStrategy } from './strategy';
 import { GoLogic } from '../go-logic';
 
 /**
  * Chinese Rule Logic (Area Scoring - Shuzi Fa)
- * Mechanism: Score = Stones on board + Enclosed empty points.
- * Refined: Neutral points (Dame) are split in the margin calculation to prevent 
- * mathematically impossible leads in mid-game/partial boards.
+ * 修正版公式：黑方领先目数 = (黑方子数 + 黑方围空 + 公气/2) - (总目数/2 + 3.75)
+ * 该公式能够正确处理棋盘未铺满的情况。
  */
 export class ChineseScoring implements ScoringStrategy {
   calculate(board: BoardState, prisoners: { black: number, white: number } = { black: 0, white: 0 }): GameResult {
     const size = board.length;
     const totalPoints = size * size;
     
-    // Set Komi in Zi (Standard 19x19 is 3.75 zi which equals 7.5 points)
+    // 贴子 (Zi)：19x19 为 3.75子 (相当于 7.5目)
     let komiZi = 3.75;
     if (size === 13) komiZi = 3.25;
     if (size === 9) komiZi = 2.75;
 
-    // Pre-processing: Dead stones are removed before counting
+    // 预处理：移除死子
     const cleanedBoard = GoLogic.removeDeadStones(board);
 
     const visited = new Set<string>();
@@ -27,7 +27,7 @@ export class ChineseScoring implements ScoringStrategy {
     let blackTerritory = 0;
     let whiteTerritory = 0;
 
-    // 1. Count stones on board
+    // 1. 数棋盘上的活子
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         if (cleanedBoard[r][c] === 'black') blackStones++;
@@ -35,7 +35,7 @@ export class ChineseScoring implements ScoringStrategy {
       }
     }
 
-    // 2. Count territory using Flood Fill
+    // 2. 洪水填充数围空
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         const key = `${r},${c}`;
@@ -55,17 +55,12 @@ export class ChineseScoring implements ScoringStrategy {
     const neutralPoints = totalPoints - blackArea - whiteArea;
 
     /**
-     * Correct Area Counting Margin (Zi)
-     * 
-     * Tournament Formula for a finished board: Margin = BlackArea - (Total / 2 + Komi)
-     * To handle boards with neutral points (Dame) correctly and avoid the "348.5 points" bug:
-     * Margin = (BlackArea + Neutral / 2) - (Total / 2 + Komi)
-     * This simplifies to: 0.5 * (BlackArea - WhiteArea - Komi * 2)
+     * 核心修正逻辑：
+     * 如果直接计算 BlackArea - (TotalPoints/2 + Komi)，在棋盘未落满时会导致白方领先巨大的 bug。
+     * 正确做法是计算黑白双方实际占领区域的差值。
+     * 领先子数 (Zi) = (BlackArea - WhiteArea - 2*Komi) / 2
      */
-    const blackAdjusted = blackArea + (neutralPoints / 2);
-    const winThreshold = (totalPoints / 2) + komiZi;
-    const diffZi = blackAdjusted - winThreshold;
-    
+    const diffZi = 0.5 * (blackArea - whiteArea - (komiZi * 2));
     const winner = diffZi >= 0 ? 'black' : 'white';
 
     return {

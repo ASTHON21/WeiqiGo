@@ -50,23 +50,35 @@ export function GoBoard({
   // 音效引用
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevBoardRef = useRef<BoardState | null>(null);
+  const hasInteracted = useRef(false);
   
-  // 初始化音效 (使用高品质木质打击音效模拟落子)
+  // 初始化音效
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
-      audioRef.current.volume = 0.5;
+      // 使用更稳定的音效资源
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
+      audio.volume = 0.8;
+      audio.preload = 'auto';
+      audioRef.current = audio;
     }
   }, []);
 
-  // 监听棋盘变化播放音效
+  const playStoneSound = () => {
+    if (audioRef.current) {
+      // 尝试在播放前重置进度，确保快速连点时声音不被截断
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {
+        // 捕获浏览器自动播放限制导致的错误
+      });
+    }
+  };
+
+  // 监听棋盘变化播放音效 (用于同步远程落子)
   useEffect(() => {
-    // 只有在已有前一次棋盘快照时才进行对比，防止页面初次加载时鸣响
     if (prevBoardRef.current) {
       let stoneAdded = false;
       for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
-          // 检测是否有格子从空变为有子
           if (board[r][c] !== null && prevBoardRef.current[r][c] === null) {
             stoneAdded = true;
             break;
@@ -75,14 +87,10 @@ export function GoBoard({
         if (stoneAdded) break;
       }
       
-      if (stoneAdded && audioRef.current) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(() => {
-          // 忽略浏览器由于缺乏用户交互而拦截自动播放的错误
-        });
+      if (stoneAdded) {
+        playStoneSound();
       }
     }
-    // 更新棋盘快照用于下一次对比
     prevBoardRef.current = board.map(row => [...row]);
   }, [board, size]);
 
@@ -92,15 +100,26 @@ export function GoBoard({
 
   const handleCellClick = (r: number, c: number) => {
     if (isInteractionDisabled || board[r][c] !== null) return;
+    
+    // 首次点击解锁音频上下文
+    if (!hasInteracted.current) {
+      hasInteracted.current = true;
+      audioRef.current?.play().then(() => {
+        audioRef.current?.pause();
+        if (audioRef.current) audioRef.current.currentTime = 0;
+      }).catch(() => {});
+    }
 
     if (moveSetting === 'direct') {
       onMove?.(r, c);
+      playStoneSound(); // 本地落子即时反馈
     } else if (moveSetting === 'confirm') {
       setPendingMove({ r, c });
     } else if (moveSetting === 'double-click') {
       const now = Date.now();
       if (lastClicked && lastClicked.r === r && lastClicked.c === c && (now - lastClicked.time) < 500) {
         onMove?.(r, c);
+        playStoneSound();
         setLastClicked(null);
       } else {
         setLastClicked({ r, c, time: now });
@@ -111,6 +130,7 @@ export function GoBoard({
   const confirmMove = () => {
     if (pendingMove) {
       onMove?.(pendingMove.r, pendingMove.c);
+      playStoneSound();
       setPendingMove(null);
     }
   };
@@ -164,7 +184,6 @@ export function GoBoard({
                       )}
                     />
                   )}
-                  {/* 待确认落子的虚影态 */}
                   {isPending && !cell && (
                     <Icons.Stone
                       className={cn(
