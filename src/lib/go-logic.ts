@@ -5,7 +5,6 @@ import { JapaneseScoring } from './scoring/japanese-scoring';
 
 /**
  * 围棋竞赛规则逻辑加固版
- * 修复了 Seki 判定、Dame 忽略以及死活启发式算法
  */
 export const GoLogic = {
     processMove: (
@@ -40,7 +39,6 @@ export const GoLogic = {
 
         if (GoLogic.calculateLiberties(newBoard, r, c) === 0) return { success: false, error: 'suicide' };
 
-        // 性能优化版打劫检测
         if (boardHistory.length > 0) {
             const isRepeat = boardHistory.some(prevBoard => GoLogic.isSameBoard(newBoard, prevBoard));
             if (isRepeat) return { success: false, error: 'ko' };
@@ -59,15 +57,11 @@ export const GoLogic = {
         return strategy.calculate(board, { black: blackPrisoners, white: whitePrisoners });
     },
 
-    /**
-     * 死活判定启发式算法
-     */
     removeDeadStones: (board: BoardState): BoardState => {
         const internalBoard = board.map(row => [...row]);
         const groups = GoLogic.getAllGroups(internalBoard);
         
         groups.forEach(group => {
-            // 启发式判断：如果没有两只真眼且不处于双活状态，则在结算前移除
             if (!GoLogic.isGroupAliveHeuristic(internalBoard, group)) {
                 group.positions.forEach(([r, c]) => {
                     internalBoard[r][c] = null;
@@ -79,7 +73,7 @@ export const GoLogic = {
 
     isGroupAliveHeuristic: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
         const [r, c] = group.positions[0];
-        if (GoLogic.calculateLiberties(board, r, c) >= 4) return true; // 气数极多暂视为活
+        if (GoLogic.calculateLiberties(board, r, c) >= 4) return true;
         if (GoLogic.countTrueEyes(board, group) >= 2) return true;
         return GoLogic.checkSekiSimple(board, group);
     },
@@ -142,7 +136,7 @@ export const GoLogic = {
 
         let owner: Player | 'seki' | null = null;
         if (owners.size === 1) owner = Array.from(owners)[0];
-        else if (owners.size > 1) owner = 'seki'; // 中性点/双活公气
+        else if (owners.size > 1) owner = 'seki';
 
         return { points, owner };
     },
