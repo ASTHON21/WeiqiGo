@@ -1,4 +1,3 @@
-
 import { BoardState, Player, GameResult } from '../types';
 import { ScoringStrategy } from './strategy';
 import { GoLogic } from '../go-logic';
@@ -6,15 +5,15 @@ import { GoLogic } from '../go-logic';
 /**
  * Japanese Rule Logic (Territory Scoring - Bimu Fa)
  * Mechanism: Score = Enclosed empty points + Captured stones.
- * Refined per renew.md: Dame/Seki points are ignored.
+ * Dead stones are pre-cleared by the referee logic.
  */
 export class JapaneseScoring implements ScoringStrategy {
   calculate(board: BoardState, prisoners: { black: number, white: number } = { black: 0, white: 0 }): GameResult {
     const size = board.length;
     const komi = 6.5;
 
-    // The logic now expects 'board' to be pre-cleaned by GoLogic.removeDeadStones()
-    const liveBoard = board;
+    // Pre-processing: Dead stones are removed before counting
+    const cleanedBoard = GoLogic.removeDeadStones(board);
 
     const visited = new Set<string>();
     let blackTerritory = 0;
@@ -24,20 +23,19 @@ export class JapaneseScoring implements ScoringStrategy {
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         const key = `${r},${c}`;
-        if (liveBoard[r][c] === null && !visited.has(key)) {
-          const { points, owner } = GoLogic.findEnclosedArea(liveBoard, r, c, visited);
+        if (cleanedBoard[r][c] === null && !visited.has(key)) {
+          const { points, owner } = GoLogic.findEnclosedArea(cleanedBoard, r, c, visited);
           if (owner === 'black') {
             blackTerritory += points.length;
           } else if (owner === 'white') {
             whiteTerritory += points.length;
           }
-          // Dame or Seki points count as 0 for both in Japanese rules.
-          // findEnclosedArea correctly flags shared areas as 'seki'.
         }
       }
     }
 
     // Japanese Score = Territory + Stones captured from opponent.
+    // prisoners.black is the count of white stones captured by Black.
     const blackFinal = blackTerritory + (prisoners.black || 0);
     const whiteFinal = whiteTerritory + (prisoners.white || 0);
 
@@ -54,9 +52,9 @@ export class JapaneseScoring implements ScoringStrategy {
       details: {
         blackTerritory,
         whiteTerritory,
-        blackPrisoners: prisoners.white || 0,
-        whitePrisoners: prisoners.black || 0,
-        blackDeadOnBoard: 0, // In this implementation, dead stones are pre-cleared
+        blackPrisoners: prisoners.black || 0,
+        whitePrisoners: prisoners.white || 0,
+        blackDeadOnBoard: 0,
         whiteDeadOnBoard: 0,
         komi: komi
       }

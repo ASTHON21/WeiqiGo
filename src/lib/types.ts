@@ -1,4 +1,3 @@
-
 /**
  * 基础类型定义
  */
@@ -67,10 +66,18 @@ export interface GameResult {
   reason: string;
   blackScore?: number;
   whiteScore?: number;
+  diff: number;
+  komi: number;
   // 详细得分数据
   details?: {
     blackTerritory: number;
     whiteTerritory: number;
+    blackStones?: number;
+    whiteStones?: number;
+    neutralPoints?: number;
+    blackArea?: number;
+    whiteArea?: number;
+    totalPoints?: number;
     blackPrisoners: number;
     whitePrisoners: number;
     blackDeadOnBoard: number;

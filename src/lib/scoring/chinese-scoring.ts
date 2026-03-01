@@ -1,4 +1,3 @@
-
 import { BoardState, Player, GameResult } from '../types';
 import { ScoringStrategy } from './strategy';
 import { GoLogic } from '../go-logic';
@@ -6,7 +5,8 @@ import { GoLogic } from '../go-logic';
 /**
  * Chinese Rule Logic (Area Scoring - Shuzi Fa)
  * Mechanism: Score = Stones on board + Enclosed empty points.
- * Refined per renew.md: Any territory touching both colors is Dame (0 points).
+ * Refined: Neutral points (Dame) are split in the margin calculation to prevent 
+ * mathematically impossible leads in mid-game/partial boards.
  */
 export class ChineseScoring implements ScoringStrategy {
   calculate(board: BoardState, prisoners: { black: number, white: number } = { black: 0, white: 0 }): GameResult {
@@ -18,8 +18,8 @@ export class ChineseScoring implements ScoringStrategy {
     if (size === 13) komiZi = 3.25;
     if (size === 9) komiZi = 2.75;
 
-    // The logic now expects 'board' to be pre-cleaned by GoLogic.removeDeadStones()
-    const internalBoard = board;
+    // Pre-processing: Dead stones are removed before counting
+    const cleanedBoard = GoLogic.removeDeadStones(board);
 
     const visited = new Set<string>();
     let blackStones = 0;
@@ -27,49 +27,63 @@ export class ChineseScoring implements ScoringStrategy {
     let blackTerritory = 0;
     let whiteTerritory = 0;
 
-    // 1. Count stones on board (Integers)
+    // 1. Count stones on board
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
-        if (internalBoard[r][c] === 'black') blackStones++;
-        if (internalBoard[r][c] === 'white') whiteStones++;
+        if (cleanedBoard[r][c] === 'black') blackStones++;
+        if (cleanedBoard[r][c] === 'white') whiteStones++;
       }
     }
 
     // 2. Count territory using Flood Fill
-    // In Chinese rules, areas touching both colors (owners.size > 1) are Dame (0 pts).
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         const key = `${r},${c}`;
-        if (internalBoard[r][c] === null && !visited.has(key)) {
-          const { points, owner } = GoLogic.findEnclosedArea(internalBoard, r, c, visited);
+        if (cleanedBoard[r][c] === null && !visited.has(key)) {
+          const { points, owner } = GoLogic.findEnclosedArea(cleanedBoard, r, c, visited);
           if (owner === 'black') {
             blackTerritory += points.length;
           } else if (owner === 'white') {
             whiteTerritory += points.length;
           }
-          // Note: If owner is 'seki' or null, it's Dame/Neutral. 0 points.
         }
       }
     }
 
-    const blackTotal = blackStones + blackTerritory;
-    const whiteTotal = whiteStones + whiteTerritory;
+    const blackArea = blackStones + blackTerritory;
+    const whiteArea = whiteStones + whiteTerritory;
+    const neutralPoints = totalPoints - blackArea - whiteArea;
 
-    // Threshold calculation for win detection
+    /**
+     * Correct Area Counting Margin (Zi)
+     * 
+     * Tournament Formula for a finished board: Margin = BlackArea - (Total / 2 + Komi)
+     * To handle boards with neutral points (Dame) correctly and avoid the "348.5 points" bug:
+     * Margin = (BlackArea + Neutral / 2) - (Total / 2 + Komi)
+     * This simplifies to: 0.5 * (BlackArea - WhiteArea - Komi * 2)
+     */
+    const blackAdjusted = blackArea + (neutralPoints / 2);
     const winThreshold = (totalPoints / 2) + komiZi;
-    const diffZi = blackTotal - winThreshold;
+    const diffZi = blackAdjusted - winThreshold;
+    
     const winner = diffZi >= 0 ? 'black' : 'white';
 
     return {
       winner,
       reason: 'Area Counting (Chinese Rules)',
-      blackScore: blackTotal,
-      whiteScore: whiteTotal,
+      blackScore: blackArea,
+      whiteScore: whiteArea,
       diff: Math.abs(diffZi),
       komi: komiZi,
       details: {
+        blackStones,
+        whiteStones,
         blackTerritory,
         whiteTerritory,
+        neutralPoints,
+        blackArea,
+        whiteArea,
+        totalPoints,
         blackPrisoners: 0, 
         whitePrisoners: 0,
         blackDeadOnBoard: 0,

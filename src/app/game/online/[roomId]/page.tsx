@@ -5,7 +5,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Cloud, Lock, Wifi, WifiOff, Home, Hourglass, ShieldAlert, Trophy } from 'lucide-react';
+import { Users, Swords, Loader2, Cloud, Lock, Wifi, WifiOff, Home, Hourglass, ShieldAlert, Trophy, Info, Calculator } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
@@ -317,6 +317,59 @@ export default function OnlineGamePage() {
                            <p className="text-[10px] text-muted-foreground mt-1">耗时: {formatDuration(game.playerWhiteTimeUsed || 0)}</p>
                          </div>
                        </div>
+
+                       {game.result?.details && (
+                         <div className="bg-muted/40 p-5 rounded-xl space-y-3 border shadow-inner text-left">
+                           <p className="text-xs font-black border-b pb-2 flex items-center gap-2 text-foreground uppercase tracking-wider">
+                             <Calculator className="h-4 w-4 text-blue-500" /> 对局详情 breakdown
+                           </p>
+                           <div className="grid grid-cols-1 gap-y-2 text-[12px] font-medium text-muted-foreground">
+                             {game.rules === 'chinese' ? (
+                               <>
+                                 <div className="flex justify-between items-center">
+                                   <span>黑方子数 (Stones):</span> 
+                                   <span className="text-foreground font-bold">{game.result.details.blackStones}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center">
+                                   <span>黑方围地 (Territory):</span> 
+                                   <span className="text-foreground font-bold">{game.result.details.blackTerritory}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center">
+                                   <span>白方子数 (Stones):</span> 
+                                   <span className="text-foreground font-bold">{game.result.details.whiteStones}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center">
+                                   <span>白方围地 (Territory):</span> 
+                                   <span className="text-foreground font-bold">{game.result.details.whiteTerritory}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center text-blue-500">
+                                   <span>公气/单官 (Neutral):</span> 
+                                   <span className="font-bold">{game.result.details.neutralPoints}</span>
+                                 </div>
+                               </>
+                             ) : (
+                               <>
+                                 <div className="flex justify-between items-center">
+                                   <span>黑方围空 (Territory):</span> 
+                                   <span className="text-foreground font-bold">{game.result.details.blackTerritory} 目</span>
+                                 </div>
+                                 <div className="flex justify-between items-center">
+                                   <span>白方围空 (Territory):</span> 
+                                   <span className="text-foreground font-bold">{game.result.details.whiteTerritory} 目</span>
+                                 </div>
+                                 <div className="flex justify-between items-center text-blue-600">
+                                   <span>黑方提子 (Prisoners):</span> 
+                                   <span className="font-bold">+{game.result.details.blackPrisoners}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center text-blue-600">
+                                   <span>白方提子 (Prisoners):</span> 
+                                   <span className="font-bold">+{game.result.details.whitePrisoners}</span>
+                                 </div>
+                               </>
+                             )}
+                           </div>
+                         </div>
+                       )}
 
                        <div className="p-6 bg-blue-500/10 rounded-2xl border-4 border-blue-500/20 space-y-2">
                           <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终判定 (总手数: {game.moveCount})</p>

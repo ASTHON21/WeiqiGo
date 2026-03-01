@@ -288,23 +288,46 @@ export default function PracticePage() {
                   <Info className="h-4 w-4 text-blue-500" /> 目数详情 breakdown
                 </p>
                 <div className="grid grid-cols-1 gap-y-2 text-[12px] font-medium text-muted-foreground">
-                  <div className="flex justify-between items-center">
-                    <span>黑方围空 (Territory):</span> 
-                    <span className="text-foreground font-bold">{scoreResult.details.blackTerritory} 目</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>白方围空 (Territory):</span> 
-                    <span className="text-foreground font-bold">{scoreResult.details.whiteTerritory} 目</span>
-                  </div>
-                  {ruleType === 'territory' && (
+                  {ruleType === 'chinese' ? (
                     <>
-                      <div className="flex justify-between items-center text-red-600/80">
-                        <span>黑方被提/死子 (Prisoners):</span> 
-                        <span className="font-bold">-{scoreResult.details.blackPrisoners + scoreResult.details.blackDeadOnBoard} 子</span>
+                      <div className="flex justify-between items-center">
+                        <span>黑方子数 (Stones):</span> 
+                        <span className="text-foreground font-bold">{scoreResult.details.blackStones}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span>黑方围地 (Territory):</span> 
+                        <span className="text-foreground font-bold">{scoreResult.details.blackTerritory}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span>白方子数 (Stones):</span> 
+                        <span className="text-foreground font-bold">{scoreResult.details.whiteStones}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span>白方围地 (Territory):</span> 
+                        <span className="text-foreground font-bold">{scoreResult.details.whiteTerritory}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-blue-500">
+                        <span>公气/单官 (Neutral):</span> 
+                        <span className="font-bold">{scoreResult.details.neutralPoints}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span>黑方围空 (Territory):</span> 
+                        <span className="text-foreground font-bold">{scoreResult.details.blackTerritory} 目</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span>白方围空 (Territory):</span> 
+                        <span className="text-foreground font-bold">{scoreResult.details.whiteTerritory} 目</span>
                       </div>
                       <div className="flex justify-between items-center text-red-600/80">
-                        <span>白方被提/死子 (Prisoners):</span> 
-                        <span className="font-bold">-{scoreResult.details.whitePrisoners + scoreResult.details.whiteDeadOnBoard} 子</span>
+                        <span>黑方被提子 (Prisoners):</span> 
+                        <span className="font-bold">+{scoreResult.details.blackPrisoners}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-red-600/80">
+                        <span>白方被提子 (Prisoners):</span> 
+                        <span className="font-bold">+{scoreResult.details.whitePrisoners}</span>
                       </div>
                     </>
                   )}
