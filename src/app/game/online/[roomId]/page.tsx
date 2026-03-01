@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Cloud, Lock, Wifi, WifiOff, Home, Hourglass, ShieldAlert, Trophy, Info, Calculator, SkipForward } from 'lucide-react';
+import { Users, Swords, Loader2, Cloud, Lock, Wifi, WifiOff, Home, Hourglass, ShieldAlert, Trophy, Info, Calculator, SkipForward, Flag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
@@ -43,6 +43,7 @@ export default function OnlineGamePage() {
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [dismissGameOver, setDismissGameOver] = useState(false);
   const [showPassConfirm, setShowPassConfirm] = useState(false);
+  const [showResignConfirm, setShowResignConfirm] = useState(false);
   
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
 
@@ -247,6 +248,39 @@ export default function OnlineGamePage() {
     }
   };
 
+  // 处理认输 (Resign)
+  const handleResign = async () => {
+    if (!isPlayer || !game || isFinished || !user) return;
+    
+    const myColor = user.uid === game.playerBlackId ? 'black' : 'white';
+    const opponentId = myColor === 'black' ? game.playerWhiteId : game.playerBlackId;
+    const winnerColor = myColor === 'black' ? 'white' : 'black';
+
+    setShowResignConfirm(false);
+
+    updateDoc(doc(db, "games", roomId), {
+      status: 'finished',
+      winnerId: opponentId,
+      finishedAt: serverTimestamp(),
+      playerBlackTimeUsed: timeUsed.black,
+      playerWhiteTimeUsed: timeUsed.white,
+      lastActivityAt: serverTimestamp(),
+      result: {
+        winner: winnerColor,
+        reason: '对手认输',
+        blackScore: game.result?.blackScore || 0,
+        whiteScore: game.result?.whiteScore || 0,
+        diff: 0
+      }
+    });
+
+    toast({
+      variant: "destructive",
+      title: "对局结束",
+      description: "您已认输，本局对弈结束。",
+    });
+  };
+
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -403,7 +437,8 @@ export default function OnlineGamePage() {
                        <div className="p-6 bg-blue-500/10 rounded-2xl border-4 border-blue-500/20 space-y-2">
                           <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终判定 (总手数: {game.moveCount})</p>
                           <p className="text-4xl font-black font-headline text-blue-800">
-                            {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {game.rules === 'chinese' ? (game.result?.diff * 2).toFixed(1) : game.result?.diff.toFixed(1)} 目
+                            {game.result?.reason === '对手认输' ? (game.result.winner === 'black' ? '黑方中盘胜' : '白方中盘胜') : 
+                            (`${game.result?.winner === 'black' ? '黑方胜' : '白方胜'} ${game.rules === 'chinese' ? (game.result?.diff * 2).toFixed(1) : game.result?.diff.toFixed(1)} 目`)}
                           </p>
                        </div>
                     </CardContent>
@@ -486,6 +521,7 @@ export default function OnlineGamePage() {
 
           <ToolPanel 
             onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
+            onResign={(!isSpectating && isInProgress && isPlayer) ? () => setShowResignConfirm(true) : undefined}
             showChat={true} 
             moveSetting={canMove ? moveSetting : undefined}
             onMoveSettingChange={setMoveSetting}
@@ -508,6 +544,26 @@ export default function OnlineGamePage() {
             <AlertDialogCancel className="m-0 h-11 font-bold border-2">取消</AlertDialogCancel>
             <AlertDialogAction className="h-11 font-bold bg-blue-600 hover:bg-blue-700" onClick={handlePass}>
               确认弃权
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 认输确认对话框 */}
+      <AlertDialog open={showResignConfirm} onOpenChange={setShowResignConfirm}>
+        <AlertDialogContent className="max-w-sm border-2">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Flag className="h-5 w-5" /> 确认认输？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              认输将立即终止对局并判定对方获胜。这是一个不可逆的操作。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="grid grid-cols-2 gap-3 mt-4">
+            <AlertDialogCancel className="m-0 h-11 font-bold border-2">再想想</AlertDialogCancel>
+            <AlertDialogAction className="h-11 font-bold bg-destructive hover:bg-destructive/90" onClick={handleResign}>
+              确认认输
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
