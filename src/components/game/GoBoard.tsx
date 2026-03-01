@@ -47,15 +47,12 @@ export function GoBoard({
   const [pendingMove, setPendingMove] = useState<{ r: number; c: number } | null>(null);
   const [lastClicked, setLastClicked] = useState<{ r: number; c: number; time: number } | null>(null);
   
-  // 音效引用
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevBoardRef = useRef<BoardState | null>(null);
-  const hasInteracted = useRef(false);
+  const hasUnlockedAudio = useRef(false);
   
-  // 初始化音效
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // 使用更稳定的音效资源
       const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
       audio.volume = 0.8;
       audio.preload = 'auto';
@@ -65,15 +62,11 @@ export function GoBoard({
 
   const playStoneSound = () => {
     if (audioRef.current) {
-      // 尝试在播放前重置进度，确保快速连点时声音不被截断
       audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {
-        // 捕获浏览器自动播放限制导致的错误
-      });
+      audioRef.current.play().catch(() => {});
     }
   };
 
-  // 监听棋盘变化播放音效 (用于同步远程落子)
   useEffect(() => {
     if (prevBoardRef.current) {
       let stoneAdded = false;
@@ -86,10 +79,7 @@ export function GoBoard({
         }
         if (stoneAdded) break;
       }
-      
-      if (stoneAdded) {
-        playStoneSound();
-      }
+      if (stoneAdded) playStoneSound();
     }
     prevBoardRef.current = board.map(row => [...row]);
   }, [board, size]);
@@ -98,21 +88,23 @@ export function GoBoard({
   const interactiveCellSize = `${(1 / (size - 1)) * 100}%`;
   const isInteractionDisabled = disabled || readOnly;
 
-  const handleCellClick = (r: number, c: number) => {
-    if (isInteractionDisabled || board[r][c] !== null) return;
-    
-    // 首次点击解锁音频上下文
-    if (!hasInteracted.current) {
-      hasInteracted.current = true;
-      audioRef.current?.play().then(() => {
+  const unlockAudio = () => {
+    if (!hasUnlockedAudio.current && audioRef.current) {
+      hasUnlockedAudio.current = true;
+      audioRef.current.play().then(() => {
         audioRef.current?.pause();
-        if (audioRef.current) audioRef.current.currentTime = 0;
+        audioRef.current!.currentTime = 0;
       }).catch(() => {});
     }
+  };
+
+  const handleCellClick = (r: number, c: number) => {
+    if (isInteractionDisabled || board[r][c] !== null) return;
+    unlockAudio();
 
     if (moveSetting === 'direct') {
       onMove?.(r, c);
-      playStoneSound(); // 本地落子即时反馈
+      playStoneSound();
     } else if (moveSetting === 'confirm') {
       setPendingMove({ r, c });
     } else if (moveSetting === 'double-click') {
@@ -157,9 +149,6 @@ export function GoBoard({
           {Array.from({ length: size }).map((_, r) =>
             Array.from({ length: size }).map((_, c) => {
               const cell = board[r]?.[c];
-              const isSelected = lastClicked && lastClicked.r === r && lastClicked.c === c;
-              const isPending = pendingMove?.r === r && pendingMove?.c === c;
-
               return (
                 <div
                   key={`${r}-${c}`}
@@ -184,23 +173,14 @@ export function GoBoard({
                       )}
                     />
                   )}
-                  {isPending && !cell && (
-                    <Icons.Stone
-                      className={cn(
-                        "absolute h-[90%] w-[90%] opacity-40 animate-pulse z-20",
-                        currentPlayer === 'black' ? "fill-black" : "fill-white stroke-black/40 stroke-[1px]",
-                      )}
-                    />
-                  )}
                   {lastMove?.c === c && lastMove?.r === r && (
                     <div className="absolute h-1/4 w-1/4 rounded-full bg-red-500/60 animate-pulse z-20"/>
                   )}
-                  {!isInteractionDisabled && ((hoveredCell?.r === r && hoveredCell?.c === c) || isSelected) && !cell && !isPending && (
+                  {!isInteractionDisabled && hoveredCell?.r === r && hoveredCell?.c === c && !cell && (
                     <Icons.Stone
                         className={cn(
-                            "absolute h-[90%] w-[90%] z-10",
-                            currentPlayer === 'black' ? "fill-black" : "fill-white stroke-black/20",
-                            isSelected ? "opacity-60 ring-2 ring-accent ring-offset-1 rounded-full" : "opacity-30"
+                            "absolute h-[90%] w-[90%] z-10 opacity-30",
+                            currentPlayer === 'black' ? "fill-black" : "fill-white stroke-black/20"
                         )}
                     />
                   )}
@@ -212,10 +192,8 @@ export function GoBoard({
       </div>
 
       <AlertDialog open={!!pendingMove} onOpenChange={(open) => !open && setPendingMove(null)}>
-        <AlertDialogContent className="max-w-[280px] translate-y-0 top-auto bottom-10 left-[50%] -translate-x-1/2 p-4 shadow-2xl border-2 bg-background/95 backdrop-blur-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="sr-only">确认落子</AlertDialogTitle>
-          </AlertDialogHeader>
+        <AlertDialogContent className="max-w-[280px] p-4 shadow-2xl border-2 bg-background/95 backdrop-blur-md">
+          <AlertDialogHeader><AlertDialogTitle className="sr-only">确认落子</AlertDialogTitle></AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-3 mt-0 sm:justify-center">
             <AlertDialogCancel className="mt-0 flex-1 h-10 text-sm font-bold border-2">取消</AlertDialogCancel>
             <AlertDialogAction onClick={confirmMove} className="flex-1 h-10 text-sm font-bold bg-accent hover:bg-accent/90">确认落子</AlertDialogAction>
