@@ -76,20 +76,29 @@ export default function HomePage() {
     setLanguage(language === 'zh' ? 'en' : 'zh');
   };
 
+  // --- 公告管理区域 (Announcements Management) ---
+  // 您可以在此处新增、修改或删除公告对象
   const announcements = [
+    {
+      date: '2026-02-28',
+      version: 'v2.2.1',
+      content: language === 'zh' 
+        ? '在线对局新增“弃权(Pass)”与“认输(Resign)”功能；优化了结算弹窗在小屏设备上的显示。' 
+        : 'Added "Pass" and "Resign" features to online games; optimized settlement dialogs for small screens.'
+    },
     {
       date: '2026-02-25',
       version: 'v2.2.0',
       content: language === 'zh' 
-        ? '新增对局状态锁定机制；集成落子音效；深度防御 AI 自动化脚本攻击。' 
-        : 'Added game state locking; integrated move sound effects; deep defense against AI scripts.'
+        ? '新增对局状态锁定机制；集成落子音效；增强了棋谱导入功能的安全性。' 
+        : 'Added game state locking; integrated move sound effects; enhanced security for SGF imports.'
     },
     {
       date: '2026-02-10',
       version: 'v2.0.5',
       content: language === 'zh' 
-        ? '全面适配日韩规则（数目法）；增加历史记录导出 SGF 功能；UI 细节调整。' 
-        : 'Full support for Japanese rules (Territory counting); added SGF export to history; UI polish.'
+        ? '全面适配日韩规则（数目法）；增加历史记录导出 SGF 功能。' 
+        : 'Full support for Japanese rules; added SGF export to history.'
     }
   ];
 
@@ -132,7 +141,6 @@ export default function HomePage() {
                 <p className="text-muted-foreground font-bold">校验节点身份...</p>
               </div>
             ) : activeGame ? (
-              /* 活跃对局状态卡片 - 替换原有三个按钮 */
               <Card className="max-w-2xl w-full border-4 border-blue-600 shadow-2xl bg-blue-600/5 animate-in zoom-in-95 duration-300">
                 <CardHeader className="text-center pb-2">
                   <div className="mx-auto w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20">
@@ -165,7 +173,6 @@ export default function HomePage() {
                 </CardFooter>
               </Card>
             ) : (
-              /* 正常模式选择按钮 */
               <div className="grid md:grid-cols-3 gap-8 w-full">
                 <Card className="border-2 hover:border-primary transition-all shadow-xl flex flex-col">
                   <CardHeader className="text-center">
@@ -332,7 +339,7 @@ export default function HomePage() {
           </div>
 
           <div className="text-xs text-center text-muted-foreground opacity-50">
-            Weiqi Go Hub v2.2.0 · Powered by Firebase Studio
+            Weiqi Go Hub v2.2.1 · Powered by Firebase Studio
           </div>
         </div>
       </div>
