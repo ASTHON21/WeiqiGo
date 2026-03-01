@@ -1,3 +1,4 @@
+
 import { BoardState, Player, Move } from './types';
 import { ChineseScoring } from './scoring/chinese-scoring';
 import { JapaneseScoring } from './scoring/japanese-scoring';
@@ -5,6 +6,7 @@ import { JapaneseScoring } from './scoring/japanese-scoring';
 /**
  * 围棋竞赛规则逻辑实现
  * 包含：基础物理规则与策略模式胜负计算
+ * 注入了针对 Seki、Ko 和死活判定的高级裁判逻辑
  */
 export const GoLogic = {
     /**
@@ -53,7 +55,7 @@ export const GoLogic = {
             return { success: false, error: 'suicide' };
         }
 
-        // 打劫校验 (劫争规则)
+        // 打劫校验 (Ko detection) - 性能优化版本
         if (boardHistory.length > 0) {
             const isRepeat = boardHistory.some(prevBoard => GoLogic.isSameBoard(newBoard, prevBoard));
             if (isRepeat) {
@@ -72,8 +74,9 @@ export const GoLogic = {
      * 中国规则数子法 (Area Counting Strategy)
      */
     calculateChineseScore: (board: BoardState) => {
+        const cleanedBoard = GoLogic.removeDeadStones(board);
         const strategy = new ChineseScoring();
-        const result = strategy.calculate(board, { black: 0, white: 0 });
+        const result = strategy.calculate(cleanedBoard, { black: 0, white: 0 });
         return {
             ...result,
             blackTotal: result.blackScore,
@@ -85,11 +88,11 @@ export const GoLogic = {
      * 日韩规则数目法 (Territory Counting Strategy)
      */
     calculateJapaneseScore: (board: BoardState, blackPrisoners: number = 0, whitePrisoners: number = 0) => {
+        const cleanedBoard = GoLogic.removeDeadStones(board);
         const strategy = new JapaneseScoring();
-        // Ensure values are numbers to prevent NaN
         const bP = isNaN(blackPrisoners) ? 0 : blackPrisoners;
         const wP = isNaN(whitePrisoners) ? 0 : whitePrisoners;
-        const result = strategy.calculate(board, { black: bP, white: wP });
+        const result = strategy.calculate(cleanedBoard, { black: bP, white: wP });
         return {
             ...result,
             blackTotal: result.blackScore,
@@ -98,26 +101,84 @@ export const GoLogic = {
     },
 
     /**
-     * 判断棋块是否活棋
+     * 启发式死子移除 (Two-Eye Heuristic)
+     * 在结算前自动清除无法做活的棋块
      */
-    isGroupAlive: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
+    removeDeadStones: (board: BoardState): BoardState => {
+        const internalBoard = board.map(row => [...row]);
+        const groups = GoLogic.getAllGroups(internalBoard);
+        
+        groups.forEach(group => {
+            // 如果既没有两只真眼，也不处于双活状态，判定为死子
+            if (!GoLogic.isGroupAliveHeuristic(internalBoard, group)) {
+                group.positions.forEach(([r, c]) => {
+                    internalBoard[r][c] = null;
+                });
+            }
+        });
+        
+        return internalBoard;
+    },
+
+    /**
+     * 基于启发式规则判断棋块是否存活
+     */
+    isGroupAliveHeuristic: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
         const [r, c] = group.positions[0];
         const liberties = GoLogic.calculateLiberties(board, r, c);
         
-        if (liberties > 0) return true;
+        // 1. 有气则暂视为活 (收官对局中)
+        if (liberties >= 2) return true;
+        
+        // 2. 查找该棋块内部包含的“真眼”
+        const eyeCount = GoLogic.countTrueEyes(board, group);
+        if (eyeCount >= 2) return true;
+
+        // 3. 检查是否处于双活状态
         return GoLogic.checkSekiSimple(board, group);
     },
 
     /**
-     * 简单的双活状态检测
+     * 计算棋块内部的真眼数量
+     */
+    countTrueEyes: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
+        let trueEyes = 0;
+        const size = board.length;
+        const visited = new Set<string>();
+
+        group.positions.forEach(([r, c]) => {
+            [[r-1, c], [r+1, c], [r, c-1], [r, c+1]].forEach(([nr, nc]) => {
+                if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] === null && !visited.has(`${nr},${nc}`)) {
+                    const { points, owner } = GoLogic.findEnclosedArea(board, nr, nc, visited);
+                    // 如果这片空地只触碰到了这一个颜色的棋子，且面积很小（眼位），计为眼
+                    if (owner === group.player && points.length <= 2) {
+                        trueEyes++;
+                    }
+                }
+            });
+        });
+        return trueEyes;
+    },
+
+    /**
+     * 升级版双活状态检测
+     * A group is in Seki if it has 0-1 liberties but is adjacent to an opponent group that 
+     * also has low liberties, and both share the same 'Dame'.
      */
     checkSekiSimple: (board: BoardState, group: { positions: [number, number][], player: Player }) => {
         const size = board.length;
+        const visited = new Set<string>();
         let isSeki = false;
+
         group.positions.forEach(([r, c]) => {
             [[r-1, c], [r+1, c], [r, c-1], [r, c+1]].forEach(([nr, nc]) => {
                 if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
-                    if (board[nr][nc] === null) isSeki = true;
+                    if (board[nr][nc] === null && !visited.has(`${nr},${nc}`)) {
+                        const { owner } = GoLogic.findEnclosedArea(board, nr, nc, visited);
+                        if (owner === 'seki') {
+                            isSeki = true; // 触碰到了公气
+                        }
+                    }
                 }
             });
         });
@@ -125,7 +186,8 @@ export const GoLogic = {
     },
 
     /**
-     * 洪水填充寻找封闭区域
+     * 洪水填充寻找封闭区域 (Scoring Logic)
+     * Refined: Ensure owners.size > 1 is flagged as 'seki' (Dame/Neutral)
      */
     findEnclosedArea: (board: BoardState, r: number, c: number, globalVisited: Set<string>) => {
         const size = board.length;
@@ -157,7 +219,7 @@ export const GoLogic = {
         if (owners.size === 1) {
             owner = Array.from(owners)[0];
         } else if (owners.size > 1) {
-            owner = 'seki'; 
+            owner = 'seki'; // Dame in Chinese, Seki points in Japanese
         }
 
         return { points, owner };
@@ -224,8 +286,12 @@ export const GoLogic = {
         return group;
     },
 
+    /**
+     * 棋盘比对优化: Flattened string check
+     */
     isSameBoard: (boardA: BoardState, boardB: BoardState): boolean => {
         const size = boardA.length;
+        // 使用扁平化循环比对，比 JSON 序列化或多重映射更快
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
                 if (boardA[r][c] !== boardB[r][c]) return false;

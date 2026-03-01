@@ -1,3 +1,4 @@
+
 import { BoardState, Player, GameResult } from '../types';
 import { ScoringStrategy } from './strategy';
 import { GoLogic } from '../go-logic';
@@ -5,7 +6,7 @@ import { GoLogic } from '../go-logic';
 /**
  * Chinese Rule Logic (Area Scoring - Shuzi Fa)
  * Mechanism: Score = Stones on board + Enclosed empty points.
- * Refined for Seki/Dame: Only fully enclosed points count.
+ * Refined per renew.md: Any territory touching both colors is Dame (0 points).
  */
 export class ChineseScoring implements ScoringStrategy {
   calculate(board: BoardState, prisoners: { black: number, white: number } = { black: 0, white: 0 }): GameResult {
@@ -17,18 +18,8 @@ export class ChineseScoring implements ScoringStrategy {
     if (size === 13) komiZi = 3.25;
     if (size === 9) komiZi = 2.75;
 
-    // PRE-PROCESSING: Remove dead stones (stones with 0 liberties)
-    // Professional play assumes dead stones are removed before counting.
-    const internalBoard = board.map(row => [...row]);
-    const allGroups = GoLogic.getAllGroups(internalBoard);
-    allGroups.forEach(group => {
-      const [r, c] = group.positions[0];
-      if (GoLogic.calculateLiberties(internalBoard, r, c) === 0) {
-        group.positions.forEach(([gr, gc]) => {
-          internalBoard[gr][gc] = null;
-        });
-      }
-    });
+    // The logic now expects 'board' to be pre-cleaned by GoLogic.removeDeadStones()
+    const internalBoard = board;
 
     const visited = new Set<string>();
     let blackStones = 0;
@@ -45,7 +36,7 @@ export class ChineseScoring implements ScoringStrategy {
     }
 
     // 2. Count territory using Flood Fill
-    // Rule: Territory not fully enclosed by ONE color is Dame (0 points).
+    // In Chinese rules, areas touching both colors (owners.size > 1) are Dame (0 pts).
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         const key = `${r},${c}`;
@@ -56,7 +47,7 @@ export class ChineseScoring implements ScoringStrategy {
           } else if (owner === 'white') {
             whiteTerritory += points.length;
           }
-          // Note: If owner is 'seki' or null (Dame), points count as 0 for both.
+          // Note: If owner is 'seki' or null, it's Dame/Neutral. 0 points.
         }
       }
     }
@@ -64,8 +55,7 @@ export class ChineseScoring implements ScoringStrategy {
     const blackTotal = blackStones + blackTerritory;
     const whiteTotal = whiteStones + whiteTerritory;
 
-    // Condition: Black wins if Black Area >= (TotalPoints / 2 + Komi)
-    // Threshold example for 19x19: 180.5 + 3.75 = 184.25
+    // Threshold calculation for win detection
     const winThreshold = (totalPoints / 2) + komiZi;
     const diffZi = blackTotal - winThreshold;
     const winner = diffZi >= 0 ? 'black' : 'white';
