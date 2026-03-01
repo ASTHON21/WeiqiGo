@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -9,10 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Save, Home, RefreshCw, Cpu, BrainCircuit } from 'lucide-react';
+import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Save, Home, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,10 +24,8 @@ import {
 import { useEffect, useState, useMemo } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { GoLogic } from '@/lib/go-logic';
-import { MoveSetting, GameHistoryEntry, Player } from '@/lib/types';
+import { MoveSetting, GameHistoryEntry } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
-import { GoAiEngine, SearchNode } from '@/lib/ai/go-ai-engine';
-import { AiSearchTree } from '@/components/game/AiSearchTree';
 
 export default function PracticePage() {
   const router = useRouter();
@@ -48,40 +44,12 @@ export default function PracticePage() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
-  // AI 状态
-  const [aiOpponent, setAiOpponent] = useState<Player | 'none'>('none');
-  const [isThinking, setIsThinking] = useState(false);
-  const [searchTree, setSearchTree] = useState<SearchNode | null>(null);
-  const [evaluation, setEvaluation] = useState(0);
-
-  const aiEngine = useMemo(() => new GoAiEngine(size), [size]);
-
   useEffect(() => {
     getRulesContent(ruleType, language).then(setRules);
   }, [ruleType, language]);
 
-  // AI 回合监听
-  useEffect(() => {
-    if (!isGameOver && aiOpponent === practice.currentTurn && !isThinking) {
-      setIsThinking(true);
-      // 模拟思考延迟
-      setTimeout(() => {
-        const result = aiEngine.findBestMove(practice.board, practice.currentTurn, practice.moveHistory);
-        setSearchTree(result.tree || null);
-        setEvaluation(result.evaluation);
-        
-        if (result.r === -1) {
-          handlePass();
-        } else {
-          practice.makeMove(result.r, result.c);
-        }
-        setIsThinking(false);
-      }, 1000);
-    }
-  }, [practice.currentTurn, aiOpponent, isGameOver, practice.board, practice.moveHistory]);
-
   const handleMove = (r: number, c: number) => {
-    if (isGameOver || isThinking) return;
+    if (isGameOver) return;
     const result = practice.makeMove(r, c);
     if (!result.success) {
       toast({
@@ -129,8 +97,6 @@ export default function PracticePage() {
     setIsGameOver(false);
     setScoreResult(null);
     setIsSaved(false);
-    setSearchTree(null);
-    setEvaluation(0);
   };
 
   const saveToLocalHistory = () => {
@@ -182,13 +148,10 @@ export default function PracticePage() {
          </div>
          <div className="flex flex-wrap items-center gap-3">
            {!isGameOver && (
-             <div className={cn(
-               "flex items-center gap-2 px-3 py-1 rounded-full border transition-all",
-               isThinking ? "bg-accent/10 border-accent animate-pulse" : "bg-muted/50 border-transparent"
-             )}>
+             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border border-transparent">
                <div className={cn("w-3 h-3 rounded-full border transition-colors", practice.currentTurn === 'black' ? 'bg-black' : 'bg-white')} />
                <span className="text-sm font-bold">
-                 {isThinking ? "AI 思考中..." : (practice.currentTurn === 'black' ? '黑方' : '白方')}
+                 {practice.currentTurn === 'black' ? '黑方回合' : '白方回合'}
                </span>
              </div>
            )}
@@ -207,79 +170,61 @@ export default function PracticePage() {
             size={size} 
             onMove={handleMove}
             currentPlayer={practice.currentTurn}
-            readOnly={isGameOver || isThinking}
+            readOnly={isGameOver}
             lastMove={practice.moveHistory.length > 0 ? practice.moveHistory[practice.moveHistory.length - 1] : null}
             moveSetting={moveSetting}
           />
         </div>
 
         <div className="space-y-6">
-          <Card className="border-2 bg-muted/20">
-            <CardHeader className="py-3 border-b bg-muted/30">
-              <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                <BrainCircuit className="h-4 w-4 text-accent" /> AI 对手设定
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 grid grid-cols-3 gap-2">
-               <Button 
-                variant={aiOpponent === 'none' ? 'default' : 'outline'} 
-                size="sm" 
-                className="text-[10px]"
-                onClick={() => setAiOpponent('none')}
-                disabled={isThinking || isGameOver}
-               >
-                 无 AI
-               </Button>
-               <Button 
-                variant={aiOpponent === 'white' ? 'default' : 'outline'} 
-                size="sm" 
-                className="text-[10px]"
-                onClick={() => setAiOpponent('white')}
-                disabled={isThinking || isGameOver}
-               >
-                 AI 执白
-               </Button>
-               <Button 
-                variant={aiOpponent === 'black' ? 'default' : 'outline'} 
-                size="sm" 
-                className="text-[10px]"
-                onClick={() => setAiOpponent('black')}
-                disabled={isThinking || isGameOver}
-               >
-                 AI 执黑
-               </Button>
-            </CardContent>
-          </Card>
-
-          <AiSearchTree tree={searchTree} thinking={isThinking} evaluation={evaluation} />
-
           <ToolPanel 
             onReset={handleReset} 
-            onPass={isGameOver || isThinking ? undefined : handlePass}
-            moveSetting={isGameOver || isThinking ? undefined : moveSetting}
+            onPass={isGameOver ? undefined : handlePass}
+            moveSetting={isGameOver ? undefined : moveSetting}
             onMoveSettingChange={setMoveSetting}
           />
 
-          <Card className="border-2 h-[150px] flex flex-col">
-            <CardHeader className="py-2 bg-muted/30 border-b">
-              <CardTitle className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-                <History className="h-3 w-3 text-primary" /> 棋谱步进
+          <Card className="border-2 h-[400px] flex flex-col">
+            <CardHeader className="py-3 bg-muted/30 border-b">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                <History className="h-4 w-4 text-primary" /> 棋谱步进历史
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 p-0 overflow-hidden">
-              <ScrollArea className="h-full p-2">
-                <div className="grid grid-cols-2 gap-2">
+              <ScrollArea className="h-full p-4">
+                <div className="grid grid-cols-2 gap-3">
                   {practice.moveHistory.map((m, i) => (
-                    <div key={i} className="flex items-center gap-2 p-1 text-[10px] border rounded bg-muted/10">
-                      <span className="text-muted-foreground w-4 font-mono">{i + 1}.</span>
-                      <div className={cn("w-1.5 h-1.5 rounded-full", m.player === 'black' ? 'bg-black' : 'bg-white border')} />
+                    <div key={i} className="flex items-center gap-2 p-2 text-xs border rounded bg-muted/10">
+                      <span className="text-muted-foreground w-6 font-mono">{i + 1}.</span>
+                      <div className={cn("w-2 h-2 rounded-full", m.player === 'black' ? 'bg-black' : 'bg-white border')} />
                       <span className="font-mono font-bold">
                         {m.r === -1 ? 'PASS' : `${String.fromCharCode(m.c + 97).toUpperCase()}${size - m.r}`}
                       </span>
                     </div>
                   ))}
+                  {practice.moveHistory.length === 0 && (
+                    <p className="col-span-2 text-center text-muted-foreground italic py-8 text-xs">暂无落子记录</p>
+                  )}
                 </div>
               </ScrollArea>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2">
+            <CardHeader className="py-3 bg-muted/30 border-b">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                <Info className="h-4 w-4 text-accent" /> 提子统计
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 flex justify-around">
+               <div className="text-center">
+                 <p className="text-[10px] text-muted-foreground font-bold uppercase">黑方提子</p>
+                 <p className="text-2xl font-black">{practice.prisoners.black}</p>
+               </div>
+               <div className="text-center">
+                 <p className="text-[10px] text-muted-foreground font-bold uppercase">白方提子</p>
+                 <p className="text-2xl font-black">{practice.prisoners.white}</p>
+               </div>
             </CardContent>
           </Card>
         </div>
