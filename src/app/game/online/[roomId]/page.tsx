@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -5,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Cloud, Lock, Wifi, WifiOff, Home, Hourglass, ShieldAlert, Trophy, Info, Calculator } from 'lucide-react';
+import { Users, Swords, Loader2, Cloud, Lock, Wifi, WifiOff, Home, Hourglass, ShieldAlert, Trophy, Info, Calculator, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
@@ -16,6 +17,16 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { MoveSetting, Player } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function OnlineGamePage() {
   const params = useParams();
@@ -31,10 +42,11 @@ export default function OnlineGamePage() {
   const [rules, setRules] = useState("");
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [dismissGameOver, setDismissGameOver] = useState(false);
+  const [showPassConfirm, setShowPassConfirm] = useState(false);
   
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
 
-  // 核心修复：必须使用 useMemoFirebase 记忆化文档引用
+  // 记忆化对局引用
   const gameRef = useMemoFirebase(() => {
     if (!db || !roomId || !user) return null;
     return doc(db, "games", roomId);
@@ -49,6 +61,7 @@ export default function OnlineGamePage() {
   const isCancelled = game?.status === 'finished' && game?.reason === 'cancelled';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
 
+  // 监听拒绝/取消状态
   useEffect(() => {
     if ((isDeclined || isCancelled) && isPlayer && !isSpectating) {
       const title = isDeclined ? "挑战被拒绝" : "对局已取消";
@@ -68,6 +81,7 @@ export default function OnlineGamePage() {
     }
   }, [isDeclined, isCancelled, isPlayer, isSpectating, router, toast]);
 
+  // 同步用时
   useEffect(() => {
     if (game) {
       setTimeUsed({
@@ -77,6 +91,7 @@ export default function OnlineGamePage() {
     }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
+  // 计时器逻辑
   useEffect(() => {
     if (isInProgress && !isFinished && !isSpectating && isPlayer && game?.currentTurn) {
       const interval = setInterval(() => {
@@ -89,18 +104,21 @@ export default function OnlineGamePage() {
     }
   }, [isInProgress, isFinished, isSpectating, isPlayer, game?.currentTurn]);
 
+  // 记忆化移动记录查询
   const movesQuery = useMemoFirebase(() => {
     if (!db || !roomId || !user || (!isInProgress && !isFinished)) return null;
     return query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc"));
   }, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
 
+  // 加载规则指南
   useEffect(() => {
     if (game?.rules) {
       getRulesContent(game.rules as 'chinese' | 'territory', language).then(setRules);
     }
   }, [game?.rules, language]);
 
+  // 计算本地棋盘镜像与提子
   const { board, prisoners } = useMemo(() => {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
     let p = { black: 0, white: 0 };
@@ -128,6 +146,7 @@ export default function OnlineGamePage() {
   
   const canMove = !isSpectating && isPlayer && isInProgress && isMyTurn;
 
+  // 处理落子
   const handleMove = async (r: number, c: number) => {
     if (!canMove || !user || !game) return;
 
@@ -171,6 +190,7 @@ export default function OnlineGamePage() {
     });
   };
 
+  // 处理弃权 (Pass)
   const handlePass = async () => {
     if (!canMove || !user || !game) return;
     const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
@@ -187,6 +207,7 @@ export default function OnlineGamePage() {
       timestamp: Date.now(),
     };
 
+    setShowPassConfirm(false);
     addDoc(collection(db, `games/${roomId}/moves`), moveData);
 
     if (isConsecutivePass) {
@@ -212,6 +233,7 @@ export default function OnlineGamePage() {
           diff: score.diff
         }
       });
+      toast({ title: "对局结束", description: "双方连续弃权，对局进入结算。" });
     } else {
       const nextTurn = playerColor === 'black' ? 'white' : 'black';
       updateDoc(doc(db, "games", roomId), {
@@ -221,6 +243,7 @@ export default function OnlineGamePage() {
         playerWhiteTimeUsed: timeUsed.white,
         lastActivityAt: serverTimestamp()
       });
+      toast({ title: "已弃权", description: "您的回合已结束，等待对方落子。" });
     }
   };
 
@@ -302,7 +325,7 @@ export default function OnlineGamePage() {
             
             {isFinished && !dismissGameOver && !isDeclined && !isCancelled && (
                <div className="absolute inset-0 z-50 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg p-4">
-                  <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl animate-in zoom-in-95 duration-200 overflow-y-auto max-h-full">
+                  <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl animate-in zoom-in-95 duration-200 overflow-y-auto max-h-[90vh]">
                     <CardHeader className="bg-blue-600 text-white py-5 text-center sticky top-0 z-10">
                       <CardTitle className="flex items-center justify-center gap-2 text-xl font-headline uppercase">
                         <ShieldAlert className="h-6 w-6" /> 对局结算报告
@@ -462,13 +485,33 @@ export default function OnlineGamePage() {
           )}
 
           <ToolPanel 
-            onPass={canMove ? handlePass : undefined} 
+            onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
             showChat={true} 
             moveSetting={canMove ? moveSetting : undefined}
             onMoveSettingChange={setMoveSetting}
           />
         </div>
       </div>
+
+      {/* 弃权确认对话框 */}
+      <AlertDialog open={showPassConfirm} onOpenChange={setShowPassConfirm}>
+        <AlertDialogContent className="max-w-sm border-2">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <SkipForward className="h-5 w-5 text-blue-500" /> 确认弃权？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              选择弃权意味着您将跳过本回合。如果对方也选择弃权，对局将立即结束并进入胜负结算。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="grid grid-cols-2 gap-3 mt-4">
+            <AlertDialogCancel className="m-0 h-11 font-bold border-2">取消</AlertDialogCancel>
+            <AlertDialogAction className="h-11 font-bold bg-blue-600 hover:bg-blue-700" onClick={handlePass}>
+              确认弃权
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
