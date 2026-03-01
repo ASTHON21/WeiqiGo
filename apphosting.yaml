@@ -2,6 +2,10 @@
 # https://firebase.google.com/docs/app-hosting/configure
 
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
-  maxInstances: 1
+  # 限制实例数量以控制成本，同时确保响应速度
+  minInstances: 0
+  maxInstances: 2
+  # 为 Next.js 15 提供标准的内存分配
+  memory: 512MiB
+
+# 自动检测环境并应用构建配置
