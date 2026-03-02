@@ -25,11 +25,11 @@ service cloud.firestore {
     match /games/{gameId} {
       allow read: if true;
       
-      // 仅允许登录用户创建对局，且必须是参与者之一
+      // 允许登录用户创建对局，且必须是参与者之一。支持 pending 或 in-progress 初始状态。
       allow create: if isAuthenticated() && 
                       (request.resource.data.playerBlackId == request.auth.uid || 
                        request.resource.data.playerWhiteId == request.auth.uid) &&
-                      request.resource.data.status == 'pending';
+                      (request.resource.data.status == 'pending' || request.resource.data.status == 'in-progress');
       
       // 仅允许对局参与者更新状态
       allow update: if isAuthenticated() && 

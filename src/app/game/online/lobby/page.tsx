@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, setDoc } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,12 +41,18 @@ export default function OnlineLobbyPage() {
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
   const { data: players } = useCollection(playersQuery);
 
-  const handleInvite = async () => {
+  const handleInvite = () => {
     if (activeCount >= 30) return toast({ variant: "destructive", title: "对局上限", description: "同时进行的对局不能超过30个。" });
     if (!invitingPlayer || !user || !db || isSendingInvite) return;
 
     setIsSendingInvite(true);
+    
+    // 预生成对局引用以获取 ID，实现非阻塞跳转
+    const gameRef = doc(collection(db, "games"));
+    const gameId = gameRef.id;
+
     const gameData = {
+      id: gameId,
       playerBlackId: user.uid,
       playerWhiteId: invitingPlayer.id,
       playerBlackName: user.displayName,
@@ -63,15 +69,15 @@ export default function OnlineLobbyPage() {
       handicap: 0
     };
 
-    try {
-      const ref = await addDoc(collection(db, "games"), gameData);
-      toast({ title: "挑战已发起", description: `正在进入与 ${invitingPlayer.name} 的对局...` });
-      router.push(`/game/online/${ref.id}`);
-    } catch (err) {
+    // 执行非阻塞写入并立即跳转
+    setDoc(gameRef, gameData).catch((err) => {
       console.error("Invite failed:", err);
-      toast({ variant: "destructive", title: "发起失败", description: "无法连接到竞技节点，请检查网络。" });
+      toast({ variant: "destructive", title: "发起失败", description: "由于权限或策略限制，无法创建对局。" });
       setIsSendingInvite(false);
-    }
+    });
+
+    toast({ title: "挑战已发起", description: `正在进入与 ${invitingPlayer.name} 的对局...` });
+    router.push(`/game/online/${gameId}`);
   };
 
   if (loadingUser) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
