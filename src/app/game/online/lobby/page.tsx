@@ -43,20 +43,29 @@ export default function OnlineLobbyPage() {
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
   const { data: players } = useCollection(playersQuery);
 
-  // 3. 监听 1 小时内完赛的名局 (Recent Replays)
+  // 3. 监听完赛的名局 (Recent Replays)
+  // 为了避免复杂的复合索引错误 (failed-precondition)，简化查询条件
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    // 计算 1 小时前的时间戳
-    const oneHourAgo = new Date(Date.now() - 3600 * 1000);
     return query(
       collection(db, "games"),
       where("status", "==", "finished"),
-      where("finishedAt", ">=", oneHourAgo),
-      orderBy("finishedAt", "desc"),
-      limit(10)
+      limit(20) // 获取稍多一点以便在内存中排序
     );
   }, [db]);
-  const { data: recentGames } = useCollection(recentGamesQuery);
+  const { data: rawRecentGames } = useCollection(recentGamesQuery);
+
+  // 在内存中进行二次排序，确保用户看到的是最新的对局
+  const recentGames = useMemo(() => {
+    if (!rawRecentGames) return [];
+    return [...rawRecentGames]
+      .sort((a, b) => {
+        const timeA = a.finishedAt?.seconds || 0;
+        const timeB = b.finishedAt?.seconds || 0;
+        return timeB - timeA;
+      })
+      .slice(0, 10);
+  }, [rawRecentGames]);
 
   const handleInvite = () => {
     if (!invitingPlayer || !user || !db || isSendingInvite) return;
