@@ -55,7 +55,7 @@ function PracticeContent() {
     if (!result.success) {
       toast({
         title: "无效落子",
-        description: result.error === 'ko' ? "禁止打劫！" : result.error === 'suicide' ? "禁止自杀！" : "该位置已有棋子。",
+        description: result.error === 'ko' ? "禁止打劫！根据围棋规则，不能立即回提。" : result.error === 'suicide' ? "禁止自杀！落子后棋子必须有气。" : "该位置已有棋子。",
         variant: "destructive"
       });
     }
