@@ -8,13 +8,13 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages, Moon, Sun, Bell, Loader2, ArrowRight } from 'lucide-react';
+import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages, Moon, Sun, Bell, Loader2, ArrowRight, Flag } from 'lucide-react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
 import { useTheme } from '@/context/theme-context';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { collection, query, where, limit, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 export default function HomePage() {
   const router = useRouter();
@@ -77,6 +77,29 @@ export default function HomePage() {
 
   const handleEnterLobby = () => {
     router.push(`/game/online/lobby?acceptInvites=${acceptingInvites}`);
+  };
+
+  const handleResignActiveGame = async (gameId: string) => {
+    if (!db || !user || !activeGame) return;
+    
+    // 确定赢家（对手）
+    const isBlack = user.uid === activeGame.playerBlackId;
+    const winner = isBlack ? 'white' : 'black';
+    
+    try {
+      await updateDoc(doc(db, "games", gameId), {
+        status: 'finished',
+        finishedAt: serverTimestamp(),
+        result: {
+          winner,
+          reason: '对手从主页认输',
+          diff: 0,
+          komi: activeGame.komi || (activeGame.rules === 'chinese' ? 3.75 : 6.5)
+        }
+      });
+    } catch (error) {
+      console.error("Resign failed:", error);
+    }
   };
 
   const toggleLanguage = () => {
@@ -162,12 +185,19 @@ export default function HomePage() {
                       </div>
                    </div>
                 </CardContent>
-                <CardFooter className="p-8 pt-0">
+                <CardFooter className="p-8 pt-0 flex flex-col gap-4">
                   <Button 
                     className="w-full h-16 text-xl font-black bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-500/30 gap-3"
                     onClick={() => router.push(`/game/online/${activeGame.id}`)}
                   >
                     返回对局页面 <ArrowRight className="h-6 w-6" />
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="w-full h-12 border-2 border-destructive text-destructive hover:bg-destructive hover:text-white font-bold gap-2 transition-all"
+                    onClick={() => handleResignActiveGame(activeGame.id)}
+                  >
+                    <Flag className="h-4 w-4" /> 认输并终止对局
                   </Button>
                 </CardFooter>
               </Card>
