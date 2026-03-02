@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -78,14 +78,22 @@ export default function OnlineLobbyPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8 max-w-4xl min-h-screen">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold font-headline text-blue-500 flex items-center gap-3">
             <Swords className="h-8 w-8" /> 竞技大厅
           </h1>
           <p className="text-xs text-muted-foreground italic">寻找志同道合的棋手，共赴黑白之约。</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {user && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 rounded-full border border-blue-500/20">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-xs font-black text-blue-700 uppercase tracking-tight flex items-center gap-1">
+                <User className="h-3 w-3" /> {user.displayName}
+              </span>
+            </div>
+          )}
           <Badge variant="outline" className="border-blue-500/30 text-blue-600">活跃对局: {activeCount} / 30</Badge>
           <Button variant="ghost" size="sm" onClick={() => router.push('/')} className="hover:bg-muted">返回首页</Button>
         </div>
