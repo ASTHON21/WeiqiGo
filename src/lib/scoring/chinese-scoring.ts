@@ -5,7 +5,11 @@ import { GoLogic } from '../go-logic';
 
 /**
  * 中国规则数子法 (Area Scoring)
- * 核心公式：得分 = 棋盘活子 + 围空
+ * 核心逻辑：得分 = 棋盘活子 + 围空
+ * 
+ * 修正说明：
+ * 为了解决棋盘未填满（存在大量中立点）时绝对阈值法产生的“天文数字”偏差，
+ * 采用相对差异法：胜负点数 = (黑面积 - 白面积) - 2 * 贴子
  */
 export class ChineseScoring implements ScoringStrategy {
   calculate(board: BoardState, prisoners: { black: number, white: number } = { black: 0, white: 0 }): GameResult {
@@ -18,7 +22,7 @@ export class ChineseScoring implements ScoringStrategy {
     if (size === 13) komiZi = 3.25;
     if (size === 9) komiZi = 2.75;
 
-    // 1. 获取清理过死子的棋盘（数子法通常先移除死子）
+    // 1. 移除死子（数子法前提）
     const cleanedBoard = GoLogic.removeDeadStones(board);
 
     const visited = new Set<string>();
@@ -27,7 +31,7 @@ export class ChineseScoring implements ScoringStrategy {
     let blackTerritory = 0;
     let whiteTerritory = 0;
 
-    // 2. 统计活子数量
+    // 2. 统计活子
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         if (cleanedBoard[r][c] === 'black') blackStones++;
@@ -47,22 +51,22 @@ export class ChineseScoring implements ScoringStrategy {
       }
     }
 
-    // 4. 计算总面积 (Area = Stones + Territory)
+    // 4. 计算总归属面积 (Area = Stones + Territory)
     const blackArea = blackStones + blackTerritory;
     const whiteArea = whiteStones + whiteTerritory;
     const neutralPoints = totalPoints - blackArea - whiteArea;
 
-    // 5. 判定胜负 (黑棋需超过 180.5 + 3.75 = 184.25)
-    const blackThreshold = (totalPoints / 2) + komiZi;
-    const marginZi = blackArea - blackThreshold;
-    const winner: Player = marginZi > 0 ? 'black' : 'white';
+    // 5. 核心计算：使用相对差异法计算“点数 (Points/Moku)”
+    // 公式：(黑归属 - 白归属) - 2 * 贴子
+    const diffPoints = blackArea - whiteArea - (2 * komiZi);
+    const winner: Player = diffPoints > 0 ? 'black' : 'white';
 
     return {
       winner,
       reason: '数子法 (中国规则)',
       blackScore: blackArea,
       whiteScore: whiteArea,
-      diff: Math.abs(marginZi),
+      diff: Math.abs(diffPoints),
       komi: komiZi,
       details: {
         blackTerritory,

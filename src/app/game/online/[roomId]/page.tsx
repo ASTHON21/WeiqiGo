@@ -100,7 +100,6 @@ function OnlineGameContent() {
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
   // 核心增强：强制回归结算 (Catch-up Settlement)
-  // 如果进入房间时发现对局由于长时间无响应本应超时，则立即执行自动结算。
   useEffect(() => {
     if (db && roomId && game && isInProgress && !isFinished && !hasCheckedCatchup.current) {
       if (!game.lastActivityAt) return; // 等待时间戳同步
@@ -109,7 +108,6 @@ function OnlineGameContent() {
       const lastActivity = game.lastActivityAt instanceof Timestamp ? game.lastActivityAt.toMillis() : new Date(game.lastActivityAt).getTime();
       const now = Date.now();
       
-      // 避免时钟不同步导致的负值计算
       if (lastActivity > now) {
         hasCheckedCatchup.current = true;
         return;
@@ -118,7 +116,6 @@ function OnlineGameContent() {
       const elapsedSinceActivity = Math.floor((now - lastActivity) / 1000);
       const currentTimeUsed = turn === 'black' ? (game.playerBlackTimeUsed || 0) : (game.playerWhiteTimeUsed || 0);
       
-      // 增加 10 秒宽限期，并确保仅在数据稳定后运行一次
       if (currentTimeUsed + elapsedSinceActivity > timeLimit + 10) {
         updateDoc(doc(db, "games", roomId), {
           status: 'finished',
@@ -468,7 +465,7 @@ function OnlineGameContent() {
                   <div className="p-6 rounded-2xl bg-blue-600/5 border-4 border-blue-600/20 text-center space-y-2">
                     <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终胜负 (Komi: {game.result?.komi})</p>
                     <h3 className="text-4xl font-black text-blue-800 font-headline">
-                      {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {game.rules === 'chinese' ? (game.result?.diff * 2).toFixed(1) : game.result?.diff.toFixed(1)} 点
+                      {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {game.result?.diff?.toFixed(1) || '0.0'} 点
                     </h3>
                     <p className="text-xs text-muted-foreground italic">原因: {game.result?.reason}</p>
                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">共计 {moves?.length || 0} 手</p>

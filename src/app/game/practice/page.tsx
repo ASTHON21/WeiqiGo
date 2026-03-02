@@ -259,7 +259,7 @@ function PracticeContent() {
             <div className="p-6 rounded-2xl bg-blue-600/10 border-4 border-blue-600/20 text-center space-y-2">
               <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终胜负判定 (Komi: {scoreResult?.komi})</p>
               <h3 className="text-4xl font-black text-blue-800 font-headline">
-                {scoreResult?.winner === 'black' ? '黑方胜' : '白方胜'} {ruleType === 'chinese' ? (scoreResult?.diff * 2).toFixed(1) : scoreResult?.diff.toFixed(1)} 点
+                {scoreResult?.winner === 'black' ? '黑方胜' : '白方胜'} {scoreResult?.diff?.toFixed(1) || '0.0'} 点
               </h3>
             </div>
           </div>
