@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator } from 'lucide-react';
+import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -25,11 +25,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// 严格的时长规范
+// 严格的时长规范：19路 3小时，13路 2小时，9路 1小时
 const BOARD_TIME_LIMITS: Record<number, number> = {
-  19: 3 * 3600, // 3小时
-  13: 2 * 3600, // 2小时
-  9: 1 * 3600   // 1小时
+  19: 3 * 3600, 
+  13: 2 * 3600, 
+  9: 1 * 3600   
 };
 
 function OnlineGameContent() {
@@ -56,13 +56,11 @@ function OnlineGameContent() {
   const isInProgress = game?.status === 'in-progress';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
   
-  // 获取当前棋盘时限
   const timeLimit = useMemo(() => {
     if (!game) return 10800;
     return BOARD_TIME_LIMITS[game.boardSize] || 10800;
   }, [game?.boardSize]);
 
-  // 同步服务器时间
   useEffect(() => {
     if (game) {
       setTimeUsed({ 
@@ -72,7 +70,6 @@ function OnlineGameContent() {
     }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
-  // 计时器逻辑：处理超时负
   useEffect(() => {
     if (isInProgress && !isFinished && !isSpectating && isPlayer && game?.currentTurn) {
       const interval = setInterval(() => {
@@ -80,7 +77,6 @@ function OnlineGameContent() {
           const color = game.currentTurn as 'black' | 'white';
           const nextValue = prev[color] + 1;
           
-          // 超时检测
           if (nextValue >= timeLimit) {
             clearInterval(interval);
             updateDoc(doc(db, "games", roomId), {
@@ -224,12 +220,6 @@ function OnlineGameContent() {
             <CardTitle className="text-3xl font-black font-headline text-blue-700">等待对手回应</CardTitle>
             <CardDescription className="text-lg">已向 <span className="font-bold text-foreground">{game?.playerWhiteName}</span> 发送挑战，请稍候...</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-               <div className="p-3 bg-muted/50 rounded-lg text-center"><p className="text-[10px] font-bold text-muted-foreground uppercase">棋盘尺寸</p><p className="font-bold">{game?.boardSize}x{game?.boardSize}</p></div>
-               <div className="p-3 bg-muted/50 rounded-lg text-center"><p className="text-[10px] font-bold text-muted-foreground uppercase">时限 (每方)</p><p className="font-bold">{Math.floor(timeLimit / 3600)} 小时</p></div>
-            </div>
-          </CardContent>
           <CardFooter>
             <Button variant="outline" className="w-full gap-2 border-2" onClick={() => router.push('/game/online/lobby')}>
               <ArrowLeft className="h-4 w-4" /> 取消并返回大厅
@@ -240,45 +230,41 @@ function OnlineGameContent() {
     );
   }
 
-  if (isFinished && game?.result?.reason === '对方拒绝了挑战') {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background p-6">
-        <Card className="max-w-md w-full border-4 border-destructive/50 shadow-2xl">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-20 h-20 bg-destructive/10 rounded-full flex items-center justify-center mb-6">
-              <ShieldAlert className="h-10 w-10 text-destructive" />
-            </div>
-            <CardTitle className="text-2xl font-black font-headline text-destructive">挑战被婉拒</CardTitle>
-            <CardDescription className="text-lg">{game?.playerWhiteName} 暂时不便接受您的邀请。</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button className="w-full h-12 text-lg font-bold" onClick={() => router.push('/game/online/lobby')}>返回竞技大厅</Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* 顶部在线状态栏 */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-blue-500/5 p-4 rounded-xl border-2 border-blue-500/10">
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+             <div className="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded-sm uppercase tracking-tighter">Live</div>
+             <h2 className="text-sm font-black font-headline text-blue-700 tracking-tight flex items-center gap-2">
+               <Wifi className="h-3 w-3 animate-pulse" /> 在线同步对弈 (ONLINE SYNC MATCH)
+             </h2>
+          </div>
+          <div className="h-4 w-px bg-blue-500/20 hidden md:block" />
+          <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            <Globe className="h-3 w-3 text-green-500" /> 云端同步已开启
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Badge variant="outline" className="border-2 bg-background/50 font-mono">{game?.boardSize}x{game?.boardSize}</Badge>
+          <Badge className="bg-blue-600 border-0">{game?.rules === 'chinese' ? '中国规则' : '日韩规则'}</Badge>
+        </div>
+      </div>
+
+      {/* 回合提示器 */}
+      <div className="flex justify-center">
           {isInProgress && (
-            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-muted/50 border-2 border-primary/20 animate-turn-indicator-pop">
+            <div className="flex items-center gap-3 px-6 py-2 rounded-full bg-background border-4 border-primary/10 shadow-lg animate-turn-indicator-pop">
               <div className={cn(
-                "w-3.5 h-3.5 rounded-full border shadow-sm",
-                game.currentTurn === 'black' ? 'bg-black' : 'bg-white'
+                "w-4 h-4 rounded-full border-2 shadow-sm",
+                game.currentTurn === 'black' ? 'bg-black border-white/20' : 'bg-white border-black/10'
               )} />
-              <span className="text-xs font-black uppercase tracking-wider text-foreground/80">
-                {game.currentTurn === 'black' ? '黑方落子' : '白方落子'}
+              <span className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
+                {game.currentTurn === 'black' ? '黑方回合' : '白方回合'}
               </span>
             </div>
           )}
-        </div>
-        <div className="flex gap-2">
-          <Badge variant="outline" className="border-2">{game?.boardSize}x{game?.boardSize}</Badge>
-          <Badge className="bg-blue-600 border-0">{game?.rules === 'chinese' ? '中国规则' : '日韩规则'}</Badge>
-        </div>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_350px] gap-8">
@@ -293,7 +279,6 @@ function OnlineGameContent() {
             moveSetting={moveSetting}
           />
           
-          {/* 专业对局报告展示 */}
           {isFinished && !dismissGameOver && (
             <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4 z-50 animate-in fade-in zoom-in-95">
               <Card className="w-full max-w-md border-4 border-primary shadow-2xl p-0 overflow-hidden">
