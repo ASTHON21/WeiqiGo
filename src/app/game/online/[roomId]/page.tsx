@@ -13,7 +13,7 @@ import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@
 import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
-import { MoveSetting, Player } from '@/lib/types';
+import { MoveSetting, Player, BoardState } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import {
   AlertDialog,
@@ -100,11 +100,21 @@ function OnlineGameContent() {
   const movesQuery = useMemoFirebase(() => (db && roomId && user && (isInProgress || isFinished)) ? query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")) : null, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
 
-  const { board, prisoners } = useMemo(() => {
+  /**
+   * 重构棋盘与历史重建逻辑
+   * 必须在内存中回放所有步数，以重建用于劫争检查的 boardHistory
+   */
+  const { board, prisoners, boardHistory } = useMemo(() => {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
     let p = { black: 0, white: 0 };
+    let history: BoardState[] = [];
+    
     moves?.forEach(m => {
+      // 在应用当前移动前，记录之前的盘面
+      history.push(tempBoard.map(row => [...row]));
+      
       if (m.coordinatesX !== -1) {
+        // 使用空的 history 进行回放，因为我们只是为了重建最终状态
         const result = GoLogic.processMove(tempBoard, m.coordinatesX, m.coordinatesY, m.playerColor, []);
         if (result.success) {
            tempBoard = result.newBoard;
@@ -112,7 +122,11 @@ function OnlineGameContent() {
         }
       }
     });
-    return { board: tempBoard, prisoners: p };
+    
+    // 仅保留最近的几个历史记录以节省内存，标准劫争只需上一状态，同型禁重需完整或多个状态
+    const trimmedHistory = history.slice(-10); 
+    
+    return { board: tempBoard, prisoners: p, boardHistory: trimmedHistory };
   }, [game?.boardSize, moves]);
 
   const canMove = !isSpectating && isPlayer && isInProgress && (game?.currentTurn === (user?.uid === game?.playerBlackId ? 'black' : 'white'));
@@ -120,8 +134,21 @@ function OnlineGameContent() {
   const handleMove = async (r: number, c: number) => {
     if (!canMove || !user || !game) return;
     const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
-    const result = GoLogic.processMove(board, r, c, playerColor, []);
-    if (!result.success) return toast({ variant: "destructive", title: "无效落子" });
+    
+    // 传入 boardHistory 进行劫争校验 (Ko Rule Check)
+    const result = GoLogic.processMove(board, r, c, playerColor, boardHistory);
+    
+    if (!result.success) {
+      let errorMsg = "无效落子";
+      if (result.error === 'ko') errorMsg = "禁止打劫！根据规则，不能立即回提。";
+      if (result.error === 'suicide') errorMsg = "禁止自杀！落子后棋子必须有气。";
+      
+      return toast({ 
+        variant: "destructive", 
+        title: "落子受限",
+        description: errorMsg
+      });
+    }
 
     addDoc(collection(db, `games/${roomId}/moves`), { 
       gameId: roomId, 
@@ -202,7 +229,6 @@ function OnlineGameContent() {
   const handleCancelInvite = async () => {
     if (!db || !roomId || !user || !game || game.status !== 'pending') return;
     
-    // 发起者（黑方）取消邀请，更新状态以通知被挑战方
     await updateDoc(doc(db, "games", roomId), {
       status: 'finished',
       finishedAt: serverTimestamp(),
@@ -226,7 +252,6 @@ function OnlineGameContent() {
 
   if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12" /></div>;
 
-  // 处理被拒绝的情况
   if (isFinished && (game?.result?.reason === '对方拒绝了挑战' || game?.result?.reason === '挑战已取消')) {
     const isCancelled = game?.result?.reason === '挑战已取消';
     return (
@@ -253,7 +278,6 @@ function OnlineGameContent() {
     );
   }
 
-  // 处理等待接受的情况
   if (isPending) {
     return (
       <div className="h-screen flex items-center justify-center bg-background p-6">
@@ -277,7 +301,6 @@ function OnlineGameContent() {
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
-      {/* 顶部在线状态栏 */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-blue-500/5 p-4 rounded-xl border-2 border-blue-500/10">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -302,7 +325,6 @@ function OnlineGameContent() {
         </div>
       </div>
 
-      {/* 回合提示器 */}
       <div className="flex justify-center">
           {isInProgress && (
             <div className="flex items-center gap-3 px-6 py-2 rounded-full bg-background border-4 border-primary/10 shadow-lg animate-turn-indicator-pop">
