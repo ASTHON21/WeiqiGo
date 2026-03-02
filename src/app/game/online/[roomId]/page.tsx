@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe, Eye } from 'lucide-react';
+import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe, Eye, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -209,10 +209,35 @@ function OnlineGameContent() {
 
   if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12" /></div>;
 
+  // 处理被拒绝的情况：如果对局结束且原因是“对方拒绝了挑战”
+  if (isFinished && game?.result?.reason === '对方拒绝了挑战') {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background p-6">
+        <Card className="max-w-md w-full border-4 border-red-500 shadow-2xl animate-in zoom-in-95 duration-300">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6">
+              <XCircle className="h-10 w-10 text-red-600" />
+            </div>
+            <CardTitle className="text-3xl font-black font-headline text-red-700">挑战被婉拒</CardTitle>
+            <CardDescription className="text-lg">
+              很遗憾，<span className="font-bold text-foreground">{game.playerWhiteName}</span> 暂时无法接受您的挑战。
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button variant="outline" className="w-full gap-2 border-2 h-12 font-bold" onClick={() => router.push('/game/online/lobby')}>
+              <ArrowLeft className="h-4 w-4" /> 返回竞技大厅
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  // 处理等待接受的情况
   if (isPending) {
     return (
       <div className="h-screen flex items-center justify-center bg-background p-6">
-        <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl">
+        <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl animate-in fade-in slide-in-from-bottom-4">
           <CardHeader className="text-center">
             <div className="mx-auto w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mb-6">
               <Timer className="h-10 w-10 text-blue-600 animate-spin" />
@@ -221,7 +246,7 @@ function OnlineGameContent() {
             <CardDescription className="text-lg">已向 <span className="font-bold text-foreground">{game?.playerWhiteName}</span> 发送挑战，请稍候...</CardDescription>
           </CardHeader>
           <CardFooter>
-            <Button variant="outline" className="w-full gap-2 border-2" onClick={() => router.push('/game/online/lobby')}>
+            <Button variant="outline" className="w-full gap-2 border-2 h-12 font-bold" onClick={() => router.push('/game/online/lobby')}>
               <ArrowLeft className="h-4 w-4" /> 取消并返回大厅
             </Button>
           </CardFooter>
