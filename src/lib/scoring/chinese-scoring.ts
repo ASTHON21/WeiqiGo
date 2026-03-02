@@ -5,19 +5,18 @@ import { GoLogic } from '../go-logic';
 
 /**
  * 中国规则数子法 (Area Scoring - Shuzi Fa)
- * 核心修正：确保总点数之和恒等于棋盘格点数，且 details 字段与接口保持严格一致。
  */
 export class ChineseScoring implements ScoringStrategy {
   calculate(board: BoardState, prisoners: { black: number, white: number } = { black: 0, white: 0 }): GameResult {
     const size = board.length;
     const totalPoints = size * size;
     
-    // 贴子 (Zi)
-    let komiZi = 3.75;
+    // 贴子 (Zi) 标准值
+    let komiZi = 3.75; 
     if (size === 13) komiZi = 3.25;
     if (size === 9) komiZi = 2.75;
 
-    // 清理死子
+    // 先移除死子（启发式清理）
     const cleanedBoard = GoLogic.removeDeadStones(board);
 
     const visited = new Set<string>();
@@ -26,6 +25,7 @@ export class ChineseScoring implements ScoringStrategy {
     let blackTerritory = 0;
     let whiteTerritory = 0;
 
+    // 1. 数活子
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         if (cleanedBoard[r][c] === 'black') blackStones++;
@@ -33,6 +33,7 @@ export class ChineseScoring implements ScoringStrategy {
       }
     }
 
+    // 2. 数围空 (Flood Fill)
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         const key = `${r},${c}`;
@@ -47,16 +48,19 @@ export class ChineseScoring implements ScoringStrategy {
       }
     }
 
+    // 3. 计算总点数 (子 + 空)
     const blackArea = blackStones + blackTerritory;
     const whiteArea = whiteStones + whiteTerritory;
     const neutralPoints = totalPoints - blackArea - whiteArea;
 
-    const marginZi = blackArea - (totalPoints / 2 + komiZi);
+    // 4. 胜负判定：黑棋需 > 总点数/2 + 贴子
+    const blackThreshold = (totalPoints / 2) + komiZi;
+    const marginZi = blackArea - blackThreshold;
     const winner: Player = marginZi > 0 ? 'black' : 'white';
 
     return {
       winner,
-      reason: 'Area Counting (Chinese Rules)',
+      reason: '数子法 (中国规则)',
       blackScore: blackArea,
       whiteScore: whiteArea,
       diff: Math.abs(marginZi),

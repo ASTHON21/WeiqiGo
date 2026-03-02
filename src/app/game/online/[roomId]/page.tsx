@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, CircleDot } from 'lucide-react';
+import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, CircleDot, Calculator, Home, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -119,7 +119,19 @@ function OnlineGameContent() {
 
     if (isConsecutivePass) {
       const score = game.rules === 'chinese' ? GoLogic.calculateChineseScore(board) : GoLogic.calculateJapaneseScore(board, prisoners.black, prisoners.white);
-      updateDoc(doc(db, "games", roomId), { status: 'finished', finishedAt: serverTimestamp(), result: { winner: score.winner, reason: '双方弃权', blackScore: score.blackScore, whiteScore: score.whiteScore, diff: score.diff, details: score.details } });
+      updateDoc(doc(db, "games", roomId), { 
+        status: 'finished', 
+        finishedAt: serverTimestamp(), 
+        result: { 
+          winner: score.winner, 
+          reason: '双方弃权', 
+          blackScore: score.blackScore, 
+          whiteScore: score.whiteScore, 
+          diff: score.diff, 
+          details: score.details,
+          komi: score.komi
+        } 
+      });
     } else {
       updateDoc(doc(db, "games", roomId), { currentTurn: playerColor === 'black' ? 'white' : 'black', lastActivityAt: serverTimestamp() });
     }
@@ -214,16 +226,44 @@ function OnlineGameContent() {
             lastMove={moves?.length ? moves[moves.length-1] : null}
             moveSetting={moveSetting}
           />
+          
+          {/* 专业对局报告展示 */}
           {isFinished && !dismissGameOver && (
-            <div className="absolute inset-0 bg-background/60 flex items-center justify-center p-4 z-50">
-              <Card className="w-full max-w-sm border-4 border-blue-500">
-                <CardHeader className="text-center bg-blue-500 text-white"><CardTitle>对局报告</CardTitle></CardHeader>
-                <CardContent className="p-6 text-center space-y-4">
-                  <h2 className="text-2xl font-black">{game.result?.winner === 'black' ? '黑胜' : '白胜'}</h2>
-                  <p className="text-xl font-headline">领先 {game.rules === 'chinese' ? (game.result?.diff * 2).toFixed(1) : game.result?.diff.toFixed(1)} 点</p>
-                  <p className="text-xs text-muted-foreground">原因: {game.result?.reason}</p>
-                </CardContent>
-                <CardFooter className="flex gap-2"><Button variant="outline" className="flex-1" onClick={() => router.push('/')}>回主页</Button><Button className="flex-1" onClick={() => setDismissGameOver(true)}>复盘</Button></CardFooter>
+            <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4 z-50 animate-in fade-in zoom-in-95">
+              <Card className="w-full max-w-md border-4 border-primary shadow-2xl p-0 overflow-hidden">
+                <CardHeader className="bg-primary text-primary-foreground p-6">
+                  <CardTitle className="flex items-center justify-center gap-2 text-xl font-headline uppercase tracking-tight">
+                    <Trophy className="h-6 w-6" /> 对局结算报告
+                  </CardTitle>
+                </CardHeader>
+                <div className="p-8 space-y-6 bg-background">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 rounded-xl bg-muted/30 border-2 border-primary/5 text-center space-y-1">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">黑方得分</p>
+                      <p className="text-4xl font-black font-headline">{game.result?.blackScore?.toFixed(1) || '0.0'}</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-muted/30 border-2 border-primary/5 text-center space-y-1">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">白方得分</p>
+                      <p className="text-4xl font-black font-headline">{game.result?.whiteScore?.toFixed(1) || '0.0'}</p>
+                    </div>
+                  </div>
+
+                  <div className="p-6 rounded-2xl bg-blue-600/5 border-4 border-blue-600/20 text-center space-y-2">
+                    <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终胜负 (Komi: {game.result?.komi || (game.rules === 'chinese' ? 3.75 : 6.5)})</p>
+                    <h3 className="text-4xl font-black text-blue-800 font-headline">
+                      {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {game.rules === 'chinese' ? (game.result?.diff * 2).toFixed(1) : game.result?.diff.toFixed(1)} 点
+                    </h3>
+                    <p className="text-xs text-muted-foreground italic">原因: {game.result?.reason}</p>
+                  </div>
+                </div>
+                <CardFooter className="p-6 bg-muted/20 border-t flex gap-3">
+                  <Button variant="outline" className="flex-1 h-12 font-bold border-2" onClick={() => router.push('/')}>
+                    <Home className="h-4 w-4" /> 主页
+                  </Button>
+                  <Button className="flex-1 h-12 font-bold bg-primary hover:bg-primary/90" onClick={() => setDismissGameOver(true)}>
+                    <RefreshCw className="h-4 w-4" /> 进入复盘
+                  </Button>
+                </CardFooter>
               </Card>
             </div>
           )}
