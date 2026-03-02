@@ -16,8 +16,7 @@ export interface SessionUser {
 
 /**
  * 身份管理钩子
- * 集成了 Firebase 匿名登录，确保 Firestore 安全规则中的 request.auth 有效。
- * 移除了 FingerprintJS，采用原生的 Firebase 身份持久化。
+ * 集成了 Firebase 匿名登录与实时心跳机制
  */
 export function useUser() {
   const { firestore, auth } = useFirebase();
@@ -26,6 +25,8 @@ export function useUser() {
 
   useEffect(() => {
     if (!firestore || !auth) return;
+
+    let heartbeatInterval: NodeJS.Timeout;
 
     const initializeIdentity = async () => {
       try {
@@ -43,7 +44,6 @@ export function useUser() {
           const data = userSnap.data();
           const finalName = displayName || data.displayName || "匿名棋手";
 
-          // 使用 updateDoc 仅同步活跃时间
           await updateDoc(userRef, { 
             lastLoginAt: serverTimestamp(),
             lastSeen: serverTimestamp(),
@@ -73,6 +73,12 @@ export function useUser() {
 
           setUser({ uid, displayName });
         }
+
+        // 3. 启动实时心跳 (每 60 秒更新一次 lastSeen)
+        heartbeatInterval = setInterval(() => {
+          updateDoc(userRef, { lastSeen: serverTimestamp() }).catch(() => {});
+        }, 60000);
+
       } catch (error) {
         console.error("Critical Security Failure during Identity Initialization:", error);
       } finally {
@@ -81,6 +87,10 @@ export function useUser() {
     };
 
     initializeIdentity();
+
+    return () => {
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+    };
   }, [firestore, auth]);
 
   return { user, loading };

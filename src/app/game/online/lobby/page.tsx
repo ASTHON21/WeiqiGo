@@ -1,19 +1,20 @@
 
-"use client";
+'use client';
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, updateDoc, orderBy, limit, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, orderBy, limit, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/language-context';
+import { cn } from '@/lib/utils';
 
 export default function OnlineLobbyPage() {
   const router = useRouter();
@@ -39,31 +40,48 @@ export default function OnlineLobbyPage() {
   }, [db, user]);
   const { data: incomingInvites } = useCollection(inviteQuery);
 
-  // 2. 监听所有活跃玩家
+  // 2. 监听所有活跃玩家 (按最后心跳排序)
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
-  const { data: players } = useCollection(playersQuery);
+  const { data: rawPlayers } = useCollection(playersQuery);
 
-  // 3. 监听完赛的名局 (Recent Replays)
-  // 为了避免复杂的复合索引错误 (failed-precondition)，简化查询条件
+  // 3. 监听所有进行中的对局 (用于判断棋手是否在对局中)
+  const activeGamesQuery = useMemoFirebase(() => db ? query(collection(db, "games"), where("status", "==", "in-progress")) : null, [db]);
+  const { data: activeGames } = useCollection(activeGamesQuery);
+
+  // 4. 监听完赛名局
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(
-      collection(db, "games"),
-      where("status", "==", "finished"),
-      limit(20) // 获取稍多一点以便在内存中排序
-    );
+    return query(collection(db, "games"), where("status", "==", "finished"), limit(20));
   }, [db]);
   const { data: rawRecentGames } = useCollection(recentGamesQuery);
 
-  // 在内存中进行二次排序，确保用户看到的是最新的对局
+  // 在内存中过滤掉超过 5 分钟没有心跳的棋手
+  const activePlayers = useMemo(() => {
+    if (!rawPlayers) return [];
+    const now = Date.now();
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    return rawPlayers.filter(p => {
+      if (!p.lastSeen) return false;
+      const lastSeenTime = p.lastSeen instanceof Timestamp ? p.lastSeen.toMillis() : new Date(p.lastSeen).getTime();
+      return (now - lastSeenTime) < FIVE_MINUTES;
+    });
+  }, [rawPlayers]);
+
+  // 计算正在对局中的棋手 ID 集合
+  const playingPlayerIds = useMemo(() => {
+    const ids = new Set<string>();
+    activeGames?.forEach(g => {
+      if (g.playerBlackId) ids.add(g.playerBlackId);
+      if (g.playerWhiteId) ids.add(g.playerWhiteId);
+    });
+    return ids;
+  }, [activeGames]);
+
+  // 名局排序逻辑
   const recentGames = useMemo(() => {
     if (!rawRecentGames) return [];
     return [...rawRecentGames]
-      .sort((a, b) => {
-        const timeA = a.finishedAt?.seconds || 0;
-        const timeB = b.finishedAt?.seconds || 0;
-        return timeB - timeA;
-      })
+      .sort((a, b) => (b.finishedAt?.seconds || 0) - (a.finishedAt?.seconds || 0))
       .slice(0, 10);
   }, [rawRecentGames]);
 
@@ -124,7 +142,7 @@ export default function OnlineLobbyPage() {
           <h1 className="text-3xl font-bold font-headline text-blue-500 flex items-center gap-3">
             <Swords className="h-8 w-8" /> 竞技大厅
           </h1>
-          <p className="text-xs text-muted-foreground italic">寻找志同道合的棋手，共赴黑白之约。</p>
+          <p className="text-xs text-muted-foreground italic">寻找活跃棋手，共赴黑白之约。</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {user && (
@@ -151,34 +169,47 @@ export default function OnlineLobbyPage() {
 
         <TabsContent value="players" className="mt-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {players?.filter(p => p.id !== user?.uid).map(p => (
-              <Card key={p.id} className="hover:border-blue-500 transition-all group border-2">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="border-2 border-muted">
-                      <AvatarFallback className="bg-muted font-bold text-muted-foreground">
-                        {p.displayName?.[0] || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-bold text-foreground group-hover:text-blue-600 transition-colors">{p.displayName}</p>
-                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Wifi className="h-2 w-2 text-green-500 fill-green-500" /> 在线
-                      </p>
+            {activePlayers?.filter(p => p.id !== user?.uid).map(p => {
+              const isPlaying = playingPlayerIds.has(p.id);
+              return (
+                <Card key={p.id} className={cn("transition-all group border-2", isPlaying ? "opacity-75" : "hover:border-blue-500")}>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="border-2 border-muted">
+                        <AvatarFallback className="bg-muted font-bold text-muted-foreground">
+                          {p.displayName?.[0] || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-bold text-foreground group-hover:text-blue-600 transition-colors">{p.displayName}</p>
+                        <div className="flex items-center gap-2">
+                          {isPlaying ? (
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 gap-1 bg-blue-100 text-blue-700 border-blue-200">
+                              <Gamepad2 className="h-2 w-2" /> 正在对局中
+                            </Badge>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                              <Wifi className="h-2 w-2 text-green-500 fill-green-500" /> 空闲在线
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="rounded-full h-10 w-10 p-0 border-2 hover:bg-blue-50 hover:border-blue-500"
-                    onClick={() => setInvitingPlayer({ id: p.id, name: p.displayName })}
-                  >
-                    <UserPlus className="h-4 w-4 text-blue-500" />
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-            {players?.length === 1 && (
+                    {!isPlaying && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="rounded-full h-10 w-10 p-0 border-2 hover:bg-blue-50 hover:border-blue-500"
+                        onClick={() => setInvitingPlayer({ id: p.id, name: p.displayName })}
+                      >
+                        <UserPlus className="h-4 w-4 text-blue-500" />
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+            {activePlayers?.length <= 1 && (
               <div className="col-span-full py-20 text-center border-2 border-dashed rounded-xl bg-muted/20">
                 <p className="text-muted-foreground text-sm font-medium">暂时没有其他在线棋手...</p>
               </div>
@@ -187,6 +218,7 @@ export default function OnlineLobbyPage() {
         </TabsContent>
 
         <TabsContent value="replays" className="mt-0">
+          {/* 名局列表保持不变 */}
           <div className="grid gap-4">
             {recentGames?.map(game => (
               <Card key={game.id} className="border-2 hover:border-blue-500 transition-all">
@@ -222,14 +254,14 @@ export default function OnlineLobbyPage() {
             ))}
             {recentGames?.length === 0 && (
               <div className="py-20 text-center border-2 border-dashed rounded-xl bg-muted/20">
-                <p className="text-muted-foreground text-sm font-medium">最近一小时内暂无完赛名局...</p>
+                <p className="text-muted-foreground text-sm font-medium">最近暂无完赛名局...</p>
               </div>
             )}
           </div>
         </TabsContent>
       </Tabs>
 
-      {/* 邀请配置对话框 */}
+      {/* 邀请与挑战弹窗保持不变 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && !isSendingInvite && setInvitingPlayer(null)}>
         <DialogContent className="max-w-md border-4 shadow-2xl">
           <DialogHeader>
@@ -271,7 +303,6 @@ export default function OnlineLobbyPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 收到挑战弹窗 */}
       <Dialog open={!!currentInvite} onOpenChange={() => {}}>
         <DialogContent className="max-w-md border-4 border-blue-500 shadow-2xl">
           <DialogHeader className="text-center">
