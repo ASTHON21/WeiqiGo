@@ -82,6 +82,7 @@ function OnlineGameContent() {
             updateDoc(doc(db, "games", roomId), {
               status: 'finished',
               finishedAt: serverTimestamp(),
+              moveCount: (moves?.length || 0),
               result: { 
                 winner: color === 'black' ? 'white' : 'black', 
                 reason: '超时负', 
@@ -102,7 +103,6 @@ function OnlineGameContent() {
 
   /**
    * 重构棋盘与历史重建逻辑
-   * 必须在内存中回放所有步数，以重建用于劫争检查的 boardHistory
    */
   const { board, prisoners, boardHistory } = useMemo(() => {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
@@ -110,11 +110,9 @@ function OnlineGameContent() {
     let history: BoardState[] = [];
     
     moves?.forEach(m => {
-      // 在应用当前移动前，记录之前的盘面
       history.push(tempBoard.map(row => [...row]));
       
       if (m.coordinatesX !== -1) {
-        // 使用空的 history 进行回放，因为我们只是为了重建最终状态
         const result = GoLogic.processMove(tempBoard, m.coordinatesX, m.coordinatesY, m.playerColor, []);
         if (result.success) {
            tempBoard = result.newBoard;
@@ -123,7 +121,6 @@ function OnlineGameContent() {
       }
     });
     
-    // 仅保留最近的几个历史记录以节省内存，标准劫争只需上一状态，同型禁重需完整或多个状态
     const trimmedHistory = history.slice(-10); 
     
     return { board: tempBoard, prisoners: p, boardHistory: trimmedHistory };
@@ -135,7 +132,6 @@ function OnlineGameContent() {
     if (!canMove || !user || !game) return;
     const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
     
-    // 传入 boardHistory 进行劫争校验 (Ko Rule Check)
     const result = GoLogic.processMove(board, r, c, playerColor, boardHistory);
     
     if (!result.success) {
@@ -163,6 +159,7 @@ function OnlineGameContent() {
       currentTurn: playerColor === 'black' ? 'white' : 'black', 
       playerBlackTimeUsed: timeUsed.black, 
       playerWhiteTimeUsed: timeUsed.white, 
+      moveCount: (moves?.length || 0) + 1,
       lastActivityAt: serverTimestamp() 
     });
   };
@@ -191,6 +188,7 @@ function OnlineGameContent() {
       updateDoc(doc(db, "games", roomId), { 
         status: 'finished', 
         finishedAt: serverTimestamp(), 
+        moveCount: (moves?.length || 0) + 1,
         result: { 
           winner: score.winner, 
           reason: '双方弃权', 
@@ -206,6 +204,7 @@ function OnlineGameContent() {
         currentTurn: playerColor === 'black' ? 'white' : 'black', 
         playerBlackTimeUsed: timeUsed.black,
         playerWhiteTimeUsed: timeUsed.white,
+        moveCount: (moves?.length || 0) + 1,
         lastActivityAt: serverTimestamp() 
       });
     }
@@ -216,6 +215,7 @@ function OnlineGameContent() {
     updateDoc(doc(db, "games", roomId), { 
       status: 'finished', 
       finishedAt: serverTimestamp(), 
+      moveCount: (moves?.length || 0),
       result: { 
         winner: user.uid === game.playerBlackId ? 'white' : 'black', 
         reason: '对手认输', 
@@ -385,6 +385,7 @@ function OnlineGameContent() {
                       {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {game.rules === 'chinese' ? (game.result?.diff * 2).toFixed(1) : game.result?.diff.toFixed(1)} 点
                     </h3>
                     <p className="text-xs text-muted-foreground italic">原因: {game.result?.reason}</p>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">共计 {moves?.length || 0} 手</p>
                   </div>
                 </div>
                 <CardFooter className="p-6 bg-muted/20 border-t flex gap-3">

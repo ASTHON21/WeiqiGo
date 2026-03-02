@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2 } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2, Hash } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/language-context';
 import { cn } from '@/lib/utils';
@@ -51,7 +51,7 @@ export default function OnlineLobbyPage() {
   // 4. 监听完赛名局
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, "games"), where("status", "==", "finished"), limit(20));
+    return query(collection(db, "games"), where("status", "==", "finished"), limit(30));
   }, [db]);
   const { data: rawRecentGames } = useCollection(recentGamesQuery);
 
@@ -77,12 +77,20 @@ export default function OnlineLobbyPage() {
     return ids;
   }, [activeGames]);
 
-  // 名局排序逻辑
+  // 名局排序逻辑：严格限制在1小时内完赛
   const recentGames = useMemo(() => {
     if (!rawRecentGames) return [];
+    const now = Date.now();
+    const ONE_HOUR = 60 * 60 * 1000;
+    
     return [...rawRecentGames]
+      .filter(game => {
+        if (!game.finishedAt) return false;
+        const finishedTime = game.finishedAt instanceof Timestamp ? game.finishedAt.toMillis() : new Date(game.finishedAt).getTime();
+        return (now - finishedTime) < ONE_HOUR;
+      })
       .sort((a, b) => (b.finishedAt?.seconds || 0) - (a.finishedAt?.seconds || 0))
-      .slice(0, 10);
+      .slice(0, 15);
   }, [rawRecentGames]);
 
   const handleInvite = () => {
@@ -107,6 +115,7 @@ export default function OnlineLobbyPage() {
       playerWhiteTimeUsed: 0,
       komi: selectedRule === 'chinese' ? 3.75 : 6.5,
       handicap: 0,
+      moveCount: 0,
       lastActivityAt: serverTimestamp()
     };
 
@@ -232,7 +241,15 @@ export default function OnlineLobbyPage() {
                     </div>
                     <div className="flex flex-col items-center gap-2">
                       <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest bg-muted px-2 py-0.5 rounded">VS</div>
-                      <Badge variant="outline" className="border-2 font-mono">{game.boardSize}x{game.boardSize}</Badge>
+                      <Badge variant="outline" className="border-2 font-mono h-6">{game.boardSize}x{game.boardSize}</Badge>
+                      <div className="flex flex-col items-center gap-1">
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200 uppercase tracking-tighter">
+                          {game.rules === 'chinese' ? '中国规则' : '日韩规则'}
+                        </Badge>
+                        <div className="flex items-center gap-1 text-[9px] font-black text-muted-foreground/60 uppercase">
+                          <Hash className="h-2 w-2" /> {game.moveCount || 0} 手
+                        </div>
+                      </div>
                     </div>
                     <div className="text-center space-y-1">
                        <Badge className={game.result?.winner === 'white' ? 'bg-blue-600 text-white' : 'bg-muted'}>
@@ -244,7 +261,7 @@ export default function OnlineLobbyPage() {
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <p className="text-[10px] font-bold text-muted-foreground italic">胜负: {game.result?.reason}</p>
-                    <Button variant="outline" className="gap-2 border-2 hover:bg-blue-600 hover:text-white hover:border-blue-600" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
+                    <Button variant="outline" className="gap-2 border-2 hover:bg-blue-600 hover:text-white hover:border-blue-600 h-10 px-6 font-bold" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
                       <Eye className="h-4 w-4" /> {t('lobby.game.view')}
                     </Button>
                   </div>
@@ -253,7 +270,7 @@ export default function OnlineLobbyPage() {
             ))}
             {recentGames?.length === 0 && (
               <div className="py-20 text-center border-2 border-dashed rounded-xl bg-muted/20">
-                <p className="text-muted-foreground text-sm font-medium">最近暂无完赛名局...</p>
+                <p className="text-muted-foreground text-sm font-medium">最近一小时暂无完赛名局...</p>
               </div>
             )}
           </div>
