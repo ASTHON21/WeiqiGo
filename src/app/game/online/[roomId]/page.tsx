@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription }
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe, Eye, XCircle, LogOut, AlertTriangle, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useEffect, useState, useMemo, Suspense } from 'react';
+import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
@@ -47,6 +47,7 @@ function OnlineGameContent() {
   const [showPassConfirm, setShowPassConfirm] = useState(false);
   const [showResignConfirm, setShowResignConfirm] = useState(false);
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
+  const hasCheckedCatchup = useRef(false);
 
   const gameRef = useMemoFirebase(() => (db && roomId && user) ? doc(db, "games", roomId) : null, [db, roomId, user]);
   const { data: game, isLoading: loadingGame } = useDoc(gameRef);
@@ -101,14 +102,24 @@ function OnlineGameContent() {
   // 核心增强：强制回归结算 (Catch-up Settlement)
   // 如果进入房间时发现对局由于长时间无响应本应超时，则立即执行自动结算。
   useEffect(() => {
-    if (db && roomId && game && isInProgress && !isFinished) {
+    if (db && roomId && game && isInProgress && !isFinished && !hasCheckedCatchup.current) {
+      if (!game.lastActivityAt) return; // 等待时间戳同步
+      
       const turn = game.currentTurn as 'black' | 'white';
       const lastActivity = game.lastActivityAt instanceof Timestamp ? game.lastActivityAt.toMillis() : new Date(game.lastActivityAt).getTime();
-      const elapsedSinceActivity = Math.floor((Date.now() - lastActivity) / 1000);
+      const now = Date.now();
       
+      // 避免时钟不同步导致的负值计算
+      if (lastActivity > now) {
+        hasCheckedCatchup.current = true;
+        return;
+      }
+
+      const elapsedSinceActivity = Math.floor((now - lastActivity) / 1000);
       const currentTimeUsed = turn === 'black' ? (game.playerBlackTimeUsed || 0) : (game.playerWhiteTimeUsed || 0);
       
-      if (currentTimeUsed + elapsedSinceActivity > timeLimit) {
+      // 增加 10 秒宽限期，并确保仅在数据稳定后运行一次
+      if (currentTimeUsed + elapsedSinceActivity > timeLimit + 10) {
         updateDoc(doc(db, "games", roomId), {
           status: 'finished',
           finishedAt: serverTimestamp(),
@@ -121,6 +132,7 @@ function OnlineGameContent() {
           }
         });
       }
+      hasCheckedCatchup.current = true;
     }
   }, [db, roomId, game, isInProgress, isFinished, timeLimit]);
 
@@ -151,7 +163,7 @@ function OnlineGameContent() {
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [isInProgress, isFinished, isSpectating, isPlayer, game, timeLimit, db, roomId, moves?.length]);
+  }, [isInProgress, isFinished, isSpectating, isPlayer, game?.id, game?.currentTurn, timeLimit, db, roomId, moves?.length]);
 
   const { board, prisoners, boardHistory } = useMemo(() => {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
@@ -328,9 +340,6 @@ function OnlineGameContent() {
               <XCircle className={cn("h-10 w-10", isCancelled ? "text-muted-foreground" : "text-red-600")} />
             </div>
             <CardTitle className={cn("text-3xl font-black font-headline", isCancelled ? "text-muted-foreground" : "text-red-700")}>
-              {isCancelled ? "挑战已取消" : "挑战被婉拒"}
-            </CardTitle>
-            <CardTitle className="text-3xl font-black font-headline text-red-700">
               {isCancelled ? "挑战已取消" : "挑战被婉拒"}
             </CardTitle>
             <CardDescription className="text-lg">
