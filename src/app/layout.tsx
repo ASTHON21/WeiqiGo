@@ -4,17 +4,9 @@ import './globals.css';
 import { FirebaseClientProvider } from '@/firebase';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { Menu, History, Home, Info } from 'lucide-react';
-import Link from 'next/link';
 import { LanguageProvider } from '@/context/language-context';
 import { ThemeProvider } from '@/context/theme-context';
+import { GlobalMenu } from '@/components/layout/GlobalMenu';
 
 export const metadata: Metadata = {
   title: 'Weiqi Go',
@@ -37,36 +29,7 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <ThemeProvider>
             <LanguageProvider>
-              <div className="absolute top-4 left-4 z-50">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <Menu className="h-5 w-5" />
-                      <span className="sr-only">Open menu</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuItem asChild>
-                      <Link href="/" className="w-full cursor-pointer">
-                        <Home className="h-4 w-4" />
-                        <span>Home</span>
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/history" className="w-full cursor-pointer">
-                        <History className="h-4 w-4" />
-                        <span>History</span>
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/about" className="w-full cursor-pointer">
-                        <Info className="h-4 w-4" />
-                        <span>About</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+              <GlobalMenu />
               <main>
                 {children}
               </main>
