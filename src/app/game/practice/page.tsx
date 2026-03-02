@@ -100,6 +100,11 @@ function PracticeContent() {
     setIsSaved(false);
   };
 
+  const handleExit = () => {
+    practice.reset();
+    router.push('/game/online/lobby');
+  };
+
   const saveToLocalHistory = () => {
     if (!scoreResult || isSaved) return;
 
@@ -181,6 +186,7 @@ function PracticeContent() {
           <ToolPanel 
             onReset={handleReset} 
             onPass={isGameOver ? undefined : handlePass}
+            onExit={handleExit}
             moveSetting={isGameOver ? undefined : moveSetting}
             onMoveSettingChange={setMoveSetting}
           />
