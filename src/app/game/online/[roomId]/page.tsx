@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe, Eye, XCircle } from 'lucide-react';
+import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe, Eye, XCircle, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -209,7 +209,7 @@ function OnlineGameContent() {
 
   if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12" /></div>;
 
-  // 处理被拒绝的情况：如果对局结束且原因是“对方拒绝了挑战”
+  // 处理被拒绝的情况
   if (isFinished && game?.result?.reason === '对方拒绝了挑战') {
     return (
       <div className="h-screen flex items-center justify-center bg-background p-6">
@@ -295,10 +295,12 @@ function OnlineGameContent() {
               </span>
             </div>
           )}
-          {isFinished && isSpectating && (
+          {isFinished && (
              <div className="flex items-center gap-3 px-6 py-2 rounded-full bg-background border-4 border-primary/10 shadow-lg">
                 <Trophy className="h-4 w-4 text-accent" />
-                <span className="text-sm font-black uppercase tracking-widest">对局已完结 - 观摩中</span>
+                <span className="text-sm font-black uppercase tracking-widest">
+                  {dismissGameOver ? '对局已完结 - 正在复盘' : '对局已完结'}
+                </span>
              </div>
           )}
       </div>
@@ -310,7 +312,7 @@ function OnlineGameContent() {
             size={game?.boardSize || 19} 
             onMove={handleMove} 
             currentPlayer={game?.currentTurn as Player} 
-            readOnly={!canMove || isSpectating} 
+            readOnly={!canMove || isSpectating || isFinished} 
             lastMove={moves?.length ? moves[moves.length-1] : null}
             moveSetting={moveSetting}
           />
@@ -344,10 +346,10 @@ function OnlineGameContent() {
                   </div>
                 </div>
                 <CardFooter className="p-6 bg-muted/20 border-t flex gap-3">
-                  <Button variant="outline" className="flex-1 h-12 font-bold border-2" onClick={() => router.push('/')}>
-                    <Home className="h-4 w-4" /> 主页
+                  <Button variant="outline" className="flex-1 h-12 font-bold border-2 gap-2" onClick={() => router.push('/game/online/lobby')}>
+                    <ArrowLeft className="h-4 w-4" /> 返回大厅
                   </Button>
-                  <Button className="flex-1 h-12 font-bold bg-primary hover:bg-primary/90" onClick={() => setDismissGameOver(true)}>
+                  <Button className="flex-1 h-12 font-bold bg-primary hover:bg-primary/90 gap-2" onClick={() => setDismissGameOver(true)}>
                     <RefreshCw className="h-4 w-4" /> 进入复盘
                   </Button>
                 </CardFooter>
@@ -368,9 +370,9 @@ function OnlineGameContent() {
                 <div className="flex items-center gap-2">
                   <div className={cn(
                     "w-6 h-6 rounded-full bg-black shadow-md",
-                    game?.currentTurn === 'black' && "ring-2 ring-blue-500 ring-offset-2"
+                    isInProgress && game?.currentTurn === 'black' && "ring-2 ring-blue-500 ring-offset-2"
                   )} />
-                  <span className={cn("font-bold truncate max-w-[120px]", game?.currentTurn === 'black' && "text-blue-600")}>{game?.playerBlackName}</span>
+                  <span className={cn("font-bold truncate max-w-[120px]", isInProgress && game?.currentTurn === 'black' && "text-blue-600")}>{game?.playerBlackName}</span>
                 </div>
                 <div className="text-right">
                   <p className="font-mono text-xl font-black tracking-tighter">{formatDuration(timeUsed.black)}</p>
@@ -381,9 +383,9 @@ function OnlineGameContent() {
                 <div className="flex items-center gap-2">
                   <div className={cn(
                     "w-6 h-6 rounded-full bg-white border shadow-sm",
-                    game?.currentTurn === 'white' && "ring-2 ring-blue-500 ring-offset-2"
+                    isInProgress && game?.currentTurn === 'white' && "ring-2 ring-blue-500 ring-offset-2"
                   )} />
-                  <span className={cn("font-bold truncate max-w-[120px]", game?.currentTurn === 'white' && "text-blue-600")}>{game?.playerWhiteName}</span>
+                  <span className={cn("font-bold truncate max-w-[120px]", isInProgress && game?.currentTurn === 'white' && "text-blue-600")}>{game?.playerWhiteName}</span>
                 </div>
                 <div className="text-right">
                   <p className="font-mono text-xl font-black tracking-tighter">{formatDuration(timeUsed.white)}</p>
@@ -394,13 +396,24 @@ function OnlineGameContent() {
           </Card>
           
           {!isSpectating ? (
-            <ToolPanel 
-              onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
-              onResign={isInProgress && isPlayer ? () => setShowResignConfirm(true) : undefined} 
-              showChat 
-              moveSetting={moveSetting}
-              onMoveSettingChange={setMoveSetting}
-            />
+            <div className="space-y-4">
+              {isFinished && (
+                <Card className="border-2 bg-blue-500/5 border-blue-500/20">
+                  <CardContent className="p-4">
+                    <Button variant="default" className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 gap-2 shadow-lg" onClick={() => router.push('/game/online/lobby')}>
+                      <LogOut className="h-5 w-5" /> 退出对局并返回大厅
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              <ToolPanel 
+                onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
+                onResign={isInProgress && isPlayer ? () => setShowResignConfirm(true) : undefined} 
+                showChat 
+                moveSetting={moveSetting}
+                onMoveSettingChange={setMoveSetting}
+              />
+            </div>
           ) : (
             <Card className="border-2 bg-muted/30">
               <CardContent className="p-6 text-center space-y-4">
