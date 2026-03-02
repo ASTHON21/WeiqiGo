@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe } from 'lucide-react';
+import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// 严格的时长规范：19路 3小时，13路 2小时，9路 1小时
+// 严格的时长规范
 const BOARD_TIME_LIMITS: Record<number, number> = {
   19: 3 * 3600, 
   13: 2 * 3600, 
@@ -241,6 +241,11 @@ function OnlineGameContent() {
                <Wifi className="h-3 w-3 animate-pulse" /> 在线同步对弈 (ONLINE SYNC MATCH)
              </h2>
           </div>
+          {isSpectating && (
+             <Badge className="bg-yellow-500 text-white gap-2 border-0">
+               <Eye className="h-3 w-3" /> 观摩模式 (READ ONLY)
+             </Badge>
+          )}
           <div className="h-4 w-px bg-blue-500/20 hidden md:block" />
           <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
             <Globe className="h-3 w-3 text-green-500" /> 云端同步已开启
@@ -265,6 +270,12 @@ function OnlineGameContent() {
               </span>
             </div>
           )}
+          {isFinished && isSpectating && (
+             <div className="flex items-center gap-3 px-6 py-2 rounded-full bg-background border-4 border-primary/10 shadow-lg">
+                <Trophy className="h-4 w-4 text-accent" />
+                <span className="text-sm font-black uppercase tracking-widest">对局已完结 - 观摩中</span>
+             </div>
+          )}
       </div>
 
       <div className="grid lg:grid-cols-[1fr_350px] gap-8">
@@ -274,12 +285,12 @@ function OnlineGameContent() {
             size={game?.boardSize || 19} 
             onMove={handleMove} 
             currentPlayer={game?.currentTurn as Player} 
-            readOnly={!canMove} 
+            readOnly={!canMove || isSpectating} 
             lastMove={moves?.length ? moves[moves.length-1] : null}
             moveSetting={moveSetting}
           />
           
-          {isFinished && !dismissGameOver && (
+          {(isFinished && !dismissGameOver) && (
             <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4 z-50 animate-in fade-in zoom-in-95">
               <Card className="w-full max-w-md border-4 border-primary shadow-2xl p-0 overflow-hidden">
                 <CardHeader className="bg-primary text-primary-foreground p-6">
@@ -357,13 +368,27 @@ function OnlineGameContent() {
             </CardContent>
           </Card>
           
-          <ToolPanel 
-            onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
-            onResign={isInProgress && isPlayer ? () => setShowResignConfirm(true) : undefined} 
-            showChat 
-            moveSetting={moveSetting}
-            onMoveSettingChange={setMoveSetting}
-          />
+          {!isSpectating ? (
+            <ToolPanel 
+              onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
+              onResign={isInProgress && isPlayer ? () => setShowResignConfirm(true) : undefined} 
+              showChat 
+              moveSetting={moveSetting}
+              onMoveSettingChange={setMoveSetting}
+            />
+          ) : (
+            <Card className="border-2 bg-muted/30">
+              <CardContent className="p-6 text-center space-y-4">
+                <ShieldAlert className="h-8 w-8 text-muted-foreground mx-auto" />
+                <p className="text-sm font-bold text-muted-foreground">
+                  您当前处于观摩模式，无法进行任何对局操作。
+                </p>
+                <Button variant="outline" className="w-full h-10 font-bold border-2" onClick={() => router.push('/game/online/lobby')}>
+                  返回大厅
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 

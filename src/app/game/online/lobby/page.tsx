@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, updateDoc, orderBy, limit, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -10,15 +10,17 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/context/language-context';
 
 export default function OnlineLobbyPage() {
   const router = useRouter();
   const { user, loading: loadingUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const [invitingPlayer, setInvitingPlayer] = useState<{ id: string, name: string } | null>(null);
   const [selectedSize, setSelectedSize] = useState("19");
@@ -41,6 +43,21 @@ export default function OnlineLobbyPage() {
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
   const { data: players } = useCollection(playersQuery);
 
+  // 3. 监听 1 小时内完赛的名局 (Recent Replays)
+  const recentGamesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    // 计算 1 小时前的时间戳
+    const oneHourAgo = new Date(Date.now() - 3600 * 1000);
+    return query(
+      collection(db, "games"),
+      where("status", "==", "finished"),
+      where("finishedAt", ">=", oneHourAgo),
+      orderBy("finishedAt", "desc"),
+      limit(10)
+    );
+  }, [db]);
+  const { data: recentGames } = useCollection(recentGamesQuery);
+
   const handleInvite = () => {
     if (!invitingPlayer || !user || !db || isSendingInvite) return;
     setIsSendingInvite(true);
@@ -54,7 +71,7 @@ export default function OnlineLobbyPage() {
       playerWhiteId: invitingPlayer.id,
       playerBlackName: user.displayName,
       playerWhiteName: invitingPlayer.name,
-      status: 'pending', // 初始状态为等待中
+      status: 'pending',
       boardSize: parseInt(selectedSize),
       rules: selectedRule,
       currentTurn: 'black',
@@ -62,7 +79,8 @@ export default function OnlineLobbyPage() {
       playerBlackTimeUsed: 0,
       playerWhiteTimeUsed: 0,
       komi: selectedRule === 'chinese' ? 3.75 : 6.5,
-      handicap: 0
+      handicap: 0,
+      lastActivityAt: serverTimestamp()
     };
 
     setDoc(gameRef, gameData).then(() => {
@@ -70,20 +88,20 @@ export default function OnlineLobbyPage() {
       router.push(`/game/online/${gameId}`);
     }).catch((err) => {
       console.error("Invite failed:", err);
-      toast({ variant: "destructive", title: "发起失败", description: "由于权限限制，无法创建对局。" });
+      toast({ variant: "destructive", title: "发起失败", description: "无法连接到竞技节点，请检查网络。" });
       setIsSendingInvite(false);
     });
   };
 
   const handleAcceptInvite = (gameId: string) => {
     if (!db) return;
-    updateDoc(doc(db, "games", gameId), { status: 'in-progress' });
+    updateDoc(doc(db, "games", gameId), { status: 'in-progress', startedAt: serverTimestamp() });
     router.push(`/game/online/${gameId}`);
   };
 
   const handleDeclineInvite = (gameId: string) => {
     if (!db) return;
-    updateDoc(doc(db, "games", gameId), { status: 'finished', result: { winner: null, reason: '对方拒绝了挑战', diff: 0 } });
+    updateDoc(doc(db, "games", gameId), { status: 'finished', finishedAt: serverTimestamp(), result: { winner: null, reason: '对方拒绝了挑战', diff: 0 } });
   };
 
   if (loadingUser) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
@@ -112,35 +130,95 @@ export default function OnlineLobbyPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {players?.filter(p => p.id !== user?.uid).map(p => (
-          <Card key={p.id} className="hover:border-blue-500 transition-all group border-2">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar className="border-2 border-muted">
-                  <AvatarFallback className="bg-muted font-bold text-muted-foreground">
-                    {p.displayName?.[0] || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-bold text-foreground group-hover:text-blue-600 transition-colors">{p.displayName}</p>
-                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <Wifi className="h-2 w-2 text-green-500 fill-green-500" /> 在线
-                  </p>
-                </div>
+      <Tabs defaultValue="players" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-[400px] mb-8">
+          <TabsTrigger value="players" className="gap-2">
+            <Users className="h-4 w-4" /> {t('lobby.tab.players')}
+          </TabsTrigger>
+          <TabsTrigger value="replays" className="gap-2">
+            <Trophy className="h-4 w-4" /> {t('lobby.tab.recent')}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="players" className="mt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {players?.filter(p => p.id !== user?.uid).map(p => (
+              <Card key={p.id} className="hover:border-blue-500 transition-all group border-2">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="border-2 border-muted">
+                      <AvatarFallback className="bg-muted font-bold text-muted-foreground">
+                        {p.displayName?.[0] || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-bold text-foreground group-hover:text-blue-600 transition-colors">{p.displayName}</p>
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Wifi className="h-2 w-2 text-green-500 fill-green-500" /> 在线
+                      </p>
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="rounded-full h-10 w-10 p-0 border-2 hover:bg-blue-50 hover:border-blue-500"
+                    onClick={() => setInvitingPlayer({ id: p.id, name: p.displayName })}
+                  >
+                    <UserPlus className="h-4 w-4 text-blue-500" />
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+            {players?.length === 1 && (
+              <div className="col-span-full py-20 text-center border-2 border-dashed rounded-xl bg-muted/20">
+                <p className="text-muted-foreground text-sm font-medium">暂时没有其他在线棋手...</p>
               </div>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="rounded-full h-10 w-10 p-0 border-2 hover:bg-blue-50 hover:border-blue-500"
-                onClick={() => setInvitingPlayer({ id: p.id, name: p.displayName })}
-              >
-                <UserPlus className="h-4 w-4 text-blue-500" />
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="replays" className="mt-0">
+          <div className="grid gap-4">
+            {recentGames?.map(game => (
+              <Card key={game.id} className="border-2 hover:border-blue-500 transition-all">
+                <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div className="flex items-center gap-8 flex-1">
+                    <div className="text-center space-y-1">
+                       <Badge className={game.result?.winner === 'black' ? 'bg-black text-white' : 'bg-muted'}>
+                         {game.result?.winner === 'black' ? t('lobby.game.winner') : ''}
+                       </Badge>
+                       <p className="font-bold text-sm">{game.playerBlackName}</p>
+                       <p className="text-[10px] text-muted-foreground font-bold uppercase">BLACK</p>
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest bg-muted px-2 py-0.5 rounded">VS</div>
+                      <Badge variant="outline" className="border-2 font-mono">{game.boardSize}x{game.boardSize}</Badge>
+                    </div>
+                    <div className="text-center space-y-1">
+                       <Badge className={game.result?.winner === 'white' ? 'bg-blue-600 text-white' : 'bg-muted'}>
+                         {game.result?.winner === 'white' ? t('lobby.game.winner') : ''}
+                       </Badge>
+                       <p className="font-bold text-sm">{game.playerWhiteName}</p>
+                       <p className="text-[10px] text-muted-foreground font-bold uppercase">WHITE</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <p className="text-[10px] font-bold text-muted-foreground italic">胜负: {game.result?.reason}</p>
+                    <Button variant="outline" className="gap-2 border-2 hover:bg-blue-600 hover:text-white hover:border-blue-600" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
+                      <Eye className="h-4 w-4" /> {t('lobby.game.view')}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {recentGames?.length === 0 && (
+              <div className="py-20 text-center border-2 border-dashed rounded-xl bg-muted/20">
+                <p className="text-muted-foreground text-sm font-medium">最近一小时内暂无完赛名局...</p>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* 邀请配置对话框 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && !isSendingInvite && setInvitingPlayer(null)}>
