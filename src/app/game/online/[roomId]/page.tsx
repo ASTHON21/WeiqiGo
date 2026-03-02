@@ -135,7 +135,6 @@ function OnlineGameContent() {
 
   if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
 
-  // 等待状态界面
   if (isPending) {
     return (
       <div className="h-screen flex items-center justify-center bg-background p-6">
@@ -163,7 +162,6 @@ function OnlineGameContent() {
     );
   }
 
-  // 拒绝状态处理
   if (isFinished && game?.result?.reason === '对方拒绝了挑战') {
     return (
       <div className="h-screen flex items-center justify-center bg-background p-6">
@@ -187,7 +185,6 @@ function OnlineGameContent() {
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold font-headline text-blue-500">云端对弈</h1>
           {isInProgress && (
             <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-muted/50 border-2 border-primary/20 animate-turn-indicator-pop">
               <div className={cn(
