@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, CircleDot, Calculator, Home, RefreshCw } from 'lucide-react';
+import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -14,7 +14,6 @@ import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc } f
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
 import { MoveSetting, Player } from '@/lib/types';
-import { useLanguage } from '@/context/language-context';
 import { cn } from '@/lib/utils';
 import {
   AlertDialog,
@@ -26,8 +25,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+// 严格的时长规范
 const BOARD_TIME_LIMITS: Record<number, number> = {
-  19: 3 * 3600, 13: 2 * 3600, 9: 1 * 3600
+  19: 3 * 3600, // 3小时
+  13: 2 * 3600, // 2小时
+  9: 1 * 3600   // 1小时
 };
 
 function OnlineGameContent() {
@@ -53,23 +55,43 @@ function OnlineGameContent() {
   const isFinished = game?.status === 'finished';
   const isInProgress = game?.status === 'in-progress';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
-  const timeLimit = useMemo(() => BOARD_TIME_LIMITS[game?.boardSize || 19] || 10800, [game?.boardSize]);
+  
+  // 获取当前棋盘时限
+  const timeLimit = useMemo(() => {
+    if (!game) return 10800;
+    return BOARD_TIME_LIMITS[game.boardSize] || 10800;
+  }, [game?.boardSize]);
 
+  // 同步服务器时间
   useEffect(() => {
-    if (game) setTimeUsed({ black: game.playerBlackTimeUsed || 0, white: game.playerWhiteTimeUsed || 0 });
+    if (game) {
+      setTimeUsed({ 
+        black: game.playerBlackTimeUsed || 0, 
+        white: game.playerWhiteTimeUsed || 0 
+      });
+    }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
+  // 计时器逻辑：处理超时负
   useEffect(() => {
     if (isInProgress && !isFinished && !isSpectating && isPlayer && game?.currentTurn) {
       const interval = setInterval(() => {
         setTimeUsed(prev => {
           const color = game.currentTurn as 'black' | 'white';
           const nextValue = prev[color] + 1;
+          
+          // 超时检测
           if (nextValue >= timeLimit) {
+            clearInterval(interval);
             updateDoc(doc(db, "games", roomId), {
               status: 'finished',
               finishedAt: serverTimestamp(),
-              result: { winner: color === 'black' ? 'white' : 'black', reason: '超时负', diff: 0 }
+              result: { 
+                winner: color === 'black' ? 'white' : 'black', 
+                reason: '超时负', 
+                diff: 0,
+                komi: game.komi || (game.rules === 'chinese' ? 3.75 : 6.5)
+              }
             });
           }
           return { ...prev, [color]: nextValue };
@@ -105,8 +127,21 @@ function OnlineGameContent() {
     const result = GoLogic.processMove(board, r, c, playerColor, []);
     if (!result.success) return toast({ variant: "destructive", title: "无效落子" });
 
-    addDoc(collection(db, `games/${roomId}/moves`), { gameId: roomId, playerColor, coordinatesX: r, coordinatesY: c, moveNumber: (moves?.length || 0) + 1, timestamp: Date.now() });
-    updateDoc(doc(db, "games", roomId), { currentTurn: playerColor === 'black' ? 'white' : 'black', playerBlackTimeUsed: timeUsed.black, playerWhiteTimeUsed: timeUsed.white, lastActivityAt: serverTimestamp() });
+    addDoc(collection(db, `games/${roomId}/moves`), { 
+      gameId: roomId, 
+      playerColor, 
+      coordinatesX: r, 
+      coordinatesY: c, 
+      moveNumber: (moves?.length || 0) + 1, 
+      timestamp: Date.now() 
+    });
+    
+    updateDoc(doc(db, "games", roomId), { 
+      currentTurn: playerColor === 'black' ? 'white' : 'black', 
+      playerBlackTimeUsed: timeUsed.black, 
+      playerWhiteTimeUsed: timeUsed.white, 
+      lastActivityAt: serverTimestamp() 
+    });
   };
 
   const handlePass = async () => {
@@ -114,11 +149,22 @@ function OnlineGameContent() {
     const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
     const isConsecutivePass = moves?.length && moves[moves.length - 1].coordinatesX === -1;
 
-    addDoc(collection(db, `games/${roomId}/moves`), { gameId: roomId, playerColor, coordinatesX: -1, coordinatesY: -1, moveNumber: (moves?.length || 0) + 1, timestamp: Date.now() });
+    addDoc(collection(db, `games/${roomId}/moves`), { 
+      gameId: roomId, 
+      playerColor, 
+      coordinatesX: -1, 
+      coordinatesY: -1, 
+      moveNumber: (moves?.length || 0) + 1, 
+      timestamp: Date.now() 
+    });
+    
     setShowPassConfirm(false);
 
     if (isConsecutivePass) {
-      const score = game.rules === 'chinese' ? GoLogic.calculateChineseScore(board) : GoLogic.calculateJapaneseScore(board, prisoners.black, prisoners.white);
+      const score = game.rules === 'chinese' 
+        ? GoLogic.calculateChineseScore(board) 
+        : GoLogic.calculateJapaneseScore(board, prisoners.black, prisoners.white);
+      
       updateDoc(doc(db, "games", roomId), { 
         status: 'finished', 
         finishedAt: serverTimestamp(), 
@@ -133,19 +179,39 @@ function OnlineGameContent() {
         } 
       });
     } else {
-      updateDoc(doc(db, "games", roomId), { currentTurn: playerColor === 'black' ? 'white' : 'black', lastActivityAt: serverTimestamp() });
+      updateDoc(doc(db, "games", roomId), { 
+        currentTurn: playerColor === 'black' ? 'white' : 'black', 
+        playerBlackTimeUsed: timeUsed.black,
+        playerWhiteTimeUsed: timeUsed.white,
+        lastActivityAt: serverTimestamp() 
+      });
     }
   };
 
   const handleResign = () => {
     if (!isPlayer || !game || isFinished || !user) return;
-    updateDoc(doc(db, "games", roomId), { status: 'finished', finishedAt: serverTimestamp(), result: { winner: user.uid === game.playerBlackId ? 'white' : 'black', reason: '对手认输', diff: 0 } });
+    updateDoc(doc(db, "games", roomId), { 
+      status: 'finished', 
+      finishedAt: serverTimestamp(), 
+      result: { 
+        winner: user.uid === game.playerBlackId ? 'white' : 'black', 
+        reason: '对手认输', 
+        diff: 0,
+        komi: game.komi || (game.rules === 'chinese' ? 3.75 : 6.5)
+      } 
+    });
     setShowResignConfirm(false);
   };
 
-  const formatDuration = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+  const formatDuration = (s: number) => {
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    if (hrs > 0) return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
-  if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
+  if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12" /></div>;
 
   if (isPending) {
     return (
@@ -161,7 +227,7 @@ function OnlineGameContent() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
                <div className="p-3 bg-muted/50 rounded-lg text-center"><p className="text-[10px] font-bold text-muted-foreground uppercase">棋盘尺寸</p><p className="font-bold">{game?.boardSize}x{game?.boardSize}</p></div>
-               <div className="p-3 bg-muted/50 rounded-lg text-center"><p className="text-[10px] font-bold text-muted-foreground uppercase">对局规则</p><p className="font-bold">{game?.rules === 'chinese' ? '中国规则' : '日韩规则'}</p></div>
+               <div className="p-3 bg-muted/50 rounded-lg text-center"><p className="text-[10px] font-bold text-muted-foreground uppercase">时限 (每方)</p><p className="font-bold">{Math.floor(timeLimit / 3600)} 小时</p></div>
             </div>
           </CardContent>
           <CardFooter>
@@ -249,7 +315,7 @@ function OnlineGameContent() {
                   </div>
 
                   <div className="p-6 rounded-2xl bg-blue-600/5 border-4 border-blue-600/20 text-center space-y-2">
-                    <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终胜负 (Komi: {game.result?.komi || (game.rules === 'chinese' ? 3.75 : 6.5)})</p>
+                    <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终胜负 (Komi: {game.result?.komi})</p>
                     <h3 className="text-4xl font-black text-blue-800 font-headline">
                       {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {game.rules === 'chinese' ? (game.result?.diff * 2).toFixed(1) : game.result?.diff.toFixed(1)} 点
                     </h3>
@@ -270,28 +336,42 @@ function OnlineGameContent() {
         </div>
 
         <div className="space-y-6">
-          <Card className="border-2"><CardContent className="p-4 space-y-3">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  "w-6 h-6 rounded-full bg-black shadow-md",
-                  game?.currentTurn === 'black' && "ring-2 ring-blue-500 ring-offset-2"
-                )} />
-                <span className={cn("font-bold", game?.currentTurn === 'black' && "text-blue-600")}>{game?.playerBlackName}</span>
+          <Card className="border-2">
+            <CardHeader className="py-2 bg-muted/20 border-b">
+              <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                <Timer className="h-3 w-3" /> 计时统计
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className={cn(
+                    "w-6 h-6 rounded-full bg-black shadow-md",
+                    game?.currentTurn === 'black' && "ring-2 ring-blue-500 ring-offset-2"
+                  )} />
+                  <span className={cn("font-bold truncate max-w-[120px]", game?.currentTurn === 'black' && "text-blue-600")}>{game?.playerBlackName}</span>
+                </div>
+                <div className="text-right">
+                  <p className="font-mono text-xl font-black tracking-tighter">{formatDuration(timeUsed.black)}</p>
+                  <p className="text-[9px] text-muted-foreground uppercase font-bold">Limit: {Math.floor(timeLimit/3600)}H</p>
+                </div>
               </div>
-              <span className="font-mono text-xs p-1 px-2 bg-muted rounded">{formatDuration(timeUsed.black)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  "w-6 h-6 rounded-full bg-white border shadow-sm",
-                  game?.currentTurn === 'white' && "ring-2 ring-blue-500 ring-offset-2"
-                )} />
-                <span className={cn("font-bold", game?.currentTurn === 'white' && "text-blue-600")}>{game?.playerWhiteName}</span>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className={cn(
+                    "w-6 h-6 rounded-full bg-white border shadow-sm",
+                    game?.currentTurn === 'white' && "ring-2 ring-blue-500 ring-offset-2"
+                  )} />
+                  <span className={cn("font-bold truncate max-w-[120px]", game?.currentTurn === 'white' && "text-blue-600")}>{game?.playerWhiteName}</span>
+                </div>
+                <div className="text-right">
+                  <p className="font-mono text-xl font-black tracking-tighter">{formatDuration(timeUsed.white)}</p>
+                  <p className="text-[9px] text-muted-foreground uppercase font-bold">Limit: {Math.floor(timeLimit/3600)}H</p>
+                </div>
               </div>
-              <span className="font-mono text-xs p-1 px-2 bg-muted rounded">{formatDuration(timeUsed.white)}</span>
-            </div>
-          </CardContent></Card>
+            </CardContent>
+          </Card>
+          
           <ToolPanel 
             onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
             onResign={isInProgress && isPlayer ? () => setShowResignConfirm(true) : undefined} 
