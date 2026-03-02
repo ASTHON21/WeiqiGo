@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert } from 'lucide-react';
+import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, CircleDot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -15,6 +15,7 @@ import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
 import { MoveSetting, Player } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -184,11 +185,24 @@ function OnlineGameContent() {
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold font-headline text-blue-500">云端对弈</h1>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold font-headline text-blue-500">云端对弈</h1>
+          {isInProgress && (
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-muted/50 border-2 border-primary/20 animate-turn-indicator-pop">
+              <div className={cn(
+                "w-3.5 h-3.5 rounded-full border shadow-sm",
+                game.currentTurn === 'black' ? 'bg-black' : 'bg-white'
+              )} />
+              <span className="text-xs font-black uppercase tracking-wider text-foreground/80">
+                {game.currentTurn === 'black' ? '黑方落子' : '白方落子'}
+              </span>
+            </div>
+          )}
+        </div>
         <div className="flex gap-2">
-          <Badge variant="outline">{game?.boardSize}x{game?.boardSize}</Badge>
-          <Badge>{game?.rules === 'chinese' ? '中国规则' : '日韩规则'}</Badge>
+          <Badge variant="outline" className="border-2">{game?.boardSize}x{game?.boardSize}</Badge>
+          <Badge className="bg-blue-600 border-0">{game?.rules === 'chinese' ? '中国规则' : '日韩规则'}</Badge>
         </div>
       </div>
 
@@ -221,12 +235,24 @@ function OnlineGameContent() {
         <div className="space-y-6">
           <Card className="border-2"><CardContent className="p-4 space-y-3">
             <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2"><div className="w-6 h-6 rounded-full bg-black" /><span>{game?.playerBlackName}</span></div>
-              <span className="font-mono text-xs">{formatDuration(timeUsed.black)}</span>
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "w-6 h-6 rounded-full bg-black shadow-md",
+                  game?.currentTurn === 'black' && "ring-2 ring-blue-500 ring-offset-2"
+                )} />
+                <span className={cn("font-bold", game?.currentTurn === 'black' && "text-blue-600")}>{game?.playerBlackName}</span>
+              </div>
+              <span className="font-mono text-xs p-1 px-2 bg-muted rounded">{formatDuration(timeUsed.black)}</span>
             </div>
             <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2"><div className="w-6 h-6 rounded-full bg-white border" /><span>{game?.playerWhiteName}</span></div>
-              <span className="font-mono text-xs">{formatDuration(timeUsed.white)}</span>
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "w-6 h-6 rounded-full bg-white border shadow-sm",
+                  game?.currentTurn === 'white' && "ring-2 ring-blue-500 ring-offset-2"
+                )} />
+                <span className={cn("font-bold", game?.currentTurn === 'white' && "text-blue-600")}>{game?.playerWhiteName}</span>
+              </div>
+              <span className="font-mono text-xs p-1 px-2 bg-muted rounded">{formatDuration(timeUsed.white)}</span>
             </div>
           </CardContent></Card>
           <ToolPanel 
