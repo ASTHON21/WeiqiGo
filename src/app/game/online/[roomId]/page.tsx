@@ -6,14 +6,13 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Swords, Timer } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 import { MoveSetting, Player } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
 import {
@@ -147,7 +146,15 @@ function OnlineGameContent() {
 
       <div className="grid lg:grid-cols-[1fr_350px] gap-8">
         <div className="relative">
-          <GoBoard board={board} size={game?.boardSize || 19} onMove={handleMove} currentPlayer={game?.currentTurn as Player} readOnly={!canMove} lastMove={moves?.length ? moves[moves.length-1] : null} />
+          <GoBoard 
+            board={board} 
+            size={game?.boardSize || 19} 
+            onMove={handleMove} 
+            currentPlayer={game?.currentTurn as Player} 
+            readOnly={!canMove} 
+            lastMove={moves?.length ? moves[moves.length-1] : null}
+            moveSetting={moveSetting}
+          />
           {isFinished && !dismissGameOver && (
             <div className="absolute inset-0 bg-background/60 flex items-center justify-center p-4 z-50">
               <Card className="w-full max-w-sm border-4 border-blue-500">
@@ -174,7 +181,13 @@ function OnlineGameContent() {
               <span className="font-mono text-xs">{formatDuration(timeUsed.white)}</span>
             </div>
           </CardContent></Card>
-          <ToolPanel onPass={canMove ? () => setShowPassConfirm(true) : undefined} onResign={isInProgress && isPlayer ? () => setShowResignConfirm(true) : undefined} showChat />
+          <ToolPanel 
+            onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
+            onResign={isInProgress && isPlayer ? () => setShowResignConfirm(true) : undefined} 
+            showChat 
+            moveSetting={moveSetting}
+            onMoveSettingChange={setMoveSetting}
+          />
         </div>
       </div>
 
