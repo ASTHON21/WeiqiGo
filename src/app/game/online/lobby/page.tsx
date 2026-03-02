@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2, Hash } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2, Hash, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/language-context';
 import { cn } from '@/lib/utils';
@@ -40,12 +40,11 @@ export default function OnlineLobbyPage() {
   }, [db, user]);
   const { data: incomingInvites } = useCollection(inviteQuery);
 
-  // 2. 监听所有活跃玩家 (按最后心跳排序)
+  // 2. 监听所有活跃玩家
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
   const { data: rawPlayers } = useCollection(playersQuery);
 
-  // 3. 监听所有活跃对局 (用于限制总量及判断状态)
-  // 包含 pending 和 in-progress，Firestore 支持 'in' 操作符
+  // 3. 监听所有潜在活跃对局
   const activeGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -58,7 +57,7 @@ export default function OnlineLobbyPage() {
   // 4. 监听完赛名局
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, "games"), where("status", "==", "finished"), limit(30));
+    return query(collection(db, "games"), where("status", "==", "finished"), limit(20));
   }, [db]);
   const { data: rawRecentGames } = useCollection(recentGamesQuery);
 
@@ -74,13 +73,30 @@ export default function OnlineLobbyPage() {
     });
   }, [rawPlayers]);
 
+  // 【幽灵对局检查】仅计算 15 分钟内有活性的对局
+  const trulyActiveGamesCount = useMemo(() => {
+    if (!allActiveGames) return 0;
+    const now = Date.now();
+    const STALE_THRESHOLD = 15 * 60 * 1000;
+    return allActiveGames.filter(g => {
+      if (!g.lastActivityAt) return true; // 刚创建且无 activity 的暂视为活跃
+      const lastActivity = g.lastActivityAt instanceof Timestamp ? g.lastActivityAt.toMillis() : new Date(g.lastActivityAt).getTime();
+      return (now - lastActivity) < STALE_THRESHOLD;
+    }).length;
+  }, [allActiveGames]);
+
   // 计算正在对局中的棋手 ID 集合
   const playingPlayerIds = useMemo(() => {
     const ids = new Set<string>();
     allActiveGames?.forEach(g => {
       if (g.status === 'in-progress') {
-        if (g.playerBlackId) ids.add(g.playerBlackId);
-        if (g.playerWhiteId) ids.add(g.playerWhiteId);
+        const now = Date.now();
+        const STALE_THRESHOLD = 15 * 60 * 1000;
+        const lastActivity = g.lastActivityAt instanceof Timestamp ? g.lastActivityAt.toMillis() : new Date(g.lastActivityAt).getTime();
+        if ((now - lastActivity) < STALE_THRESHOLD) {
+          if (g.playerBlackId) ids.add(g.playerBlackId);
+          if (g.playerWhiteId) ids.add(g.playerWhiteId);
+        }
       }
     });
     return ids;
@@ -105,8 +121,7 @@ export default function OnlineLobbyPage() {
   const handleInvite = () => {
     if (!invitingPlayer || !user || !db || isSendingInvite) return;
     
-    // 强制执行总量限制：不可超过 30 局
-    if ((allActiveGames?.length || 0) >= 30) {
+    if (trulyActiveGamesCount >= 30) {
       toast({ 
         variant: "destructive", 
         title: "服务器负载受限", 
@@ -151,13 +166,21 @@ export default function OnlineLobbyPage() {
 
   const handleAcceptInvite = (gameId: string) => {
     if (!db) return;
-    updateDoc(doc(db, "games", gameId), { status: 'in-progress', startedAt: serverTimestamp() });
+    updateDoc(doc(db, "games", gameId), { 
+      status: 'in-progress', 
+      startedAt: serverTimestamp(),
+      lastActivityAt: serverTimestamp() 
+    });
     router.push(`/game/online/${gameId}`);
   };
 
   const handleDeclineInvite = (gameId: string) => {
     if (!db) return;
-    updateDoc(doc(db, "games", gameId), { status: 'finished', finishedAt: serverTimestamp(), result: { winner: null, reason: '对方拒绝了挑战', diff: 0 } });
+    updateDoc(doc(db, "games", gameId), { 
+      status: 'finished', 
+      finishedAt: serverTimestamp(), 
+      result: { winner: null, reason: '对方拒绝了挑战', diff: 0 } 
+    });
   };
 
   if (loadingUser) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
@@ -197,9 +220,12 @@ export default function OnlineLobbyPage() {
             </TabsTrigger>
           </TabsList>
           
-          <Badge variant="outline" className="bg-muted/50 border-2 font-mono gap-2 px-3 py-1">
-            <Wifi className="h-3 w-3 text-blue-500" /> 
-            活跃对局: {allActiveGames?.length || 0} / 30
+          <Badge variant="outline" className={cn(
+            "border-2 font-mono gap-2 px-3 py-1",
+            trulyActiveGamesCount >= 25 ? "bg-red-500/10 border-red-500 text-red-700" : "bg-muted/50 border-muted"
+          )}>
+            <Wifi className={cn("h-3 w-3", trulyActiveGamesCount >= 25 ? "text-red-500" : "text-blue-500")} /> 
+            有效活跃对局: {trulyActiveGamesCount} / 30
           </Badge>
         </div>
 
@@ -371,8 +397,11 @@ export default function OnlineLobbyPage() {
         </DialogContent>
       </Dialog>
 
-      <div className="text-center opacity-30 pointer-events-none pb-8">
+      <div className="text-center opacity-30 pointer-events-none pb-8 space-y-1">
         <p className="text-[10px] uppercase font-bold tracking-widest">Global Competition Node: SG-1</p>
+        <div className="flex items-center justify-center gap-2 text-[8px] font-black uppercase text-blue-600">
+           <AlertCircle className="h-2 w-2" /> 系统会自动清理 15 分钟无响应的幽灵对局
+        </div>
       </div>
     </div>
   );
