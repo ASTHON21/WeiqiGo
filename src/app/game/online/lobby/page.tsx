@@ -73,26 +73,29 @@ export default function OnlineLobbyPage() {
     });
   }, [rawPlayers]);
 
-  // 【幽灵对局检查】仅计算 15 分钟内有活性的对局
+  // 【幽灵对局隔离】核心改进：不仅过滤完赛对局，还严格排除超过 15 分钟无响应的“僵尸对局”
   const trulyActiveGamesCount = useMemo(() => {
     if (!allActiveGames) return 0;
     const now = Date.now();
     const STALE_THRESHOLD = 15 * 60 * 1000;
     return allActiveGames.filter(g => {
-      if (!g.lastActivityAt) return true; // 刚创建且无 activity 的暂视为活跃
+      // 刚创建且无 activity 的暂视为活跃，否则检查 activity 时间戳
+      if (!g.lastActivityAt) return true; 
       const lastActivity = g.lastActivityAt instanceof Timestamp ? g.lastActivityAt.toMillis() : new Date(g.lastActivityAt).getTime();
       return (now - lastActivity) < STALE_THRESHOLD;
     }).length;
   }, [allActiveGames]);
 
-  // 计算正在对局中的棋手 ID 集合
+  // 计算正在对局中的棋手 ID 集合（仅包含真实活跃的对局）
   const playingPlayerIds = useMemo(() => {
     const ids = new Set<string>();
+    const now = Date.now();
+    const STALE_THRESHOLD = 15 * 60 * 1000;
+
     allActiveGames?.forEach(g => {
       if (g.status === 'in-progress') {
-        const now = Date.now();
-        const STALE_THRESHOLD = 15 * 60 * 1000;
         const lastActivity = g.lastActivityAt instanceof Timestamp ? g.lastActivityAt.toMillis() : new Date(g.lastActivityAt).getTime();
+        // 只有非幽灵对局的棋手才显示为“正在对局中”
         if ((now - lastActivity) < STALE_THRESHOLD) {
           if (g.playerBlackId) ids.add(g.playerBlackId);
           if (g.playerWhiteId) ids.add(g.playerWhiteId);
@@ -121,11 +124,12 @@ export default function OnlineLobbyPage() {
   const handleInvite = () => {
     if (!invitingPlayer || !user || !db || isSendingInvite) return;
     
+    // 如果有效活跃对局达到 30 局上限，则进行拦截
     if (trulyActiveGamesCount >= 30) {
       toast({ 
         variant: "destructive", 
         title: "服务器负载受限", 
-        description: "当前在线活跃对局已达上限 (30局)，请等待其他对局结束或稍后再试。" 
+        description: "当前在线活跃对局已达上限 (30局)，系统正在清理幽灵对局，请稍后再试。" 
       });
       return;
     }

@@ -94,6 +94,32 @@ function OnlineGameContent() {
     }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
+  // 核心增强：强制回归结算 (Catch-up Settlement)
+  // 如果进入房间时发现对局由于长时间无响应本应超时，则立即执行自动结算。
+  useEffect(() => {
+    if (db && roomId && game && isInProgress && !isFinished) {
+      const turn = game.currentTurn as 'black' | 'white';
+      const lastActivity = game.lastActivityAt instanceof Timestamp ? game.lastActivityAt.toMillis() : new Date(game.lastActivityAt).getTime();
+      const elapsedSinceActivity = Math.floor((Date.now() - lastActivity) / 1000);
+      
+      const currentTimeUsed = turn === 'black' ? (game.playerBlackTimeUsed || 0) : (game.playerWhiteTimeUsed || 0);
+      
+      if (currentTimeUsed + elapsedSinceActivity > timeLimit) {
+        updateDoc(doc(db, "games", roomId), {
+          status: 'finished',
+          finishedAt: serverTimestamp(),
+          lastActivityAt: serverTimestamp(),
+          result: { 
+            winner: turn === 'black' ? 'white' : 'black', 
+            reason: '超时负 (自动结算)', 
+            diff: 0,
+            komi: game.komi || (game.rules === 'chinese' ? 3.75 : 6.5)
+          }
+        });
+      }
+    }
+  }, [db, roomId, game, isInProgress, isFinished, timeLimit]);
+
   useEffect(() => {
     if (isInProgress && !isFinished && !isSpectating && isPlayer && game?.currentTurn) {
       const interval = setInterval(() => {
@@ -121,7 +147,7 @@ function OnlineGameContent() {
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [isInProgress, isFinished, isSpectating, isPlayer, game, timeLimit, db, roomId]);
+  }, [isInProgress, isFinished, isSpectating, isPlayer, game, timeLimit, db, roomId, moves?.length]);
 
   const movesQuery = useMemoFirebase(() => (db && roomId && user && (isInProgress || isFinished)) ? query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")) : null, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
@@ -256,7 +282,7 @@ function OnlineGameContent() {
       moveCount: (moves?.length || 0),
       lastActivityAt: serverTimestamp(),
       result: { 
-        winner: user.uid === game.playerBlackId ? 'black' : 'white', // 判定自己获胜
+        winner: user.uid === game.playerBlackId ? 'black' : 'white', 
         reason: '对方掉线弃赛', 
         diff: 0,
         komi: game.komi || (game.rules === 'chinese' ? 3.75 : 6.5)
