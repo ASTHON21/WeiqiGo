@@ -78,6 +78,10 @@ function OnlineGameContent() {
     return BOARD_TIME_LIMITS[game.boardSize] || 10800;
   }, [game?.boardSize]);
 
+  // Fetch moves early to avoid initialization errors in useEffects
+  const movesQuery = useMemoFirebase(() => (db && roomId && user && (isInProgress || isFinished)) ? query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")) : null, [db, roomId, user, isInProgress, isFinished]);
+  const { data: moves } = useCollection(movesQuery);
+
   // 活性更新：进入房间时告知系统当前房间是活跃的
   useEffect(() => {
     if (db && roomId && isInProgress) {
@@ -148,9 +152,6 @@ function OnlineGameContent() {
       return () => clearInterval(interval);
     }
   }, [isInProgress, isFinished, isSpectating, isPlayer, game, timeLimit, db, roomId, moves?.length]);
-
-  const movesQuery = useMemoFirebase(() => (db && roomId && user && (isInProgress || isFinished)) ? query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")) : null, [db, roomId, user, isInProgress, isFinished]);
-  const { data: moves } = useCollection(movesQuery);
 
   const { board, prisoners, boardHistory } = useMemo(() => {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
@@ -327,6 +328,9 @@ function OnlineGameContent() {
               <XCircle className={cn("h-10 w-10", isCancelled ? "text-muted-foreground" : "text-red-600")} />
             </div>
             <CardTitle className={cn("text-3xl font-black font-headline", isCancelled ? "text-muted-foreground" : "text-red-700")}>
+              {isCancelled ? "挑战已取消" : "挑战被婉拒"}
+            </CardTitle>
+            <CardTitle className="text-3xl font-black font-headline text-red-700">
               {isCancelled ? "挑战已取消" : "挑战被婉拒"}
             </CardTitle>
             <CardDescription className="text-lg">
