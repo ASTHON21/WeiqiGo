@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Save, Home, RefreshCw } from 'lucide-react';
+import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Save, Home, RefreshCw, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -22,13 +22,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { GoLogic } from '@/lib/go-logic';
 import { MoveSetting, GameHistoryEntry } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
 
-export default function PracticePage() {
+function PracticeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const size = parseInt(searchParams.get('size') || '19');
@@ -279,5 +279,13 @@ export default function PracticePage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+export default function PracticePage() {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>}>
+      <PracticeContent />
+    </Suspense>
   );
 }

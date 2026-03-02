@@ -6,11 +6,10 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Swords, Loader2, Cloud, Lock, Wifi, Hourglass, ShieldAlert, Trophy, Calculator, SkipForward, Flag, Timer } from 'lucide-react';
+import { Loader2, Swords, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useEffect, useState, useMemo } from 'react';
-import { getRulesContent } from '@/app/actions/sgf';
-import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useEffect, useState, useMemo, Suspense } from 'react';
+import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
@@ -22,7 +21,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -32,7 +30,7 @@ const BOARD_TIME_LIMITS: Record<number, number> = {
   19: 3 * 3600, 13: 2 * 3600, 9: 1 * 3600
 };
 
-export default function OnlineGamePage() {
+function OnlineGameContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -43,7 +41,6 @@ export default function OnlineGamePage() {
   const { toast } = useToast();
   const { language } = useLanguage();
 
-  const [rules, setRules] = useState("");
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [dismissGameOver, setDismissGameOver] = useState(false);
   const [showPassConfirm, setShowPassConfirm] = useState(false);
@@ -190,5 +187,13 @@ export default function OnlineGamePage() {
         <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction className="bg-destructive" onClick={handleResign}>确认</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+export default function OnlineGamePage() {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>}>
+      <OnlineGameContent />
+    </Suspense>
   );
 }
