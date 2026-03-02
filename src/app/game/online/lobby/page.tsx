@@ -8,7 +8,7 @@ import { collection, query, where, doc, updateDoc, orderBy, limit, setDoc, serve
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from "@/components/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2 } from 'lucide-react';
@@ -218,7 +218,6 @@ export default function OnlineLobbyPage() {
         </TabsContent>
 
         <TabsContent value="replays" className="mt-0">
-          {/* 名局列表保持不变 */}
           <div className="grid gap-4">
             {recentGames?.map(game => (
               <Card key={game.id} className="border-2 hover:border-blue-500 transition-all">
@@ -261,7 +260,6 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
-      {/* 邀请与挑战弹窗保持不变 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && !isSendingInvite && setInvitingPlayer(null)}>
         <DialogContent className="max-w-md border-4 shadow-2xl">
           <DialogHeader>
