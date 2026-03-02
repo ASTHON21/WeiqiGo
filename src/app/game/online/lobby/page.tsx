@@ -44,9 +44,16 @@ export default function OnlineLobbyPage() {
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
   const { data: rawPlayers } = useCollection(playersQuery);
 
-  // 3. 监听所有进行中的对局 (用于判断棋手是否在对局中)
-  const activeGamesQuery = useMemoFirebase(() => db ? query(collection(db, "games"), where("status", "==", "in-progress")) : null, [db]);
-  const { data: activeGames } = useCollection(activeGamesQuery);
+  // 3. 监听所有活跃对局 (用于限制总量及判断状态)
+  // 包含 pending 和 in-progress，Firestore 支持 'in' 操作符
+  const activeGamesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(
+      collection(db, "games"), 
+      where("status", "in", ["pending", "in-progress"])
+    );
+  }, [db]);
+  const { data: allActiveGames } = useCollection(activeGamesQuery);
 
   // 4. 监听完赛名局
   const recentGamesQuery = useMemoFirebase(() => {
@@ -70,12 +77,14 @@ export default function OnlineLobbyPage() {
   // 计算正在对局中的棋手 ID 集合
   const playingPlayerIds = useMemo(() => {
     const ids = new Set<string>();
-    activeGames?.forEach(g => {
-      if (g.playerBlackId) ids.add(g.playerBlackId);
-      if (g.playerWhiteId) ids.add(g.playerWhiteId);
+    allActiveGames?.forEach(g => {
+      if (g.status === 'in-progress') {
+        if (g.playerBlackId) ids.add(g.playerBlackId);
+        if (g.playerWhiteId) ids.add(g.playerWhiteId);
+      }
     });
     return ids;
-  }, [activeGames]);
+  }, [allActiveGames]);
 
   // 名局排序逻辑：严格限制在1小时内完赛
   const recentGames = useMemo(() => {
@@ -95,6 +104,17 @@ export default function OnlineLobbyPage() {
 
   const handleInvite = () => {
     if (!invitingPlayer || !user || !db || isSendingInvite) return;
+    
+    // 强制执行总量限制：不可超过 30 局
+    if ((allActiveGames?.length || 0) >= 30) {
+      toast({ 
+        variant: "destructive", 
+        title: "服务器负载受限", 
+        description: "当前在线活跃对局已达上限 (30局)，请等待其他对局结束或稍后再试。" 
+      });
+      return;
+    }
+
     setIsSendingInvite(true);
     
     const gameRef = doc(collection(db, "games"));
@@ -167,14 +187,21 @@ export default function OnlineLobbyPage() {
       </div>
 
       <Tabs defaultValue="players" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-[400px] mb-8">
-          <TabsTrigger value="players" className="gap-2">
-            <Users className="h-4 w-4" /> {t('lobby.tab.players')}
-          </TabsTrigger>
-          <TabsTrigger value="replays" className="gap-2">
-            <Trophy className="h-4 w-4" /> {t('lobby.tab.recent')}
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+          <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+            <TabsTrigger value="players" className="gap-2">
+              <Users className="h-4 w-4" /> {t('lobby.tab.players')}
+            </TabsTrigger>
+            <TabsTrigger value="replays" className="gap-2">
+              <Trophy className="h-4 w-4" /> {t('lobby.tab.recent')}
+            </TabsTrigger>
+          </TabsList>
+          
+          <Badge variant="outline" className="bg-muted/50 border-2 font-mono gap-2 px-3 py-1">
+            <Wifi className="h-3 w-3 text-blue-500" /> 
+            活跃对局: {allActiveGames?.length || 0} / 30
+          </Badge>
+        </div>
 
         <TabsContent value="players" className="mt-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
