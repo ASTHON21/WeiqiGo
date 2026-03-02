@@ -1,19 +1,18 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, orderBy, limit, setDoc } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, orderBy, limit, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 
 export default function OnlineLobbyPage() {
   const router = useRouter();
@@ -24,30 +23,28 @@ export default function OnlineLobbyPage() {
   const [invitingPlayer, setInvitingPlayer] = useState<{ id: string, name: string } | null>(null);
   const [selectedSize, setSelectedSize] = useState("19");
   const [selectedRule, setSelectedRule] = useState("chinese");
-  const [activeCount, setActiveCount] = useState(0);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
 
-  // 监控活跃对局数
-  const activeQuery = useMemoFirebase(() => (db && user) ? query(collection(db, "games"), where("status", "==", "in-progress")) : null, [db, user]);
-  const { data: activeGames } = useCollection(activeQuery);
+  // 1. 监听发给自己的待处理邀请
+  const inviteQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(
+      collection(db, "games"),
+      where("playerWhiteId", "==", user.uid),
+      where("status", "==", "pending"),
+      limit(1)
+    );
+  }, [db, user]);
+  const { data: incomingInvites } = useCollection(inviteQuery);
 
-  useEffect(() => {
-    if (activeGames && user) {
-      const count = activeGames.filter(g => g.playerBlackId === user.uid || g.playerWhiteId === user.uid).length;
-      setActiveCount(count);
-    }
-  }, [activeGames, user]);
-
+  // 2. 监听所有活跃玩家
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
   const { data: players } = useCollection(playersQuery);
 
   const handleInvite = () => {
-    if (activeCount >= 30) return toast({ variant: "destructive", title: "对局上限", description: "同时进行的对局不能超过30个。" });
     if (!invitingPlayer || !user || !db || isSendingInvite) return;
-
     setIsSendingInvite(true);
     
-    // 预生成对局引用以获取 ID，实现非阻塞跳转
     const gameRef = doc(collection(db, "games"));
     const gameId = gameRef.id;
 
@@ -57,30 +54,41 @@ export default function OnlineLobbyPage() {
       playerWhiteId: invitingPlayer.id,
       playerBlackName: user.displayName,
       playerWhiteName: invitingPlayer.name,
-      status: 'in-progress',
+      status: 'pending', // 初始状态为等待中
       boardSize: parseInt(selectedSize),
       rules: selectedRule,
       currentTurn: 'black',
       startedAt: serverTimestamp(),
       playerBlackTimeUsed: 0,
       playerWhiteTimeUsed: 0,
-      createdBy: user.uid,
       komi: selectedRule === 'chinese' ? 3.75 : 6.5,
       handicap: 0
     };
 
-    // 执行非阻塞写入并立即跳转
-    setDoc(gameRef, gameData).catch((err) => {
+    setDoc(gameRef, gameData).then(() => {
+      toast({ title: "邀请已发出", description: `等待 ${invitingPlayer.name} 接受挑战...` });
+      router.push(`/game/online/${gameId}`);
+    }).catch((err) => {
       console.error("Invite failed:", err);
-      toast({ variant: "destructive", title: "发起失败", description: "由于权限或策略限制，无法创建对局。" });
+      toast({ variant: "destructive", title: "发起失败", description: "由于权限限制，无法创建对局。" });
       setIsSendingInvite(false);
     });
+  };
 
-    toast({ title: "挑战已发起", description: `正在进入与 ${invitingPlayer.name} 的对局...` });
+  const handleAcceptInvite = (gameId: string) => {
+    if (!db) return;
+    updateDoc(doc(db, "games", gameId), { status: 'in-progress' });
     router.push(`/game/online/${gameId}`);
   };
 
+  const handleDeclineInvite = (gameId: string) => {
+    if (!db) return;
+    updateDoc(doc(db, "games", gameId), { status: 'finished', result: { winner: null, reason: '对方拒绝了挑战', diff: 0 } });
+  };
+
   if (loadingUser) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
+
+  const currentInvite = incomingInvites?.[0];
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8 max-w-4xl min-h-screen">
@@ -100,7 +108,6 @@ export default function OnlineLobbyPage() {
               </span>
             </div>
           )}
-          <Badge variant="outline" className="border-blue-500/30 text-blue-600">活跃对局: {activeCount} / 30</Badge>
           <Button variant="ghost" size="sm" onClick={() => router.push('/')} className="hover:bg-muted">返回首页</Button>
         </div>
       </div>
@@ -133,15 +140,9 @@ export default function OnlineLobbyPage() {
             </CardContent>
           </Card>
         ))}
-        {players?.length === 1 && (
-           <div className="col-span-full py-20 text-center space-y-4 bg-muted/20 rounded-xl border-2 border-dashed">
-              <Users className="h-12 w-12 text-muted-foreground/30 mx-auto" />
-              <p className="text-sm text-muted-foreground">当前大厅暂无其他棋手，您可以先去“本地练棋”研磨棋艺。</p>
-              <Button variant="outline" size="sm" onClick={() => router.push('/game/practice')}>前往练习</Button>
-           </div>
-        )}
       </div>
 
+      {/* 邀请配置对话框 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && !isSendingInvite && setInvitingPlayer(null)}>
         <DialogContent className="max-w-md border-4 shadow-2xl">
           <DialogHeader>
@@ -149,13 +150,12 @@ export default function OnlineLobbyPage() {
               <Swords className="h-5 w-5 text-blue-500" /> 向 {invitingPlayer?.name} 发起挑战
             </DialogTitle>
             <DialogDescription>
-              请设定对局的基本参数，对方将立即收到对局信号。
+              请设定对局参数。对方接受后，对局将正式开始。
             </DialogDescription>
           </DialogHeader>
-          
           <div className="space-y-6 py-4">
             <div className="space-y-3">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">棋盘尺寸 (Board Size)</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">棋盘尺寸</label>
               <Tabs value={selectedSize} onValueChange={setSelectedSize} className="w-full">
                 <TabsList className="grid w-full grid-cols-3 h-10 bg-muted/50 p-1">
                   <TabsTrigger value="9" className="text-xs">9 x 9</TabsTrigger>
@@ -164,27 +164,48 @@ export default function OnlineLobbyPage() {
                 </TabsList>
               </Tabs>
             </div>
-
             <div className="space-y-3">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">对弈规则 (Game Rules)</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">对弈规则</label>
               <Tabs value={selectedRule} onValueChange={setSelectedRule} className="w-full">
                 <TabsList className="grid w-full grid-cols-2 h-10 bg-muted/50 p-1">
-                  <TabsTrigger value="chinese" className="text-xs gap-1">
-                    <ShieldCheck className="h-3 w-3" /> 中国规则
-                  </TabsTrigger>
-                  <TabsTrigger value="territory" className="text-xs gap-1">
-                    <Book className="h-3 w-3" /> 日韩规则
-                  </TabsTrigger>
+                  <TabsTrigger value="chinese" className="text-xs gap-1"><ShieldCheck className="h-3 w-3" /> 中国规则</TabsTrigger>
+                  <TabsTrigger value="territory" className="text-xs gap-1"><Book className="h-3 w-3" /> 日韩规则</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
           </div>
-
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="ghost" className="flex-1 font-bold" onClick={() => setInvitingPlayer(null)} disabled={isSendingInvite}>暂缓</Button>
+            <Button variant="ghost" className="flex-1 font-bold" onClick={() => setInvitingPlayer(null)} disabled={isSendingInvite}>取消</Button>
             <Button className="flex-1 bg-blue-600 hover:bg-blue-700 font-bold gap-2" onClick={handleInvite} disabled={isSendingInvite}>
               {isSendingInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
               {isSendingInvite ? "正在发送..." : "发送挑战书"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 收到挑战弹窗 */}
+      <Dialog open={!!currentInvite} onOpenChange={() => {}}>
+        <DialogContent className="max-w-md border-4 border-blue-500 shadow-2xl">
+          <DialogHeader className="text-center">
+            <div className="mx-auto w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
+              <Swords className="h-8 w-8 text-blue-500 animate-bounce" />
+            </div>
+            <DialogTitle className="text-2xl font-black font-headline text-blue-700">收到挑战！</DialogTitle>
+            <DialogDescription className="text-base">
+              来自 <span className="font-bold text-foreground">{currentInvite?.playerBlackName}</span> 的博弈邀请。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-muted/30 p-4 rounded-lg flex justify-around text-center border-2 border-blue-500/10">
+            <div><p className="text-[10px] font-bold text-muted-foreground uppercase">棋盘</p><p className="font-bold">{currentInvite?.boardSize}x{currentInvite?.boardSize}</p></div>
+            <div><p className="text-[10px] font-bold text-muted-foreground uppercase">规则</p><p className="font-bold">{currentInvite?.rules === 'chinese' ? '中国规则' : '日韩规则'}</p></div>
+          </div>
+          <DialogFooter className="grid grid-cols-2 gap-3 mt-4">
+            <Button variant="outline" className="h-12 border-2 hover:bg-red-50 hover:text-red-600 hover:border-red-200 gap-2" onClick={() => handleDeclineInvite(currentInvite.id)}>
+              <XCircle className="h-4 w-4" /> 婉言拒绝
+            </Button>
+            <Button className="h-12 bg-blue-600 hover:bg-blue-700 gap-2" onClick={() => handleAcceptInvite(currentInvite.id)}>
+              <CheckCircle2 className="h-4 w-4" /> 接受对局
             </Button>
           </DialogFooter>
         </DialogContent>

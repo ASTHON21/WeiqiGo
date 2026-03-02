@@ -4,9 +4,9 @@
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -38,7 +38,6 @@ function OnlineGameContent() {
   const { user, loading: loadingUser } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
-  const { language } = useLanguage();
 
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [dismissGameOver, setDismissGameOver] = useState(false);
@@ -49,6 +48,7 @@ function OnlineGameContent() {
   const gameRef = useMemoFirebase(() => (db && roomId && user) ? doc(db, "games", roomId) : null, [db, roomId, user]);
   const { data: game, isLoading: loadingGame } = useDoc(gameRef);
 
+  const isPending = game?.status === 'pending';
   const isFinished = game?.status === 'finished';
   const isInProgress = game?.status === 'in-progress';
   const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
@@ -133,6 +133,54 @@ function OnlineGameContent() {
   const formatDuration = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
   if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
+
+  // 等待状态界面
+  if (isPending) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background p-6">
+        <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mb-6">
+              <Timer className="h-10 w-10 text-blue-600 animate-spin" />
+            </div>
+            <CardTitle className="text-3xl font-black font-headline text-blue-700">等待对手回应</CardTitle>
+            <CardDescription className="text-lg">已向 <span className="font-bold text-foreground">{game?.playerWhiteName}</span> 发送挑战，请稍候...</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+               <div className="p-3 bg-muted/50 rounded-lg text-center"><p className="text-[10px] font-bold text-muted-foreground uppercase">棋盘尺寸</p><p className="font-bold">{game?.boardSize}x{game?.boardSize}</p></div>
+               <div className="p-3 bg-muted/50 rounded-lg text-center"><p className="text-[10px] font-bold text-muted-foreground uppercase">对局规则</p><p className="font-bold">{game?.rules === 'chinese' ? '中国规则' : '日韩规则'}</p></div>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button variant="outline" className="w-full gap-2 border-2" onClick={() => router.push('/game/online/lobby')}>
+              <ArrowLeft className="h-4 w-4" /> 取消并返回大厅
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  // 拒绝状态处理
+  if (isFinished && game?.result?.reason === '对方拒绝了挑战') {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background p-6">
+        <Card className="max-w-md w-full border-4 border-destructive/50 shadow-2xl">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-20 h-20 bg-destructive/10 rounded-full flex items-center justify-center mb-6">
+              <ShieldAlert className="h-10 w-10 text-destructive" />
+            </div>
+            <CardTitle className="text-2xl font-black font-headline text-destructive">挑战被婉拒</CardTitle>
+            <CardDescription className="text-lg">{game?.playerWhiteName} 暂时不便接受您的邀请。</CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button className="w-full h-12 text-lg font-bold" onClick={() => router.push('/game/online/lobby')}>返回竞技大厅</Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
