@@ -199,6 +199,23 @@ function OnlineGameContent() {
     setShowResignConfirm(false);
   };
 
+  const handleCancelInvite = async () => {
+    if (!db || !roomId || !user || !game || game.status !== 'pending') return;
+    
+    // 发起者（黑方）取消邀请，更新状态以通知被挑战方
+    await updateDoc(doc(db, "games", roomId), {
+      status: 'finished',
+      finishedAt: serverTimestamp(),
+      result: {
+        winner: null,
+        reason: '挑战已取消',
+        diff: 0
+      }
+    });
+    
+    router.push('/game/online/lobby');
+  };
+
   const formatDuration = (s: number) => {
     const hrs = Math.floor(s / 3600);
     const mins = Math.floor((s % 3600) / 60);
@@ -210,17 +227,20 @@ function OnlineGameContent() {
   if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12" /></div>;
 
   // 处理被拒绝的情况
-  if (isFinished && game?.result?.reason === '对方拒绝了挑战') {
+  if (isFinished && (game?.result?.reason === '对方拒绝了挑战' || game?.result?.reason === '挑战已取消')) {
+    const isCancelled = game?.result?.reason === '挑战已取消';
     return (
       <div className="h-screen flex items-center justify-center bg-background p-6">
-        <Card className="max-w-md w-full border-4 border-red-500 shadow-2xl animate-in zoom-in-95 duration-300">
+        <Card className={cn("max-w-md w-full border-4 shadow-2xl animate-in zoom-in-95 duration-300", isCancelled ? "border-muted" : "border-red-500")}>
           <CardHeader className="text-center">
-            <div className="mx-auto w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6">
-              <XCircle className="h-10 w-10 text-red-600" />
+            <div className={cn("mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-6", isCancelled ? "bg-muted" : "bg-red-500/10")}>
+              <XCircle className={cn("h-10 w-10", isCancelled ? "text-muted-foreground" : "text-red-600")} />
             </div>
-            <CardTitle className="text-3xl font-black font-headline text-red-700">挑战被婉拒</CardTitle>
+            <CardTitle className={cn("text-3xl font-black font-headline", isCancelled ? "text-muted-foreground" : "text-red-700")}>
+              {isCancelled ? "挑战已取消" : "挑战被婉拒"}
+            </CardTitle>
             <CardDescription className="text-lg">
-              很遗憾，<span className="font-bold text-foreground">{game.playerWhiteName}</span> 暂时无法接受您的挑战。
+              {isCancelled ? "您已撤回了对该棋手的挑战邀请。" : <>很遗憾，<span className="font-bold text-foreground">{game.playerWhiteName}</span> 暂时无法接受您的挑战。</>}
             </CardDescription>
           </CardHeader>
           <CardFooter>
@@ -246,7 +266,7 @@ function OnlineGameContent() {
             <CardDescription className="text-lg">已向 <span className="font-bold text-foreground">{game?.playerWhiteName}</span> 发送挑战，请稍候...</CardDescription>
           </CardHeader>
           <CardFooter>
-            <Button variant="outline" className="w-full gap-2 border-2 h-12 font-bold" onClick={() => router.push('/game/online/lobby')}>
+            <Button variant="outline" className="w-full gap-2 border-2 h-12 font-bold" onClick={handleCancelInvite}>
               <ArrowLeft className="h-4 w-4" /> 取消并返回大厅
             </Button>
           </CardFooter>
