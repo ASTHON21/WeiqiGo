@@ -25,6 +25,7 @@ export default function OnlineLobbyPage() {
   const [selectedSize, setSelectedSize] = useState("19");
   const [selectedRule, setSelectedRule] = useState("chinese");
   const [activeCount, setActiveCount] = useState(0);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
 
   // 监控活跃对局数
   const activeQuery = useMemoFirebase(() => (db && user) ? query(collection(db, "games"), where("status", "==", "in-progress")) : null, [db, user]);
@@ -40,16 +41,17 @@ export default function OnlineLobbyPage() {
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
   const { data: players } = useCollection(playersQuery);
 
-  const handleInvite = () => {
+  const handleInvite = async () => {
     if (activeCount >= 30) return toast({ variant: "destructive", title: "对局上限", description: "同时进行的对局不能超过30个。" });
-    if (!invitingPlayer || !user || !db) return;
+    if (!invitingPlayer || !user || !db || isSendingInvite) return;
 
+    setIsSendingInvite(true);
     const gameData = {
       playerBlackId: user.uid,
       playerWhiteId: invitingPlayer.id,
       playerBlackName: user.displayName,
       playerWhiteName: invitingPlayer.name,
-      status: 'in-progress', // 简化流程：直接开始
+      status: 'in-progress',
       boardSize: parseInt(selectedSize),
       rules: selectedRule,
       currentTurn: 'black',
@@ -61,16 +63,15 @@ export default function OnlineLobbyPage() {
       handicap: 0
     };
 
-    // 非阻塞写入：发起写入后立即处理后续逻辑
-    const promise = addDoc(collection(db, "games"), gameData);
-    
-    promise.then((ref) => {
+    try {
+      const ref = await addDoc(collection(db, "games"), gameData);
       toast({ title: "挑战已发起", description: `正在进入与 ${invitingPlayer.name} 的对局...` });
       router.push(`/game/online/${ref.id}`);
-    }).catch((err) => {
+    } catch (err) {
       console.error("Invite failed:", err);
       toast({ variant: "destructive", title: "发起失败", description: "无法连接到竞技节点，请检查网络。" });
-    });
+      setIsSendingInvite(false);
+    }
   };
 
   if (loadingUser) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
@@ -127,7 +128,7 @@ export default function OnlineLobbyPage() {
         )}
       </div>
 
-      <Dialog open={!!invitingPlayer} onOpenChange={() => setInvitingPlayer(null)}>
+      <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && !isSendingInvite && setInvitingPlayer(null)}>
         <DialogContent className="max-w-md border-4 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-headline flex items-center gap-2">
@@ -166,9 +167,10 @@ export default function OnlineLobbyPage() {
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="ghost" className="flex-1 font-bold" onClick={() => setInvitingPlayer(null)}>暂缓</Button>
-            <Button className="flex-1 bg-blue-600 hover:bg-blue-700 font-bold gap-2" onClick={handleInvite}>
-              <PlayCircle className="h-4 w-4" /> 发送挑战书
+            <Button variant="ghost" className="flex-1 font-bold" onClick={() => setInvitingPlayer(null)} disabled={isSendingInvite}>暂缓</Button>
+            <Button className="flex-1 bg-blue-600 hover:bg-blue-700 font-bold gap-2" onClick={handleInvite} disabled={isSendingInvite}>
+              {isSendingInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+              {isSendingInvite ? "正在发送..." : "发送挑战书"}
             </Button>
           </DialogFooter>
         </DialogContent>
