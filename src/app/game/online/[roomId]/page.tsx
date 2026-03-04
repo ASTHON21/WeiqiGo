@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -51,7 +50,7 @@ function OnlineGameContent() {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const hasCheckedCatchup = useRef(false);
   
-  // Local KataGo Instance
+  // KataGo WASM 实例引用
   const aiController = useRef<KataGoController | null>(null);
 
   const gameRef = useMemoFirebase(() => (db && roomId && user) ? doc(db, "games", roomId) : null, [db, roomId, user]);
@@ -89,15 +88,22 @@ function OnlineGameContent() {
   const movesQuery = useMemoFirebase(() => (db && roomId && user && (isInProgress || isFinished)) ? query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")) : null, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
 
-  // Initialize AI Controller
+  // 初始化 AI 控制器 (仅在与 AI 对弈且对局开始时)
   useEffect(() => {
-    if (isOpponentAi && game?.boardSize) {
-      aiController.current = new KataGoController(game.boardSize);
+    if (isOpponentAi && game?.boardSize && isInProgress) {
+      if (!aiController.current) {
+        aiController.current = new KataGoController(game.boardSize);
+        aiController.current.init().catch(err => {
+          console.error("AI 引擎初始化失败:", err);
+          toast({ variant: "destructive", title: "AI 初始化失败", description: "无法载入本地 WASM 模块，请检查网络或资源文件。" });
+        });
+      }
     }
     return () => {
       aiController.current?.terminate();
+      aiController.current = null;
     };
-  }, [isOpponentAi, game?.boardSize]);
+  }, [isOpponentAi, game?.boardSize, isInProgress]);
 
   // AI 自动接受挑战
   useEffect(() => {
@@ -110,15 +116,17 @@ function OnlineGameContent() {
     }
   }, [db, roomId, game, isPending, isOpponentAi, user]);
 
-  // AI 回合处理
+  // AI 回合决策逻辑 (基于本地 WASM)
   useEffect(() => {
     const handleAiTurn = async () => {
       if (!db || !roomId || !game || !isInProgress || isAiThinking || !aiController.current) return;
+      
+      // 仅由黑方棋手触发 AI (白方) 的逻辑
       if (game.currentTurn === 'white' && isOpponentAi && user?.uid === game.playerBlackId) {
         setIsAiThinking(true);
         
         try {
-          // Sync history to WASM engine
+          // 同步历史棋谱到 WASM 引擎
           const history = (moves || []).map(m => ({
             r: m.coordinatesX,
             c: m.coordinatesY,
@@ -127,7 +135,7 @@ function OnlineGameContent() {
 
           await aiController.current.setHistory(history);
           
-          // Generate professional move via WASM
+          // 调用 WASM 生成落子
           const suggestion = await aiController.current.generateMove('white');
 
           if (suggestion.r === -1 && suggestion.c === -1) {
@@ -136,8 +144,8 @@ function OnlineGameContent() {
             handleMove('white', suggestion.r, suggestion.c);
           }
         } catch (error) {
-          console.error("KataGo WASM Move Failed:", error);
-          toast({ variant: "destructive", title: "AI 引擎异常", description: "本地 WASM 推理失败，请检查模型文件。" });
+          console.error("AI 决策异常:", error);
+          toast({ variant: "destructive", title: "AI 决策异常", description: "本地 WASM 引擎运行错误。" });
         } finally {
           setIsAiThinking(false);
         }
@@ -145,7 +153,7 @@ function OnlineGameContent() {
     };
 
     if (game?.currentTurn === 'white' && isOpponentAi) {
-        const timer = setTimeout(handleAiTurn, 800); // Small delay for UX
+        const timer = setTimeout(handleAiTurn, 500);
         return () => clearTimeout(timer);
     }
   }, [game?.currentTurn, isOpponentAi, isInProgress, moves?.length]);
@@ -340,22 +348,6 @@ function OnlineGameContent() {
       } 
     });
     setShowResignConfirm(false);
-  };
-
-  const handleAbandon = () => {
-    if (!isPlayer || !game || isFinished || !user) return;
-    updateDoc(doc(db, "games", roomId), { 
-      status: 'finished', 
-      finishedAt: serverTimestamp(), 
-      moveCount: (moves?.length || 0),
-      lastActivityAt: serverTimestamp(),
-      result: { 
-        winner: user.uid === game.playerBlackId ? 'black' : 'white', 
-        reason: '对方掉线弃赛', 
-        diff: 0,
-        komi: game.komi || (game.rules === 'chinese' ? 3.75 : 6.5)
-      } 
-    });
   };
 
   const formatDuration = (s: number) => {
