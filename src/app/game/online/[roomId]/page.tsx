@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Timer, ArrowLeft, Trophy, Wifi, Globe, LogOut, Cpu, Flag } from 'lucide-react';
+import { Loader2, Timer, ArrowLeft, Trophy, Wifi, Globe, LogOut, Flag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -15,8 +15,6 @@ import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
 import { MoveSetting, Player, BoardState } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { AI_BOT_CONFIG } from '@/lib/ai/bot-constants';
-import { KataGoController } from '@/lib/ai/katago-engine';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,11 +47,9 @@ function OnlineGameContent() {
   const [showPassConfirm, setShowPassConfirm] = useState(false);
   const [showResignConfirm, setShowResignConfirm] = useState(false);
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
-  const [isAiThinking, setIsAiThinking] = useState(false);
   const hasCheckedCatchup = useRef(false);
-  const aiController = useRef<KataGoController | null>(null);
 
-  // 2. 核心数据订阅 (必须在 useEffect 之前定义以避免 ReferenceError)
+  // 2. 核心数据订阅
   const gameRef = useMemoFirebase(() => (db && roomId && user) ? doc(db, "games", roomId) : null, [db, roomId, user]);
   const { data: game, isLoading: loadingGame } = useDoc(gameRef);
 
@@ -69,18 +65,14 @@ function OnlineGameContent() {
   const opponentProfileRef = useMemoFirebase(() => (db && opponentId) ? doc(db, "userProfiles", opponentId) : null, [db, opponentId]);
   const { data: opponentProfile } = useDoc(opponentProfileRef);
 
-  const isOpponentAi = opponentId === AI_BOT_CONFIG.uid;
-
   const isOpponentOffline = useMemo(() => {
-    if (isOpponentAi) return false;
     if (!opponentProfile?.lastSeen) return false;
     const now = Date.now();
     const FIVE_MINUTES = 5 * 60 * 1000;
     const lastSeenTime = opponentProfile.lastSeen instanceof Timestamp ? opponentProfile.lastSeen.toMillis() : new Date(opponentProfile.lastSeen).getTime();
     return (now - lastSeenTime) > FIVE_MINUTES;
-  }, [opponentProfile, isOpponentAi]);
+  }, [opponentProfile]);
 
-  const isPending = game?.status === 'pending';
   const isFinished = game?.status === 'finished';
   const isInProgress = game?.status === 'in-progress';
   const isPlayer = user && game && (user.uid === game.playerWhiteId || user.uid === game.playerBlackId);
@@ -90,55 +82,7 @@ function OnlineGameContent() {
     return BOARD_TIME_LIMITS[game.boardSize] || 10800;
   }, [game?.boardSize]);
 
-  // 4. AI 生命周期管理
-  useEffect(() => {
-    if (isOpponentAi && game?.boardSize && isInProgress) {
-      if (!aiController.current) {
-        aiController.current = new KataGoController(game.boardSize);
-        aiController.current.init().catch(err => {
-          console.error("AI 引擎初始化失败:", err);
-          toast({ variant: "destructive", title: "AI 初始化失败", description: "无法载入本地 WASM 模块。" });
-        });
-      }
-    }
-    return () => {
-      aiController.current?.terminate();
-      aiController.current = null;
-    };
-  }, [isOpponentAi, game?.boardSize, isInProgress, toast]);
-
-  // 5. 对局逻辑控制
-  useEffect(() => {
-    const handleAiTurn = async () => {
-      if (!db || !roomId || !game || !isInProgress || isAiThinking || !aiController.current || !moves) return;
-      if (game.currentTurn === 'white' && isOpponentAi && user?.uid === game.playerBlackId) {
-        setIsAiThinking(true);
-        try {
-          const history = moves.map(m => ({
-            r: m.coordinatesX,
-            c: m.coordinatesY,
-            color: m.playerColor as 'black' | 'white'
-          })).filter(m => m.r !== -1);
-          await aiController.current.setHistory(history);
-          const suggestion = await aiController.current.generateMove('white');
-          if (suggestion.r === -1 && suggestion.c === -1) {
-            handlePass('white');
-          } else {
-            handleMove('white', suggestion.r, suggestion.c);
-          }
-        } catch (error) {
-          console.error("AI 决策异常:", error);
-        } finally {
-          setIsAiThinking(false);
-        }
-      }
-    };
-    if (game?.currentTurn === 'white' && isOpponentAi && isInProgress) {
-        const timer = setTimeout(handleAiTurn, 1500);
-        return () => clearTimeout(timer);
-    }
-  }, [game?.currentTurn, isOpponentAi, isInProgress, moves?.length]);
-
+  // 4. 对局逻辑控制
   useEffect(() => {
     if (db && roomId && isInProgress) {
       updateDoc(doc(db, "games", roomId), { lastActivityAt: serverTimestamp() }).catch(() => {});
@@ -228,7 +172,7 @@ function OnlineGameContent() {
     return { board: tempBoard, prisoners: p, boardHistory: history };
   }, [game?.boardSize, moves]);
 
-  const canMove = !isSpectating && isPlayer && isInProgress && (game?.currentTurn === (user?.uid === game?.playerBlackId ? 'black' : 'white')) && !isAiThinking;
+  const canMove = !isSpectating && isPlayer && isInProgress && (game?.currentTurn === (user?.uid === game?.playerBlackId ? 'black' : 'white'));
 
   const handleMove = async (color: Player, r: number, c: number) => {
     if (!db || !roomId || !game || !moves) return;
@@ -338,7 +282,7 @@ function OnlineGameContent() {
           </div>
           <div className="h-4 w-px bg-blue-500/20 hidden md:block" />
           <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-            <Globe className="h-3 w-3 text-green-500" /> {isOpponentAi ? "本地 KataGo WASM 已载入" : "云端同步已开启"}
+            <Globe className="h-3 w-3 text-green-500" /> 云端同步已开启
           </div>
         </div>
         <div className="flex gap-2">
@@ -356,9 +300,8 @@ function OnlineGameContent() {
                   game.currentTurn === 'black' ? 'bg-black border-white/20' : 'bg-white border-black/10'
                 )} />
                 <span className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
-                  {isAiThinking && game.currentTurn === 'white' ? 'AI 正在本地思考...' : (game.currentTurn === 'black' ? '黑方回合' : '白方回合')}
+                  {game.currentTurn === 'black' ? '黑方回合' : '白方回合'}
                 </span>
-                {isAiThinking && game.currentTurn === 'white' && <Loader2 className="h-3 w-3 animate-spin text-blue-500" />}
               </div>
             </div>
           )}
@@ -371,7 +314,7 @@ function OnlineGameContent() {
             size={game?.boardSize || 19} 
             onMove={(r, c) => handleMove(game?.currentTurn === 'black' ? 'black' : 'white', r, c)} 
             currentPlayer={game?.currentTurn as Player} 
-            readOnly={!canMove || isSpectating || isFinished || isAiThinking} 
+            readOnly={!canMove || isSpectating || isFinished} 
             lastMove={moves?.length ? moves[moves.length-1] : null}
             moveSetting={moveSetting}
           />
@@ -413,7 +356,7 @@ function OnlineGameContent() {
                 <div className="flex items-center gap-2">计时与状态</div>
                 <div className="flex items-center gap-1">
                    <div className={cn("w-1.5 h-1.5 rounded-full", isOpponentOffline ? "bg-red-500" : "bg-green-500")} />
-                   <span className="text-[8px] opacity-70 uppercase">{isOpponentAi ? "AI WASM ONLINE" : (isOpponentOffline ? "OFFLINE" : "LIVE")}</span>
+                   <span className="text-[8px] opacity-70 uppercase">{(isOpponentOffline ? "OFFLINE" : "LIVE")}</span>
                 </div>
               </CardTitle>
             </CardHeader>
@@ -429,13 +372,7 @@ function OnlineGameContent() {
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  {isOpponentAi ? (
-                    <div className={cn("w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white", isInProgress && game?.currentTurn === 'white' && "ring-2 ring-blue-500 ring-offset-2")}>
-                      <Cpu className="h-3 w-3" />
-                    </div>
-                  ) : (
-                    <div className={cn("w-6 h-6 rounded-full bg-white border shadow-sm", isInProgress && game?.currentTurn === 'white' && "ring-2 ring-blue-500 ring-offset-2")} />
-                  )}
+                  <div className={cn("w-6 h-6 rounded-full bg-white border shadow-sm", isInProgress && game?.currentTurn === 'white' && "ring-2 ring-blue-500 ring-offset-2")} />
                   <span className={cn("font-bold truncate max-w-[120px]", isInProgress && game?.currentTurn === 'white' && "text-blue-600")}>{game?.playerWhiteName}</span>
                 </div>
                 <div className="text-right">

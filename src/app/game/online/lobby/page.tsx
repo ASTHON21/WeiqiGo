@@ -11,11 +11,10 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2, Hash, AlertCircle, Bot } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/language-context';
 import { cn } from '@/lib/utils';
-import { AI_BOT_CONFIG } from '@/lib/ai/bot-constants';
 
 export default function OnlineLobbyPage() {
   const router = useRouter();
@@ -63,23 +62,11 @@ export default function OnlineLobbyPage() {
     const now = Date.now();
     const FIVE_MINUTES = 5 * 60 * 1000;
     
-    // 基础过滤
-    const filtered = rawPlayers.filter(p => {
+    return rawPlayers.filter(p => {
       if (!p.lastSeen) return false;
       const lastSeenTime = p.lastSeen instanceof Timestamp ? p.lastSeen.toMillis() : new Date(p.lastSeen).getTime();
       return (now - lastSeenTime) < FIVE_MINUTES;
     });
-
-    // 确保 AI Bot 始终在列表中
-    if (!filtered.find(p => p.id === AI_BOT_CONFIG.uid)) {
-      filtered.push({
-        id: AI_BOT_CONFIG.uid,
-        displayName: AI_BOT_CONFIG.displayName,
-        lastSeen: new Date()
-      });
-    }
-
-    return filtered;
   }, [rawPlayers]);
 
   const trulyActiveGamesCount = useMemo(() => {
@@ -133,7 +120,6 @@ export default function OnlineLobbyPage() {
     const gameRef = doc(collection(db, "games"));
     const gameId = gameRef.id;
 
-    // 如果挑战的是 AI，状态直接设为 pending，对局页面会自动让其 in-progress
     const gameData = {
       id: gameId,
       playerBlackId: user.uid,
@@ -154,7 +140,7 @@ export default function OnlineLobbyPage() {
     };
 
     setDoc(gameRef, gameData).then(() => {
-      toast({ title: "挑战已发送", description: invitingPlayer.id === AI_BOT_CONFIG.uid ? "AI 已准备就绪！" : `等待 ${invitingPlayer.name} 接受...` });
+      toast({ title: "挑战已发送", description: `等待 ${invitingPlayer.name} 接受...` });
       router.push(`/game/online/${gameId}`);
     }).catch((err) => {
       toast({ variant: "destructive", title: "发起失败", description: "网络异常。" });
@@ -184,7 +170,7 @@ export default function OnlineLobbyPage() {
           <h1 className="text-3xl font-bold font-headline text-blue-500 flex items-center gap-3">
             <Swords className="h-8 w-8" /> 竞技大厅
           </h1>
-          <p className="text-xs text-muted-foreground italic">与棋手或 AI 进行博弈挑战。</p>
+          <p className="text-xs text-muted-foreground italic">寻找志同道合的棋友进行在线同步博弈。</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {user && (
@@ -223,19 +209,18 @@ export default function OnlineLobbyPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {activePlayers?.filter(p => p.id !== user?.uid).map(p => {
               const isPlaying = playingPlayerIds.has(p.id);
-              const isBot = p.id === AI_BOT_CONFIG.uid;
               return (
-                <Card key={p.id} className={cn("transition-all group border-2", isPlaying ? "opacity-75" : "hover:border-blue-500", isBot && "border-blue-200 bg-blue-50/30")}>
+                <Card key={p.id} className={cn("transition-all group border-2", isPlaying ? "opacity-75" : "hover:border-blue-500")}>
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Avatar className={cn("border-2", isBot ? "border-blue-500" : "border-muted")}>
-                        <AvatarFallback className={cn("font-bold", isBot ? "bg-blue-600 text-white" : "bg-muted text-muted-foreground")}>
-                          {isBot ? <Bot className="h-5 w-5" /> : (p.displayName?.[0] || 'U')}
+                      <Avatar className="border-2 border-muted">
+                        <AvatarFallback className="font-bold bg-muted text-muted-foreground">
+                          {p.displayName?.[0] || 'U'}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <p className="font-bold text-foreground group-hover:text-blue-600 transition-colors">
-                            {p.displayName} {isBot && <Badge variant="secondary" className="ml-2 text-[8px] bg-blue-100 text-blue-700">AI</Badge>}
+                            {p.displayName}
                         </p>
                         <div className="flex items-center gap-2">
                           {isPlaying ? (
@@ -244,7 +229,7 @@ export default function OnlineLobbyPage() {
                             </Badge>
                           ) : (
                             <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                              <Wifi className="h-2 w-2 text-green-500 fill-green-500" /> {isBot ? "随时待命" : "空闲在线"}
+                              <Wifi className="h-2 w-2 text-green-500 fill-green-500" /> 空闲在线
                             </p>
                           )}
                         </div>
@@ -309,7 +294,7 @@ export default function OnlineLobbyPage() {
             <DialogTitle className="text-xl font-headline flex items-center gap-2">
               <Swords className="h-5 w-5 text-blue-500" /> 向 {invitingPlayer?.name} 发起挑战
             </DialogTitle>
-            <DialogDescription>设定对局参数。AI 将自动接受挑战。</DialogDescription>
+            <DialogDescription>设定对局参数。</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="space-y-3">
