@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, Trophy, Globe, Flag, Hourglass, XCircle, SkipForward } from 'lucide-react';
+import { Loader2, ArrowLeft, Trophy, Globe, Flag, Hourglass, XCircle, SkipForward, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -105,7 +105,6 @@ function OnlineGameContent() {
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
   // 超时回归检查逻辑 (Catch-up Settlement)
-  // 当一名玩家重新进入页面时，检查最后一次活动到现在的耗时是否已导致当前行棋方超时
   useEffect(() => {
     if (db && roomId && game && isInProgress && !isFinished && !hasCheckedCatchup.current) {
       if (!game.lastActivityAt) {
@@ -121,7 +120,6 @@ function OnlineGameContent() {
         const elapsedSinceActivity = Math.floor((now - lastActivity) / 1000);
         const currentTimeUsed = turn === 'black' ? (game.playerBlackTimeUsed || 0) : (game.playerWhiteTimeUsed || 0);
         
-        // 如果已用时间 + 离线经过的时间 > 限制 (宽限10秒同步延迟)
         if (currentTimeUsed + elapsedSinceActivity > timeLimit + 10) {
           updateDoc(doc(db, "games", roomId), {
             status: 'finished',
@@ -148,7 +146,6 @@ function OnlineGameContent() {
           const color = game.currentTurn as 'black' | 'white';
           const nextValue = prev[color] + 1;
           
-          // 实时检查是否超时
           if (nextValue >= timeLimit) {
             clearInterval(interval);
             updateDoc(doc(db, "games", roomId), {
@@ -426,7 +423,7 @@ function OnlineGameContent() {
                     <ArrowLeft className="h-4 w-4" /> 返回大厅
                   </Button>
                   <Button className="flex-1 h-12 font-bold bg-primary hover:bg-primary/90 gap-2" onClick={() => setDismissGameOver(true)}>
-                    重新开始
+                    <History className="h-4 w-4" /> 返回复盘
                   </Button>
                 </CardFooter>
               </Card>
