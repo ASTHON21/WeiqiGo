@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -39,7 +38,7 @@ export function ToolPanel({
             <p className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
               <Settings2 className="h-3 w-3" /> 落子设定
             </p>
-            <医師 Select value={moveSetting} onValueChange={(v) => onMoveSettingChange(v as MoveSetting)}>
+            <Select value={moveSetting} onValueChange={(v) => onMoveSettingChange(v as MoveSetting)}>
               <SelectTrigger className="w-full h-9 text-xs">
                 <SelectValue placeholder="选择落子方式" />
               </SelectTrigger>
@@ -48,7 +47,7 @@ export function ToolPanel({
                 <SelectItem value="confirm">确认落子 (弹窗)</SelectItem>
                 <SelectItem value="double-click">双击落子</SelectItem>
               </SelectContent>
-            </医師 Select>
+            </Select>
           </div>
         )}
 
