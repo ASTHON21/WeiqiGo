@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, Trophy, Globe, Flag, Hourglass, XCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Trophy, Globe, Flag, Hourglass, XCircle, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -472,8 +472,19 @@ function OnlineGameContent() {
       </div>
 
       <AlertDialog open={showPassConfirm} onOpenChange={setShowPassConfirm}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认弃权？</AlertDialogTitle></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={() => handlePass(game?.currentTurn === 'black' ? 'black' : 'white')}>确认</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-xl font-headline">
+              <SkipForward className="h-6 w-6 text-blue-500" /> 确认弃权？
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-11 font-bold">取消</AlertDialogCancel>
+            <AlertDialogAction className="h-11 bg-blue-600 hover:bg-blue-700 font-bold" onClick={() => handlePass(game?.currentTurn === 'black' ? 'black' : 'white')}>
+              确认弃权
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
 
       <AlertDialog open={showResignConfirm} onOpenChange={setShowResignConfirm}>
