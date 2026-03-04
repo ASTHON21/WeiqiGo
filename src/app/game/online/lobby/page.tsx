@@ -330,6 +330,20 @@ export default function OnlineLobbyPage() {
               来自 <span className="font-bold text-foreground">{currentInvite?.playerBlackName}</span> 的挑战。
             </DialogDescription>
           </DialogHeader>
+
+          <div className="p-4 bg-muted/30 rounded-lg border text-sm space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground font-bold text-[10px] uppercase tracking-widest">棋盘尺寸</span>
+              <Badge variant="outline" className="font-mono border-2">{currentInvite?.boardSize}x{currentInvite?.boardSize}</Badge>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground font-bold text-[10px] uppercase tracking-widest">对弈规则</span>
+              <Badge className="bg-blue-600 border-0">
+                {currentInvite?.rules === 'chinese' ? '中国规则' : '日韩规则'}
+              </Badge>
+            </div>
+          </div>
+
           <DialogFooter className="grid grid-cols-2 gap-3 mt-4">
             <Button variant="outline" className="h-12 border-2" onClick={() => handleDeclineInvite(currentInvite.id)}>拒绝</Button>
             <Button className="h-12 bg-blue-600" onClick={() => handleAcceptInvite(currentInvite.id)}>接受</Button>
