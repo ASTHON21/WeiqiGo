@@ -6,15 +6,17 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, Trophy, Globe, Flag, Hourglass, XCircle, SkipForward, History } from 'lucide-react';
+import { Loader2, ArrowLeft, Trophy, Globe, Flag, Hourglass, XCircle, SkipForward, History, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, addDoc, serverTimestamp, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
-import { MoveSetting, Player, BoardState } from '@/lib/types';
+import { MoveSetting, Player, BoardState, GameHistoryEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { exportToSGF } from '@/lib/sgf';
+import { format } from 'date-fns';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -270,6 +272,48 @@ function OnlineGameContent() {
     setShowResignConfirm(false);
   };
 
+  const handleDownloadSGF = () => {
+    if (!game || !moves) return;
+
+    const historyEntry: GameHistoryEntry = {
+      id: game.id,
+      date: game.startedAt instanceof Timestamp ? game.startedAt.toDate().toISOString() : new Date().toISOString(),
+      mode: 'online',
+      boardSize: game.boardSize,
+      moveHistory: moves.map((m: any) => ({
+        r: m.coordinatesX,
+        c: m.coordinatesY,
+        player: m.playerColor as Player,
+        index: m.moveNumber
+      })),
+      metadata: {
+        event: 'Online Synchronous Match',
+        blackName: game.playerBlackName,
+        whiteName: game.playerWhiteName,
+        komi: (game.result?.komi || game.komi)?.toString(),
+        rules: game.rules === 'chinese' ? 'Chinese' : 'Japanese',
+        result: `${game.result?.winner === 'black' ? 'B' : 'W'}+${game.result?.diff?.toFixed(1) || '0.0'}`
+      },
+      result: game.result
+    };
+
+    try {
+      const sgfData = exportToSGF(historyEntry);
+      const blob = new Blob([sgfData], { type: 'application/x-go-sgf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `WEIQI_GO_ONLINE_${format(new Date(), 'yyyyMMdd_HHmm')}.sgf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: '导出成功', description: '棋谱已下载为 SGF 格式。' });
+    } catch (error) {
+      toast({ title: '导出失败', description: '生成 SGF 时出错。', variant: 'destructive' });
+    }
+  };
+
   const handleCancelInvite = async () => {
     if (!db || !roomId || !game) return;
     await updateDoc(doc(db, "games", roomId), { 
@@ -418,11 +462,16 @@ function OnlineGameContent() {
                     <p className="text-xs text-muted-foreground italic">原因: {game.result?.reason}</p>
                   </div>
                 </div>
-                <CardFooter className="p-6 bg-muted/20 border-t flex gap-3">
-                  <Button variant="outline" className="flex-1 h-12 font-bold border-2 gap-2" onClick={() => router.push('/game/online/lobby')}>
-                    <ArrowLeft className="h-4 w-4" /> 返回大厅
-                  </Button>
-                  <Button className="flex-1 h-12 font-bold bg-primary hover:bg-primary/90 gap-2" onClick={() => setDismissGameOver(true)}>
+                <CardFooter className="p-6 bg-muted/20 border-t flex flex-col gap-3">
+                  <div className="flex w-full gap-3">
+                    <Button variant="outline" className="flex-1 h-12 font-bold border-2 gap-2" onClick={() => router.push('/game/online/lobby')}>
+                      <ArrowLeft className="h-4 w-4" /> 返回大厅
+                    </Button>
+                    <Button variant="outline" className="flex-1 h-12 font-bold border-2 gap-2 border-blue-600 text-blue-700 hover:bg-blue-50" onClick={handleDownloadSGF}>
+                      <Download className="h-4 w-4" /> 下载 SGF
+                    </Button>
+                  </div>
+                  <Button className="w-full h-12 font-bold bg-primary hover:bg-primary/90 gap-2" onClick={() => setDismissGameOver(true)}>
                     <History className="h-4 w-4" /> 返回复盘
                   </Button>
                 </CardFooter>
