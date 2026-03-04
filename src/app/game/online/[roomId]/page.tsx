@@ -25,6 +25,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+/**
+ * 棋盘尺寸对应的总时长上限 (秒)
+ * 19x19: 3小时
+ * 13x13: 2小时
+ * 9x9: 1小时
+ */
 const BOARD_TIME_LIMITS: Record<number, number> = {
   19: 3 * 3600, 
   13: 2 * 3600, 
@@ -81,14 +87,14 @@ function OnlineGameContent() {
     return BOARD_TIME_LIMITS[game.boardSize] || 10800;
   }, [game?.boardSize]);
 
-  // 更新活跃时间戳
+  // 更新活跃时间戳，用于离线超时判定
   useEffect(() => {
     if (db && roomId && isInProgress) {
       updateDoc(doc(db, "games", roomId), { lastActivityAt: serverTimestamp() }).catch(() => {});
     }
   }, [db, roomId, isInProgress]);
 
-  // 同步时间进度
+  // 同步已用时间
   useEffect(() => {
     if (game) {
       setTimeUsed({ 
@@ -99,6 +105,7 @@ function OnlineGameContent() {
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
   // 超时回归检查逻辑 (Catch-up Settlement)
+  // 当一名玩家重新进入页面时，检查最后一次活动到现在的耗时是否已导致当前行棋方超时
   useEffect(() => {
     if (db && roomId && game && isInProgress && !isFinished && !hasCheckedCatchup.current) {
       if (!game.lastActivityAt) {
@@ -114,6 +121,7 @@ function OnlineGameContent() {
         const elapsedSinceActivity = Math.floor((now - lastActivity) / 1000);
         const currentTimeUsed = turn === 'black' ? (game.playerBlackTimeUsed || 0) : (game.playerWhiteTimeUsed || 0);
         
+        // 如果已用时间 + 离线经过的时间 > 限制 (宽限10秒同步延迟)
         if (currentTimeUsed + elapsedSinceActivity > timeLimit + 10) {
           updateDoc(doc(db, "games", roomId), {
             status: 'finished',
@@ -125,7 +133,7 @@ function OnlineGameContent() {
               diff: 0,
               komi: game.komi || (game.rules === 'chinese' ? 3.75 : 6.5)
             }
-          });
+          }).catch(() => {});
         }
       }
       hasCheckedCatchup.current = true;
@@ -139,6 +147,8 @@ function OnlineGameContent() {
         setTimeUsed(prev => {
           const color = game.currentTurn as 'black' | 'white';
           const nextValue = prev[color] + 1;
+          
+          // 实时检查是否超时
           if (nextValue >= timeLimit) {
             clearInterval(interval);
             updateDoc(doc(db, "games", roomId), {
@@ -152,7 +162,7 @@ function OnlineGameContent() {
                 diff: 0,
                 komi: game.komi || (game.rules === 'chinese' ? 3.75 : 6.5)
               }
-            });
+            }).catch(() => {});
           }
           return { ...prev, [color]: nextValue };
         });
@@ -283,7 +293,6 @@ function OnlineGameContent() {
 
   if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12" /></div>;
 
-  // 处理被拒绝/已取消状态 (邀请阶段的中断)
   if (isFinished && (game?.result?.reason === '对方拒绝了挑战' || game?.result?.reason === '挑战者取消了邀请')) {
     const isRejected = game?.result?.reason === '对方拒绝了挑战';
     return (
@@ -315,7 +324,6 @@ function OnlineGameContent() {
     );
   }
 
-  // 处理待定状态：显示等待界面
   if (isPending && isPlayer && !isSpectating) {
     const opponentName = user?.uid === game?.playerBlackId ? game?.playerWhiteName : game?.playerBlackName;
     return (
@@ -445,6 +453,7 @@ function OnlineGameContent() {
                 </div>
                 <div className="text-right">
                   <p className="font-mono text-xl font-black tracking-tighter">{formatDuration(timeUsed.black)}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">Limit: {formatDuration(timeLimit)}</p>
                 </div>
               </div>
               <div className="flex justify-between items-center">
@@ -454,6 +463,7 @@ function OnlineGameContent() {
                 </div>
                 <div className="text-right">
                   <p className="font-mono text-xl font-black tracking-tighter">{formatDuration(timeUsed.white)}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">Limit: {formatDuration(timeLimit)}</p>
                 </div>
               </div>
             </CardContent>
