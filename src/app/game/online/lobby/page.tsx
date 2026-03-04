@@ -62,14 +62,17 @@ export default function OnlineLobbyPage() {
   }, [db]);
   const { data: allActiveGames } = useCollection(activeGamesQuery);
 
-  // 历史名局查询 (获取最近完赛的对局)
+  /**
+   * 历史名局查询逻辑优化
+   * 移除 where("status", "==", "finished") 以避免强制复合索引要求。
+   * 采用单字段排序并在客户端进行过滤。
+   */
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
       collection(db, "games"), 
-      where("status", "==", "finished"),
       orderBy("finishedAt", "desc"),
-      limit(30)
+      limit(50) 
     );
   }, [db]);
   const { data: rawRecentGames } = useCollection(recentGamesQuery);
@@ -87,13 +90,15 @@ export default function OnlineLobbyPage() {
     });
   }, [rawPlayers]);
 
-  // 过滤 1 小时内的名局回放
+  // 过滤 1 小时内的已完赛名局 (客户端过滤以规避索引问题)
   const filteredRecentGames = useMemo(() => {
     if (!rawRecentGames) return [];
     const now = Date.now();
     const ONE_HOUR = 60 * 60 * 1000;
     
     return rawRecentGames.filter(game => {
+      // 仅显示状态为已完成的对局
+      if (game.status !== 'finished') return false;
       if (!game.finishedAt) return false;
       const finishedTime = game.finishedAt instanceof Timestamp ? game.finishedAt.toMillis() : new Date(game.finishedAt).getTime();
       return (now - finishedTime) < ONE_HOUR;
@@ -271,6 +276,11 @@ export default function OnlineLobbyPage() {
                 </Card>
               );
             })}
+            {activePlayers?.filter(p => p.id !== user?.uid).length === 0 && (
+              <div className="col-span-full py-12 text-center border-2 border-dashed rounded-xl bg-muted/20">
+                <p className="text-muted-foreground text-sm italic">当前大厅暂无其他空闲棋手...</p>
+              </div>
+            )}
           </div>
         </TabsContent>
 
