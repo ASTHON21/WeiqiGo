@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/tabs";
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/language-context';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,15 @@ export default function OnlineLobbyPage() {
   const [selectedSize, setSelectedSize] = useState("19");
   const [selectedRule, setSelectedRule] = useState("chinese");
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+
+  // 辅助函数：格式化时间
+  const formatDuration = (s: number) => {
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    if (hrs > 0) return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // 监听邀请
   const inviteQuery = useMemoFirebase(() => {
@@ -54,10 +63,15 @@ export default function OnlineLobbyPage() {
   }, [db]);
   const { data: allActiveGames } = useCollection(activeGamesQuery);
 
-  // 历史名局
+  // 历史名局查询 (获取最近完赛的对局)
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, "games"), where("status", "==", "finished"), limit(20));
+    return query(
+      collection(db, "games"), 
+      where("status", "==", "finished"),
+      orderBy("finishedAt", "desc"),
+      limit(30)
+    );
   }, [db]);
   const { data: rawRecentGames } = useCollection(recentGamesQuery);
 
@@ -73,6 +87,19 @@ export default function OnlineLobbyPage() {
       return (now - lastSeenTime) < FIVE_MINUTES;
     });
   }, [rawPlayers]);
+
+  // 过滤 1 小时内的名局回放
+  const filteredRecentGames = useMemo(() => {
+    if (!rawRecentGames) return [];
+    const now = Date.now();
+    const ONE_HOUR = 60 * 60 * 1000;
+    
+    return rawRecentGames.filter(game => {
+      if (!game.finishedAt) return false;
+      const finishedTime = game.finishedAt instanceof Timestamp ? game.finishedAt.toMillis() : new Date(game.finishedAt).getTime();
+      return (now - finishedTime) < ONE_HOUR;
+    });
+  }, [rawRecentGames]);
 
   // 计算真实的活跃对局数 (排除 15 分钟无互动的僵尸对局)
   const trulyActiveGamesCount = useMemo(() => {
@@ -250,33 +277,49 @@ export default function OnlineLobbyPage() {
 
         <TabsContent value="replays" className="mt-0">
           <div className="grid gap-4">
-            {rawRecentGames?.map(game => (
-              <Card key={game.id} className="border-2 hover:border-blue-500 transition-all">
-                <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-                  <div className="flex items-center gap-8 flex-1">
-                    <div className="text-center space-y-1">
-                       <Badge className={game.result?.winner === 'black' ? 'bg-black text-white' : 'bg-muted'}>
-                         {game.result?.winner === 'black' ? t('lobby.game.winner') : ''}
-                       </Badge>
-                       <p className="font-bold text-sm">{game.playerBlackName}</p>
+            {filteredRecentGames.length > 0 ? (
+              filteredRecentGames.map(game => (
+                <Card key={game.id} className="border-2 hover:border-blue-500 transition-all">
+                  <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-8 flex-1">
+                      <div className="text-center space-y-1">
+                         <Badge className={game.result?.winner === 'black' ? 'bg-black text-white' : 'bg-muted'}>
+                           {game.result?.winner === 'black' ? t('lobby.game.winner') : ''}
+                         </Badge>
+                         <p className="font-bold text-sm">{game.playerBlackName}</p>
+                         <div className="flex items-center gap-1 justify-center text-[9px] text-muted-foreground font-mono">
+                            <Clock className="h-2 w-2" /> {formatDuration(game.playerBlackTimeUsed || 0)}
+                         </div>
+                      </div>
+                      <div className="flex flex-col items-center gap-1 min-w-[100px]">
+                        <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest bg-muted px-2 py-0.5 rounded">VS</div>
+                        <Badge variant="outline" className="border-2 font-mono h-6">{game.boardSize}x{game.boardSize}</Badge>
+                        <div className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 mt-1">
+                          {game.rules === 'chinese' ? '中国规则' : '日韩规则'}
+                        </div>
+                      </div>
+                      <div className="text-center space-y-1">
+                         <Badge className={game.result?.winner === 'white' ? 'bg-blue-600 text-white' : 'bg-muted'}>
+                           {game.result?.winner === 'white' ? t('lobby.game.winner') : ''}
+                         </Badge>
+                         <p className="font-bold text-sm">{game.playerWhiteName}</p>
+                         <div className="flex items-center gap-1 justify-center text-[9px] text-muted-foreground font-mono">
+                            <Clock className="h-2 w-2" /> {formatDuration(game.playerWhiteTimeUsed || 0)}
+                         </div>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest bg-muted px-2 py-0.5 rounded">VS</div>
-                      <Badge variant="outline" className="border-2 font-mono h-6">{game.boardSize}x{game.boardSize}</Badge>
-                    </div>
-                    <div className="text-center space-y-1">
-                       <Badge className={game.result?.winner === 'white' ? 'bg-blue-600 text-white' : 'bg-muted'}>
-                         {game.result?.winner === 'white' ? t('lobby.game.winner') : ''}
-                       </Badge>
-                       <p className="font-bold text-sm">{game.playerWhiteName}</p>
-                    </div>
-                  </div>
-                  <Button variant="outline" className="gap-2 border-2 hover:bg-blue-600 hover:text-white h-10 px-6 font-bold" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
-                    <Eye className="h-4 w-4" /> {t('lobby.game.view')}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                    <Button variant="outline" className="gap-2 border-2 hover:bg-blue-600 hover:text-white h-10 px-6 font-bold" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
+                      <Eye className="h-4 w-4" /> {t('lobby.game.view')}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="text-center py-12 border-2 border-dashed rounded-xl bg-muted/20">
+                <Trophy className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                <p className="text-muted-foreground text-sm">一小时内暂无完赛名局。</p>
+              </div>
+            )}
           </div>
         </TabsContent>
       </Tabs>
