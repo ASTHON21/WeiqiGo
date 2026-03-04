@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -5,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe, Eye, XCircle, LogOut, AlertTriangle, UserX, Cpu } from 'lucide-react';
+import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe, Eye, XCircle, LogOut, AlertTriangle, UserX, Cpu, Flag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -50,7 +51,6 @@ function OnlineGameContent() {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const hasCheckedCatchup = useRef(false);
   
-  // KataGo WASM 实例引用
   const aiController = useRef<KataGoController | null>(null);
 
   const gameRef = useMemoFirebase(() => (db && roomId && user) ? doc(db, "games", roomId) : null, [db, roomId, user]);
@@ -88,7 +88,6 @@ function OnlineGameContent() {
   const movesQuery = useMemoFirebase(() => (db && roomId && user && (isInProgress || isFinished)) ? query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")) : null, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
 
-  // 初始化 AI 控制器 (仅在与 AI 对弈且对局开始时)
   useEffect(() => {
     if (isOpponentAi && game?.boardSize && isInProgress) {
       if (!aiController.current) {
@@ -105,7 +104,6 @@ function OnlineGameContent() {
     };
   }, [isOpponentAi, game?.boardSize, isInProgress]);
 
-  // AI 自动接受挑战
   useEffect(() => {
     if (db && roomId && game && isPending && isOpponentAi && user?.uid === game.playerBlackId) {
       updateDoc(doc(db, "games", roomId), { 
@@ -116,28 +114,19 @@ function OnlineGameContent() {
     }
   }, [db, roomId, game, isPending, isOpponentAi, user]);
 
-  // AI 回合决策逻辑 (基于本地 WASM)
   useEffect(() => {
     const handleAiTurn = async () => {
       if (!db || !roomId || !game || !isInProgress || isAiThinking || !aiController.current) return;
-      
-      // 仅由黑方棋手触发 AI (白方) 的逻辑
       if (game.currentTurn === 'white' && isOpponentAi && user?.uid === game.playerBlackId) {
         setIsAiThinking(true);
-        
         try {
-          // 同步历史棋谱到 WASM 引擎
           const history = (moves || []).map(m => ({
             r: m.coordinatesX,
             c: m.coordinatesY,
             color: m.playerColor as 'black' | 'white'
           })).filter(m => m.r !== -1);
-
           await aiController.current.setHistory(history);
-          
-          // 调用 WASM 生成落子
           const suggestion = await aiController.current.generateMove('white');
-
           if (suggestion.r === -1 && suggestion.c === -1) {
             handlePass('white');
           } else {
@@ -145,13 +134,11 @@ function OnlineGameContent() {
           }
         } catch (error) {
           console.error("AI 决策异常:", error);
-          toast({ variant: "destructive", title: "AI 决策异常", description: "本地 WASM 引擎运行错误。" });
         } finally {
           setIsAiThinking(false);
         }
       }
     };
-
     if (game?.currentTurn === 'white' && isOpponentAi) {
         const timer = setTimeout(handleAiTurn, 500);
         return () => clearTimeout(timer);
@@ -176,19 +163,15 @@ function OnlineGameContent() {
   useEffect(() => {
     if (db && roomId && game && isInProgress && !isFinished && !hasCheckedCatchup.current) {
       if (!game.lastActivityAt) return; 
-      
       const turn = game.currentTurn as 'black' | 'white';
       const lastActivity = game.lastActivityAt instanceof Timestamp ? game.lastActivityAt.toMillis() : new Date(game.lastActivityAt).getTime();
       const now = Date.now();
-      
       if (lastActivity > now) {
         hasCheckedCatchup.current = true;
         return;
       }
-
       const elapsedSinceActivity = Math.floor((now - lastActivity) / 1000);
       const currentTimeUsed = turn === 'black' ? (game.playerBlackTimeUsed || 0) : (game.playerWhiteTimeUsed || 0);
-      
       if (currentTimeUsed + elapsedSinceActivity > timeLimit + 10) {
         updateDoc(doc(db, "games", roomId), {
           status: 'finished',
@@ -212,7 +195,6 @@ function OnlineGameContent() {
         setTimeUsed(prev => {
           const color = game.currentTurn as 'black' | 'white';
           const nextValue = prev[color] + 1;
-          
           if (nextValue >= timeLimit) {
             clearInterval(interval);
             updateDoc(doc(db, "games", roomId), {
@@ -239,10 +221,8 @@ function OnlineGameContent() {
     let tempBoard = createEmptyBoard(game?.boardSize || 19);
     let p = { black: 0, white: 0 };
     let history: BoardState[] = [];
-    
     moves?.forEach(m => {
       history.push(tempBoard.map(row => [...row]));
-      
       if (m.coordinatesX !== -1) {
         const result = GoLogic.processMove(tempBoard, m.coordinatesX, m.coordinatesY, m.playerColor, history.slice(-10));
         if (result.success) {
@@ -251,7 +231,6 @@ function OnlineGameContent() {
         }
       }
     });
-    
     return { board: tempBoard, prisoners: p, boardHistory: history };
   }, [game?.boardSize, moves]);
 
@@ -259,16 +238,13 @@ function OnlineGameContent() {
 
   const handleMove = async (color: Player, r: number, c: number) => {
     if (!db || !roomId || !game) return;
-    
     const result = GoLogic.processMove(board, r, c, color, boardHistory.slice(-10));
-    
     if (!result.success) {
       if (color === 'black') {
         toast({ variant: "destructive", title: "落子受限", description: result.error === 'ko' ? "禁止打劫！" : "无效位置。" });
       }
       return;
     }
-
     addDoc(collection(db, `games/${roomId}/moves`), { 
       gameId: roomId, 
       playerColor: color, 
@@ -277,7 +253,6 @@ function OnlineGameContent() {
       moveNumber: (moves?.length || 0) + 1, 
       timestamp: Date.now() 
     });
-    
     updateDoc(doc(db, "games", roomId), { 
       currentTurn: color === 'black' ? 'white' : 'black', 
       playerBlackTimeUsed: timeUsed.black, 
@@ -290,7 +265,6 @@ function OnlineGameContent() {
   const handlePass = async (color: Player) => {
     if (!db || !roomId || !game) return;
     const isConsecutivePass = moves?.length && moves[moves.length - 1].coordinatesX === -1;
-
     addDoc(collection(db, `games/${roomId}/moves`), { 
       gameId: roomId, 
       playerColor: color, 
@@ -299,14 +273,11 @@ function OnlineGameContent() {
       moveNumber: (moves?.length || 0) + 1, 
       timestamp: Date.now() 
     });
-    
     setShowPassConfirm(false);
-
     if (isConsecutivePass) {
       const score = game.rules === 'chinese' 
         ? GoLogic.calculateChineseScore(board) 
         : GoLogic.calculateJapaneseScore(board, prisoners.black, prisoners.white);
-      
       updateDoc(doc(db, "games", roomId), { 
         status: 'finished', 
         finishedAt: serverTimestamp(), 
@@ -348,6 +319,7 @@ function OnlineGameContent() {
       } 
     });
     setShowResignConfirm(false);
+    toast({ title: "对局已结束", description: "您已认输。" });
   };
 
   const formatDuration = (s: number) => {
@@ -499,9 +471,20 @@ function OnlineGameContent() {
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认弃权？</AlertDialogTitle></AlertDialogHeader>
         <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={() => handlePass('black')}>确认</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
+
       <AlertDialog open={showResignConfirm} onOpenChange={setShowResignConfirm}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle className="text-destructive">确认认输？</AlertDialogTitle></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction className="bg-destructive" onClick={handleResign}>确认</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <Flag className="h-5 w-5" /> 确认认输？
+            </AlertDialogTitle>
+            <p className="text-sm text-muted-foreground">认输后对局将立即结束，系统会判定对方获胜。</p>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleResign}>确认认输</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
     </div>
   );
