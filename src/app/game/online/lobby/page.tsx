@@ -63,7 +63,7 @@ export default function OnlineLobbyPage() {
     const FIVE_MINUTES = 5 * 60 * 1000;
     
     return rawPlayers.filter(p => {
-      if (!p.lastSeen) return false;
+      if (!p.lastSeen || p.id === 'KATA-BOT') return false; // 显式过滤 AI
       const lastSeenTime = p.lastSeen instanceof Timestamp ? p.lastSeen.toMillis() : new Date(p.lastSeen).getTime();
       return (now - lastSeenTime) < FIVE_MINUTES;
     });
@@ -96,17 +96,6 @@ export default function OnlineLobbyPage() {
     });
     return ids;
   }, [allActiveGames]);
-
-  const recentGames = useMemo(() => {
-    if (!rawRecentGames) return [];
-    const now = Date.now();
-    const ONE_HOUR = 60 * 60 * 1000;
-    return [...rawRecentGames].filter(game => {
-        if (!game.finishedAt) return false;
-        const finishedTime = game.finishedAt instanceof Timestamp ? game.finishedAt.toMillis() : new Date(game.finishedAt).getTime();
-        return (now - finishedTime) < ONE_HOUR;
-      }).sort((a, b) => (b.finishedAt?.seconds || 0) - (a.finishedAt?.seconds || 0)).slice(0, 15);
-  }, [rawRecentGames]);
 
   const handleInvite = () => {
     if (!invitingPlayer || !user || !db || isSendingInvite) return;
@@ -254,7 +243,7 @@ export default function OnlineLobbyPage() {
 
         <TabsContent value="replays" className="mt-0">
           <div className="grid gap-4">
-            {recentGames?.map(game => (
+            {rawRecentGames?.map(game => (
               <Card key={game.id} className="border-2 hover:border-blue-500 transition-all">
                 <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
                   <div className="flex items-center gap-8 flex-1">
@@ -267,9 +256,6 @@ export default function OnlineLobbyPage() {
                     <div className="flex flex-col items-center gap-1">
                       <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest bg-muted px-2 py-0.5 rounded">VS</div>
                       <Badge variant="outline" className="border-2 font-mono h-6">{game.boardSize}x{game.boardSize}</Badge>
-                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 uppercase tracking-tighter">
-                        {game.rules === 'chinese' ? '中国规则' : '日韩规则'}
-                      </Badge>
                     </div>
                     <div className="text-center space-y-1">
                        <Badge className={game.result?.winner === 'white' ? 'bg-blue-600 text-white' : 'bg-muted'}>
@@ -294,7 +280,6 @@ export default function OnlineLobbyPage() {
             <DialogTitle className="text-xl font-headline flex items-center gap-2">
               <Swords className="h-5 w-5 text-blue-500" /> 向 {invitingPlayer?.name} 发起挑战
             </DialogTitle>
-            <DialogDescription>设定对局参数。</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="space-y-3">

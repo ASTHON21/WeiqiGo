@@ -35,7 +35,7 @@ export default function HomePage() {
     setHasMounted(true);
   }, []);
 
-  // Monitor active games as Black
+  // 监控黑方正在进行的对局
   const blackGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(
@@ -46,7 +46,7 @@ export default function HomePage() {
     );
   }, [db, user?.uid]);
 
-  // Monitor active games as White
+  // 监控白方正在进行的对局
   const whiteGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(
@@ -81,11 +81,8 @@ export default function HomePage() {
 
   const handleResignActiveGame = async (gameId: string) => {
     if (!db || !user || !activeGame) return;
-    
-    // 确定赢家（对手）
     const isBlack = user.uid === activeGame.playerBlackId;
     const winner = isBlack ? 'white' : 'black';
-    
     try {
       await updateDoc(doc(db, "games", gameId), {
         status: 'finished',
@@ -105,23 +102,6 @@ export default function HomePage() {
   const toggleLanguage = () => {
     setLanguage(language === 'zh' ? 'en' : 'zh');
   };
-
-  const announcements = useMemo(() => [
-    {
-      date: '2026-03-01',
-      version: 'v2.2.2',
-      content: language === 'zh' 
-        ? '移除了开发实验性功能，优化了核心博弈引擎的稳定性。' 
-        : 'Removed experimental features, optimized core engine stability.'
-    },
-    {
-      date: '2026-02-28',
-      version: 'v2.2.1',
-      content: language === 'zh' 
-        ? '在线对局新增“弃权(Pass)”与“认输(Resign)”功能；优化了结算弹窗在小屏设备上的显示。' 
-        : 'Added "Pass" and "Resign" features to online games; optimized settlement dialogs for small screens.'
-    }
-  ], [language]);
 
   if (!hasMounted) return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
 
@@ -169,7 +149,6 @@ export default function HomePage() {
                     <Swords className="h-10 w-10 text-white animate-pulse" />
                   </div>
                   <CardTitle className="text-3xl font-black font-headline text-blue-700">正在对局中 (ACTIVE GAME)</CardTitle>
-                  <CardDescription className="text-lg font-medium">您有一个正在进行中的云端博弈。为了确保同步一致性，请先完成此局。</CardDescription>
                 </CardHeader>
                 <CardContent className="p-8">
                    <div className="grid grid-cols-2 gap-6">
@@ -209,7 +188,6 @@ export default function HomePage() {
                       <Play className="h-8 w-8 text-primary" />
                     </div>
                     <CardTitle className="text-2xl">{t('home.practice.title')}</CardTitle>
-                    <CardDescription>{t('home.practice.desc')}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6 mt-auto">
                     <div className="space-y-2">
@@ -219,19 +197,6 @@ export default function HomePage() {
                           <TabsTrigger value="9" className="text-xs">9 x 9</TabsTrigger>
                           <TabsTrigger value="13" className="text-xs">13 x 13</TabsTrigger>
                           <TabsTrigger value="19" className="text-xs">19 x 19</TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground text-center">{t('home.practice.rule')}</p>
-                      <Tabs value={practiceRule} onValueChange={setPracticeRule} className="w-full">
-                        <TabsList className="grid w-full grid-cols-2 h-9">
-                          <TabsTrigger value="chinese" className="text-xs gap-1">
-                            <ShieldCheck className="h-3 w-3" /> {t('rules.chinese')}
-                          </TabsTrigger>
-                          <TabsTrigger value="territory" className="text-xs gap-1">
-                            <Book className="h-3 w-3" /> {t('rules.territory')}
-                          </TabsTrigger>
                         </TabsList>
                       </Tabs>
                     </div>
@@ -249,12 +214,9 @@ export default function HomePage() {
                       <FileUp className="h-8 w-8 text-accent" />
                     </div>
                     <CardTitle className="text-2xl">{t('home.viewer.title')}</CardTitle>
-                    <CardDescription>{t('home.viewer.desc')}</CardDescription>
                   </CardHeader>
-                  <CardContent className="flex-1 flex items-center justify-center p-6">
-                    <p className="text-sm text-center text-muted-foreground">
-                      {t('home.viewer.info')}
-                    </p>
+                  <CardContent className="flex-1 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">
+                    {t('home.viewer.info')}
                   </CardContent>
                   <CardFooter>
                     <Button variant="outline" className="w-full h-12 text-lg font-bold border-accent text-accent hover:bg-accent hover:text-white" onClick={() => router.push('/game/viewer')}>
@@ -269,7 +231,6 @@ export default function HomePage() {
                       <Users className="h-8 w-8 text-blue-500" />
                     </div>
                     <CardTitle className="text-2xl">{t('home.online.title')}</CardTitle>
-                    <CardDescription>{t('home.online.desc')}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 mt-auto">
                     <div className="grid grid-cols-2 gap-3">
@@ -303,68 +264,6 @@ export default function HomePage() {
             <Button variant="ghost" onClick={() => router.push('/history')} className="gap-2">
               <History className="h-4 w-4" /> {t('home.history.btn')}
             </Button>
-            
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="ghost" className="gap-2">
-                  <Bell className="h-4 w-4" /> {t('home.announcement.btn')}
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-full sm:max-w-[540px]">
-                <SheetHeader>
-                  <SheetTitle className="flex items-center gap-2">
-                    <Bell className="h-5 w-5 text-primary" /> {t('home.announcement.title')}
-                  </SheetTitle>
-                </SheetHeader>
-                <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
-                  <div className="space-y-6">
-                    {announcements.map((item, idx) => (
-                      <div key={idx} className="p-4 rounded-lg bg-muted/30 border border-primary/10 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold text-primary">{item.version}</span>
-                          <span className="text-[10px] text-muted-foreground font-mono">{item.date}</span>
-                        </div>
-                        <p className="text-sm text-foreground leading-relaxed">
-                          {item.content}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </SheetContent>
-            </Sheet>
-
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="ghost" className="gap-2">
-                  <Info className="h-4 w-4" /> {t('home.rules.btn')}
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-full md:max-w-[90vw] lg:max-w-[1200px]">
-                <SheetHeader className="space-y-4">
-                  <SheetTitle className="flex items-center gap-2">
-                    <Book className="h-5 w-5 text-accent" /> {t('home.rules.btn')}
-                  </SheetTitle>
-                  <Tabs value={ruleViewType} onValueChange={(val) => setRuleViewType(val as 'chinese' | 'territory')} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="chinese" className="gap-2">
-                        <ShieldCheck className="h-4 w-4" /> {language === 'zh' ? '中国规则 (ZH-AS)' : 'Chinese Rules (EN-AS)'}
-                      </TabsTrigger>
-                      <TabsTrigger value="territory" className="gap-2">
-                        <Book className="h-4 w-4" /> {language === 'zh' ? '日韩规则 (ZH-TBC)' : 'Japanese Rules (EN-TBC)'}
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </SheetHeader>
-                <ScrollArea className="h-[calc(100vh-160px)] mt-4 pr-4">
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <pre className="whitespace-pre-wrap font-sans text-sm p-4 md:p-8 bg-muted/30 rounded-lg border leading-relaxed break-words">
-                      {rules || "Loading..."}
-                    </pre>
-                  </div>
-                </ScrollArea>
-              </SheetContent>
-            </Sheet>
           </div>
 
           <div className="text-xs text-center text-muted-foreground opacity-50">

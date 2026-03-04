@@ -41,7 +41,6 @@ function OnlineGameContent() {
   const db = useFirestore();
   const { toast } = useToast();
 
-  // 1. 基础状态
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [dismissGameOver, setDismissGameOver] = useState(false);
   const [showPassConfirm, setShowPassConfirm] = useState(false);
@@ -49,14 +48,13 @@ function OnlineGameContent() {
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
   const hasCheckedCatchup = useRef(false);
 
-  // 2. 核心数据订阅
+  // 核心数据订阅
   const gameRef = useMemoFirebase(() => (db && roomId && user) ? doc(db, "games", roomId) : null, [db, roomId, user]);
   const { data: game, isLoading: loadingGame } = useDoc(gameRef);
 
   const movesQuery = useMemoFirebase(() => (db && roomId && user && game) ? query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")) : null, [db, roomId, user, game?.id]);
   const { data: moves } = useCollection(movesQuery);
 
-  // 3. 衍射数据
   const opponentId = useMemo(() => {
     if (!game || !user) return null;
     return user.uid === game.playerBlackId ? game.playerWhiteId : game.playerBlackId;
@@ -82,13 +80,14 @@ function OnlineGameContent() {
     return BOARD_TIME_LIMITS[game.boardSize] || 10800;
   }, [game?.boardSize]);
 
-  // 4. 对局逻辑控制
+  // 更新活跃时间戳
   useEffect(() => {
     if (db && roomId && isInProgress) {
       updateDoc(doc(db, "games", roomId), { lastActivityAt: serverTimestamp() }).catch(() => {});
     }
   }, [db, roomId, isInProgress]);
 
+  // 初始同步消耗时间
   useEffect(() => {
     if (game) {
       setTimeUsed({ 
@@ -98,6 +97,7 @@ function OnlineGameContent() {
     }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
+  // 超时回归检查逻辑
   useEffect(() => {
     if (db && roomId && game && isInProgress && !isFinished && !hasCheckedCatchup.current) {
       if (!game.lastActivityAt) return; 
@@ -127,6 +127,7 @@ function OnlineGameContent() {
     }
   }, [db, roomId, game, isInProgress, isFinished, timeLimit]);
 
+  // 实时计时器
   useEffect(() => {
     if (isInProgress && !isFinished && !isSpectating && isPlayer && game?.currentTurn) {
       const interval = setInterval(() => {
@@ -257,7 +258,6 @@ function OnlineGameContent() {
       } 
     });
     setShowResignConfirm(false);
-    toast({ title: "对局已结束", description: "您已认输。" });
   };
 
   const formatDuration = (s: number) => {
@@ -276,11 +276,10 @@ function OnlineGameContent() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
              <div className="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded-sm uppercase tracking-tighter">Live</div>
-             <h2 className="text-sm font-black font-headline text-blue-700 tracking-tight flex items-center gap-2">
+             <h2 className="text-sm font-black font-headline text-blue-700 tracking-tight">
                在线同步对弈 (ONLINE SYNC MATCH)
              </h2>
           </div>
-          <div className="h-4 w-px bg-blue-500/20 hidden md:block" />
           <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
             <Globe className="h-3 w-3 text-green-500" /> 云端同步已开启
           </div>
@@ -291,21 +290,19 @@ function OnlineGameContent() {
         </div>
       </div>
 
-      <div className="flex justify-center">
-          {isInProgress && (
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex items-center gap-3 px-6 py-2 rounded-full bg-background border-4 border-primary/10 shadow-lg animate-turn-indicator-pop">
-                <div className={cn(
-                  "w-4 h-4 rounded-full border-2 shadow-sm",
-                  game.currentTurn === 'black' ? 'bg-black border-white/20' : 'bg-white border-black/10'
-                )} />
-                <span className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
-                  {game.currentTurn === 'black' ? '黑方回合' : '白方回合'}
-                </span>
-              </div>
-            </div>
-          )}
-      </div>
+      {isInProgress && !isFinished && (
+        <div className="flex justify-center">
+          <div className="flex items-center gap-3 px-6 py-2 rounded-full bg-background border-4 border-primary/10 shadow-lg animate-turn-indicator-pop">
+            <div className={cn(
+              "w-4 h-4 rounded-full border-2 shadow-sm",
+              game.currentTurn === 'black' ? 'bg-black border-white/20' : 'bg-white border-black/10'
+            )} />
+            <span className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
+              {game.currentTurn === 'black' ? '黑方回合' : '白方回合'}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-[1fr_350px] gap-8">
         <div className="relative">
@@ -314,7 +311,7 @@ function OnlineGameContent() {
             size={game?.boardSize || 19} 
             onMove={(r, c) => handleMove(game?.currentTurn === 'black' ? 'black' : 'white', r, c)} 
             currentPlayer={game?.currentTurn as Player} 
-            readOnly={!canMove || isSpectating || isFinished} 
+            readOnly={!canMove || isFinished} 
             lastMove={moves?.length ? moves[moves.length-1] : null}
             moveSetting={moveSetting}
           />
@@ -383,11 +380,6 @@ function OnlineGameContent() {
           </Card>
           
           <div className="space-y-4">
-            {isFinished && (
-              <Button variant="default" className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 gap-2 shadow-lg" onClick={() => router.push('/game/online/lobby')}>
-                <LogOut className="h-5 w-5" /> 退出并返回大厅
-              </Button>
-            )}
             <ToolPanel 
               onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
               onResign={isInProgress && isPlayer ? () => setShowResignConfirm(true) : undefined} 
