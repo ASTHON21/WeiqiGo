@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MoveSetting, Player, BoardState } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { AI_BOT_CONFIG } from '@/lib/ai/bot-constants';
-import { suggestMove } from '@/ai/flows/suggest-move-flow';
+import { KataGoController } from '@/lib/ai/katago-engine';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,6 +50,9 @@ function OnlineGameContent() {
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
   const [isAiThinking, setIsAiThinking] = useState(false);
   const hasCheckedCatchup = useRef(false);
+  
+  // Local KataGo Instance
+  const aiController = useRef<KataGoController | null>(null);
 
   const gameRef = useMemoFirebase(() => (db && roomId && user) ? doc(db, "games", roomId) : null, [db, roomId, user]);
   const { data: game, isLoading: loadingGame } = useDoc(gameRef);
@@ -86,6 +89,16 @@ function OnlineGameContent() {
   const movesQuery = useMemoFirebase(() => (db && roomId && user && (isInProgress || isFinished)) ? query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")) : null, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
 
+  // Initialize AI Controller
+  useEffect(() => {
+    if (isOpponentAi && game?.boardSize) {
+      aiController.current = new KataGoController(game.boardSize);
+    }
+    return () => {
+      aiController.current?.terminate();
+    };
+  }, [isOpponentAi, game?.boardSize]);
+
   // AI 自动接受挑战
   useEffect(() => {
     if (db && roomId && game && isPending && isOpponentAi && user?.uid === game.playerBlackId) {
@@ -100,22 +113,22 @@ function OnlineGameContent() {
   // AI 回合处理
   useEffect(() => {
     const handleAiTurn = async () => {
-      if (!db || !roomId || !game || !isInProgress || isAiThinking) return;
+      if (!db || !roomId || !game || !isInProgress || isAiThinking || !aiController.current) return;
       if (game.currentTurn === 'white' && isOpponentAi && user?.uid === game.playerBlackId) {
         setIsAiThinking(true);
         
         try {
-          // 构建棋盘字符串表示用于 AI 思考
-          const boardString = board.map(row => row.map(cell => cell === 'black' ? 'B' : cell === 'white' ? 'W' : '.').join('')).join('\n');
-          const historyStrings = boardHistory.map(b => b.map(row => row.map(c => c || '.').join('')).join(''));
+          // Sync history to WASM engine
+          const history = (moves || []).map(m => ({
+            r: m.coordinatesX,
+            c: m.coordinatesY,
+            color: m.playerColor as 'black' | 'white'
+          })).filter(m => m.r !== -1);
+
+          await aiController.current.setHistory(history);
           
-          const suggestion = await suggestMove({
-            boardSize: game.boardSize,
-            rules: game.rules,
-            boardString,
-            playerColor: 'white',
-            history: historyStrings
-          });
+          // Generate professional move via WASM
+          const suggestion = await aiController.current.generateMove('white');
 
           if (suggestion.r === -1 && suggestion.c === -1) {
             handlePass('white');
@@ -123,8 +136,8 @@ function OnlineGameContent() {
             handleMove('white', suggestion.r, suggestion.c);
           }
         } catch (error) {
-          console.error("AI Move Failed:", error);
-          toast({ variant: "destructive", title: "AI 思考中断", description: "云端大脑连接异常。" });
+          console.error("KataGo WASM Move Failed:", error);
+          toast({ variant: "destructive", title: "AI 引擎异常", description: "本地 WASM 推理失败，请检查模型文件。" });
         } finally {
           setIsAiThinking(false);
         }
@@ -132,7 +145,7 @@ function OnlineGameContent() {
     };
 
     if (game?.currentTurn === 'white' && isOpponentAi) {
-        const timer = setTimeout(handleAiTurn, 1500); // 延迟一点模拟思考
+        const timer = setTimeout(handleAiTurn, 800); // Small delay for UX
         return () => clearTimeout(timer);
     }
   }, [game?.currentTurn, isOpponentAi, isInProgress, moves?.length]);
@@ -345,17 +358,6 @@ function OnlineGameContent() {
     });
   };
 
-  const handleCancelInvite = async () => {
-    if (!db || !roomId || !user || !game || game.status !== 'pending') return;
-    await updateDoc(doc(db, "games", roomId), {
-      status: 'finished',
-      finishedAt: serverTimestamp(),
-      lastActivityAt: serverTimestamp(),
-      result: { winner: null, reason: '挑战已取消', diff: 0 }
-    });
-    router.push('/game/online/lobby');
-  };
-
   const formatDuration = (s: number) => {
     const hrs = Math.floor(s / 3600);
     const mins = Math.floor((s % 3600) / 60);
@@ -378,7 +380,7 @@ function OnlineGameContent() {
           </div>
           <div className="h-4 w-px bg-blue-500/20 hidden md:block" />
           <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-            <Globe className="h-3 w-3 text-green-500" /> {isOpponentAi ? "AI 云端节点已连接" : "云端同步已开启"}
+            <Globe className="h-3 w-3 text-green-500" /> {isOpponentAi ? "本地 KataGo WASM 已载入" : "云端同步已开启"}
           </div>
         </div>
         <div className="flex gap-2">
@@ -396,7 +398,7 @@ function OnlineGameContent() {
                   game.currentTurn === 'black' ? 'bg-black border-white/20' : 'bg-white border-black/10'
                 )} />
                 <span className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
-                  {isAiThinking && game.currentTurn === 'white' ? 'AI 正在思考...' : (game.currentTurn === 'black' ? '黑方回合' : '白方回合')}
+                  {isAiThinking && game.currentTurn === 'white' ? 'AI 正在本地思考...' : (game.currentTurn === 'black' ? '黑方回合' : '白方回合')}
                 </span>
                 {isAiThinking && game.currentTurn === 'white' && <Loader2 className="h-3 w-3 animate-spin text-blue-500" />}
               </div>
@@ -453,7 +455,7 @@ function OnlineGameContent() {
                 <div className="flex items-center gap-2"><Timer className="h-3 w-3" /> 计时与状态</div>
                 <div className="flex items-center gap-1">
                    <div className={cn("w-1.5 h-1.5 rounded-full", isOpponentOffline ? "bg-red-500" : "bg-green-500")} />
-                   <span className="text-[8px] opacity-70 uppercase">{isOpponentAi ? "AI ONLINE" : (isOpponentOffline ? "OFFLINE" : "LIVE")}</span>
+                   <span className="text-[8px] opacity-70 uppercase">{isOpponentAi ? "AI WASM ONLINE" : (isOpponentOffline ? "OFFLINE" : "LIVE")}</span>
                 </div>
               </CardTitle>
             </CardHeader>
