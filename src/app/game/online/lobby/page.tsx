@@ -11,10 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2, Hash, AlertCircle } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2, Hash, AlertCircle, Bot } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/language-context';
 import { cn } from '@/lib/utils';
+import { AI_BOT_CONFIG } from '@/lib/ai/bot-constants';
 
 export default function OnlineLobbyPage() {
   const router = useRouter();
@@ -28,7 +29,6 @@ export default function OnlineLobbyPage() {
   const [selectedRule, setSelectedRule] = useState("chinese");
   const [isSendingInvite, setIsSendingInvite] = useState(false);
 
-  // 1. 监听发给自己的待处理邀请
   const inviteQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -40,11 +40,9 @@ export default function OnlineLobbyPage() {
   }, [db, user]);
   const { data: incomingInvites } = useCollection(inviteQuery);
 
-  // 2. 监听所有活跃玩家
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
   const { data: rawPlayers } = useCollection(playersQuery);
 
-  // 3. 监听所有潜在活跃对局
   const activeGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -54,39 +52,47 @@ export default function OnlineLobbyPage() {
   }, [db]);
   const { data: allActiveGames } = useCollection(activeGamesQuery);
 
-  // 4. 监听完赛名局
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collection(db, "games"), where("status", "==", "finished"), limit(20));
   }, [db]);
   const { data: rawRecentGames } = useCollection(recentGamesQuery);
 
-  // 在内存中过滤掉超过 5 分钟没有心跳的棋手
   const activePlayers = useMemo(() => {
     if (!rawPlayers) return [];
     const now = Date.now();
     const FIVE_MINUTES = 5 * 60 * 1000;
-    return rawPlayers.filter(p => {
+    
+    // 基础过滤
+    const filtered = rawPlayers.filter(p => {
       if (!p.lastSeen) return false;
       const lastSeenTime = p.lastSeen instanceof Timestamp ? p.lastSeen.toMillis() : new Date(p.lastSeen).getTime();
       return (now - lastSeenTime) < FIVE_MINUTES;
     });
+
+    // 确保 AI Bot 始终在列表中
+    if (!filtered.find(p => p.id === AI_BOT_CONFIG.uid)) {
+      filtered.push({
+        id: AI_BOT_CONFIG.uid,
+        displayName: AI_BOT_CONFIG.displayName,
+        lastSeen: new Date()
+      });
+    }
+
+    return filtered;
   }, [rawPlayers]);
 
-  // 【幽灵对局隔离】核心改进：不仅过滤完赛对局，还严格排除超过 15 分钟无响应的“僵尸对局”
   const trulyActiveGamesCount = useMemo(() => {
     if (!allActiveGames) return 0;
     const now = Date.now();
     const STALE_THRESHOLD = 15 * 60 * 1000;
     return allActiveGames.filter(g => {
-      // 刚创建且无 activity 的暂视为活跃，否则检查 activity 时间戳
       if (!g.lastActivityAt) return true; 
       const lastActivity = g.lastActivityAt instanceof Timestamp ? g.lastActivityAt.toMillis() : new Date(g.lastActivityAt).getTime();
       return (now - lastActivity) < STALE_THRESHOLD;
     }).length;
   }, [allActiveGames]);
 
-  // 计算正在对局中的棋手 ID 集合（仅包含真实活跃的对局）
   const playingPlayerIds = useMemo(() => {
     const ids = new Set<string>();
     const now = Date.now();
@@ -95,7 +101,6 @@ export default function OnlineLobbyPage() {
     allActiveGames?.forEach(g => {
       if (g.status === 'in-progress') {
         const lastActivity = g.lastActivityAt instanceof Timestamp ? g.lastActivityAt.toMillis() : new Date(g.lastActivityAt).getTime();
-        // 只有非幽灵对局的棋手才显示为“正在对局中”
         if ((now - lastActivity) < STALE_THRESHOLD) {
           if (g.playerBlackId) ids.add(g.playerBlackId);
           if (g.playerWhiteId) ids.add(g.playerWhiteId);
@@ -105,40 +110,30 @@ export default function OnlineLobbyPage() {
     return ids;
   }, [allActiveGames]);
 
-  // 名局排序逻辑：严格限制在1小时内完赛
   const recentGames = useMemo(() => {
     if (!rawRecentGames) return [];
     const now = Date.now();
     const ONE_HOUR = 60 * 60 * 1000;
-    
-    return [...rawRecentGames]
-      .filter(game => {
+    return [...rawRecentGames].filter(game => {
         if (!game.finishedAt) return false;
         const finishedTime = game.finishedAt instanceof Timestamp ? game.finishedAt.toMillis() : new Date(game.finishedAt).getTime();
         return (now - finishedTime) < ONE_HOUR;
-      })
-      .sort((a, b) => (b.finishedAt?.seconds || 0) - (a.finishedAt?.seconds || 0))
-      .slice(0, 15);
+      }).sort((a, b) => (b.finishedAt?.seconds || 0) - (a.finishedAt?.seconds || 0)).slice(0, 15);
   }, [rawRecentGames]);
 
   const handleInvite = () => {
     if (!invitingPlayer || !user || !db || isSendingInvite) return;
     
-    // 如果有效活跃对局达到 30 局上限，则进行拦截
     if (trulyActiveGamesCount >= 30) {
-      toast({ 
-        variant: "destructive", 
-        title: "服务器负载受限", 
-        description: "当前在线活跃对局已达上限 (30局)，系统正在清理幽灵对局，请稍后再试。" 
-      });
+      toast({ variant: "destructive", title: "服务器负载受限", description: "活跃对局已达上限。" });
       return;
     }
 
     setIsSendingInvite(true);
-    
     const gameRef = doc(collection(db, "games"));
     const gameId = gameRef.id;
 
+    // 如果挑战的是 AI，状态直接设为 pending，对局页面会自动让其 in-progress
     const gameData = {
       id: gameId,
       playerBlackId: user.uid,
@@ -159,32 +154,23 @@ export default function OnlineLobbyPage() {
     };
 
     setDoc(gameRef, gameData).then(() => {
-      toast({ title: "邀请已发出", description: `等待 ${invitingPlayer.name} 接受挑战...` });
+      toast({ title: "挑战已发送", description: invitingPlayer.id === AI_BOT_CONFIG.uid ? "AI 已准备就绪！" : `等待 ${invitingPlayer.name} 接受...` });
       router.push(`/game/online/${gameId}`);
     }).catch((err) => {
-      console.error("Invite failed:", err);
-      toast({ variant: "destructive", title: "发起失败", description: "无法连接到竞技节点，请检查网络。" });
+      toast({ variant: "destructive", title: "发起失败", description: "网络异常。" });
       setIsSendingInvite(false);
     });
   };
 
   const handleAcceptInvite = (gameId: string) => {
     if (!db) return;
-    updateDoc(doc(db, "games", gameId), { 
-      status: 'in-progress', 
-      startedAt: serverTimestamp(),
-      lastActivityAt: serverTimestamp() 
-    });
+    updateDoc(doc(db, "games", gameId), { status: 'in-progress', startedAt: serverTimestamp(), lastActivityAt: serverTimestamp() });
     router.push(`/game/online/${gameId}`);
   };
 
   const handleDeclineInvite = (gameId: string) => {
     if (!db) return;
-    updateDoc(doc(db, "games", gameId), { 
-      status: 'finished', 
-      finishedAt: serverTimestamp(), 
-      result: { winner: null, reason: '对方拒绝了挑战', diff: 0 } 
-    });
+    updateDoc(doc(db, "games", gameId), { status: 'finished', finishedAt: serverTimestamp(), result: { winner: null, reason: '对方拒绝了挑战', diff: 0 } });
   };
 
   if (loadingUser) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
@@ -198,7 +184,7 @@ export default function OnlineLobbyPage() {
           <h1 className="text-3xl font-bold font-headline text-blue-500 flex items-center gap-3">
             <Swords className="h-8 w-8" /> 竞技大厅
           </h1>
-          <p className="text-xs text-muted-foreground italic">寻找活跃棋手，共赴黑白之约。</p>
+          <p className="text-xs text-muted-foreground italic">与棋手或 AI 进行博弈挑战。</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {user && (
@@ -209,7 +195,7 @@ export default function OnlineLobbyPage() {
               </span>
             </div>
           )}
-          <Button variant="ghost" size="sm" onClick={() => router.push('/')} className="hover:bg-muted">返回首页</Button>
+          <Button variant="ghost" size="sm" onClick={() => router.push('/')}>返回首页</Button>
         </div>
       </div>
 
@@ -229,7 +215,7 @@ export default function OnlineLobbyPage() {
             trulyActiveGamesCount >= 25 ? "bg-red-500/10 border-red-500 text-red-700" : "bg-muted/50 border-muted"
           )}>
             <Wifi className={cn("h-3 w-3", trulyActiveGamesCount >= 25 ? "text-red-500" : "text-blue-500")} /> 
-            有效活跃对局: {trulyActiveGamesCount} / 30
+            活跃对局: {trulyActiveGamesCount} / 30
           </Badge>
         </div>
 
@@ -237,17 +223,20 @@ export default function OnlineLobbyPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {activePlayers?.filter(p => p.id !== user?.uid).map(p => {
               const isPlaying = playingPlayerIds.has(p.id);
+              const isBot = p.id === AI_BOT_CONFIG.uid;
               return (
-                <Card key={p.id} className={cn("transition-all group border-2", isPlaying ? "opacity-75" : "hover:border-blue-500")}>
+                <Card key={p.id} className={cn("transition-all group border-2", isPlaying ? "opacity-75" : "hover:border-blue-500", isBot && "border-blue-200 bg-blue-50/30")}>
                   <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Avatar className="border-2 border-muted">
-                        <AvatarFallback className="bg-muted font-bold text-muted-foreground">
-                          {p.displayName?.[0] || 'U'}
+                      <Avatar className={cn("border-2", isBot ? "border-blue-500" : "border-muted")}>
+                        <AvatarFallback className={cn("font-bold", isBot ? "bg-blue-600 text-white" : "bg-muted text-muted-foreground")}>
+                          {isBot ? <Bot className="h-5 w-5" /> : (p.displayName?.[0] || 'U')}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-bold text-foreground group-hover:text-blue-600 transition-colors">{p.displayName}</p>
+                        <p className="font-bold text-foreground group-hover:text-blue-600 transition-colors">
+                            {p.displayName} {isBot && <Badge variant="secondary" className="ml-2 text-[8px] bg-blue-100 text-blue-700">AI</Badge>}
+                        </p>
                         <div className="flex items-center gap-2">
                           {isPlaying ? (
                             <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 gap-1 bg-blue-100 text-blue-700 border-blue-200">
@@ -255,7 +244,7 @@ export default function OnlineLobbyPage() {
                             </Badge>
                           ) : (
                             <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                              <Wifi className="h-2 w-2 text-green-500 fill-green-500" /> 空闲在线
+                              <Wifi className="h-2 w-2 text-green-500 fill-green-500" /> {isBot ? "随时待命" : "空闲在线"}
                             </p>
                           )}
                         </div>
@@ -275,11 +264,6 @@ export default function OnlineLobbyPage() {
                 </Card>
               );
             })}
-            {activePlayers?.length <= 1 && (
-              <div className="col-span-full py-20 text-center border-2 border-dashed rounded-xl bg-muted/20">
-                <p className="text-muted-foreground text-sm font-medium">暂时没有其他在线棋手...</p>
-              </div>
-            )}
           </div>
         </TabsContent>
 
@@ -294,42 +278,27 @@ export default function OnlineLobbyPage() {
                          {game.result?.winner === 'black' ? t('lobby.game.winner') : ''}
                        </Badge>
                        <p className="font-bold text-sm">{game.playerBlackName}</p>
-                       <p className="text-[10px] text-muted-foreground font-bold uppercase">BLACK</p>
                     </div>
-                    <div className="flex flex-col items-center gap-2">
+                    <div className="flex flex-col items-center gap-1">
                       <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest bg-muted px-2 py-0.5 rounded">VS</div>
                       <Badge variant="outline" className="border-2 font-mono h-6">{game.boardSize}x{game.boardSize}</Badge>
-                      <div className="flex flex-col items-center gap-1">
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200 uppercase tracking-tighter">
-                          {game.rules === 'chinese' ? '中国规则' : '日韩规则'}
-                        </Badge>
-                        <div className="flex items-center gap-1 text-[9px] font-black text-muted-foreground/60 uppercase">
-                          <Hash className="h-2 w-2" /> {game.moveCount || 0} 手
-                        </div>
-                      </div>
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 uppercase tracking-tighter">
+                        {game.rules === 'chinese' ? '中国规则' : '日韩规则'}
+                      </Badge>
                     </div>
                     <div className="text-center space-y-1">
                        <Badge className={game.result?.winner === 'white' ? 'bg-blue-600 text-white' : 'bg-muted'}>
                          {game.result?.winner === 'white' ? t('lobby.game.winner') : ''}
                        </Badge>
                        <p className="font-bold text-sm">{game.playerWhiteName}</p>
-                       <p className="text-[10px] text-muted-foreground font-bold uppercase">WHITE</p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <p className="text-[10px] font-bold text-muted-foreground italic">胜负: {game.result?.reason}</p>
-                    <Button variant="outline" className="gap-2 border-2 hover:bg-blue-600 hover:text-white hover:border-blue-600 h-10 px-6 font-bold" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
-                      <Eye className="h-4 w-4" /> {t('lobby.game.view')}
-                    </Button>
-                  </div>
+                  <Button variant="outline" className="gap-2 border-2 hover:bg-blue-600 hover:text-white h-10 px-6 font-bold" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
+                    <Eye className="h-4 w-4" /> {t('lobby.game.view')}
+                  </Button>
                 </CardContent>
               </Card>
             ))}
-            {recentGames?.length === 0 && (
-              <div className="py-20 text-center border-2 border-dashed rounded-xl bg-muted/20">
-                <p className="text-muted-foreground text-sm font-medium">最近一小时暂无完赛名局...</p>
-              </div>
-            )}
           </div>
         </TabsContent>
       </Tabs>
@@ -340,9 +309,7 @@ export default function OnlineLobbyPage() {
             <DialogTitle className="text-xl font-headline flex items-center gap-2">
               <Swords className="h-5 w-5 text-blue-500" /> 向 {invitingPlayer?.name} 发起挑战
             </DialogTitle>
-            <DialogDescription>
-              请设定对局参数。对方接受后，对局将正式开始。
-            </DialogDescription>
+            <DialogDescription>设定对局参数。AI 将自动接受挑战。</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="space-y-3">
@@ -369,7 +336,7 @@ export default function OnlineLobbyPage() {
             <Button variant="ghost" className="flex-1 font-bold" onClick={() => setInvitingPlayer(null)} disabled={isSendingInvite}>取消</Button>
             <Button className="flex-1 bg-blue-600 hover:bg-blue-700 font-bold gap-2" onClick={handleInvite} disabled={isSendingInvite}>
               {isSendingInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-              {isSendingInvite ? "正在发送..." : "发送挑战书"}
+              {isSendingInvite ? "正在进入..." : "开始博弈"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -383,30 +350,15 @@ export default function OnlineLobbyPage() {
             </div>
             <DialogTitle className="text-2xl font-black font-headline text-blue-700">收到挑战！</DialogTitle>
             <DialogDescription className="text-base">
-              来自 <span className="font-bold text-foreground">{currentInvite?.playerBlackName}</span> 的博弈邀请。
+              来自 <span className="font-bold text-foreground">{currentInvite?.playerBlackName}</span> 的挑战。
             </DialogDescription>
           </DialogHeader>
-          <div className="bg-muted/30 p-4 rounded-lg flex justify-around text-center border-2 border-blue-500/10">
-            <div><p className="text-[10px] font-bold text-muted-foreground uppercase">棋盘</p><p className="font-bold">{currentInvite?.boardSize}x{currentInvite?.boardSize}</p></div>
-            <div><p className="text-[10px] font-bold text-muted-foreground uppercase">规则</p><p className="font-bold">{currentInvite?.rules === 'chinese' ? '中国规则' : '日韩规则'}</p></div>
-          </div>
           <DialogFooter className="grid grid-cols-2 gap-3 mt-4">
-            <Button variant="outline" className="h-12 border-2 hover:bg-red-50 hover:text-red-600 hover:border-red-200 gap-2" onClick={() => handleDeclineInvite(currentInvite.id)}>
-              <XCircle className="h-4 w-4" /> 婉言拒绝
-            </Button>
-            <Button className="h-12 bg-blue-600 hover:bg-blue-700 gap-2" onClick={() => handleAcceptInvite(currentInvite.id)}>
-              <CheckCircle2 className="h-4 w-4" /> 接受对局
-            </Button>
+            <Button variant="outline" className="h-12 border-2" onClick={() => handleDeclineInvite(currentInvite.id)}>拒绝</Button>
+            <Button className="h-12 bg-blue-600" onClick={() => handleAcceptInvite(currentInvite.id)}>接受</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <div className="text-center opacity-30 pointer-events-none pb-8 space-y-1">
-        <p className="text-[10px] uppercase font-bold tracking-widest">Global Competition Node: SG-1</p>
-        <div className="flex items-center justify-center gap-2 text-[8px] font-black uppercase text-blue-600">
-           <AlertCircle className="h-2 w-2" /> 系统会自动清理 15 分钟无响应的幽灵对局
-        </div>
-      </div>
     </div>
   );
 }

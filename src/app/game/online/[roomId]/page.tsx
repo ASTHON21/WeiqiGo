@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe, Eye, XCircle, LogOut, AlertTriangle, UserX } from 'lucide-react';
+import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe, Eye, XCircle, LogOut, AlertTriangle, UserX, Cpu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -15,6 +15,8 @@ import { createEmptyBoard, GoLogic } from '@/lib/go-logic';
 import { useToast } from '@/hooks/use-toast';
 import { MoveSetting, Player, BoardState } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { AI_BOT_CONFIG } from '@/lib/ai/bot-constants';
+import { suggestMove } from '@/ai/flows/suggest-move-flow';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +27,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// 严格的时长规范
 const BOARD_TIME_LIMITS: Record<number, number> = {
   19: 3 * 3600, 
   13: 2 * 3600, 
@@ -47,12 +48,12 @@ function OnlineGameContent() {
   const [showPassConfirm, setShowPassConfirm] = useState(false);
   const [showResignConfirm, setShowResignConfirm] = useState(false);
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
+  const [isAiThinking, setIsAiThinking] = useState(false);
   const hasCheckedCatchup = useRef(false);
 
   const gameRef = useMemoFirebase(() => (db && roomId && user) ? doc(db, "games", roomId) : null, [db, roomId, user]);
   const { data: game, isLoading: loadingGame } = useDoc(gameRef);
 
-  // 监听对手状态以防止幽灵等待
   const opponentId = useMemo(() => {
     if (!game || !user) return null;
     return user.uid === game.playerBlackId ? game.playerWhiteId : game.playerBlackId;
@@ -61,13 +62,16 @@ function OnlineGameContent() {
   const opponentProfileRef = useMemoFirebase(() => (db && opponentId) ? doc(db, "userProfiles", opponentId) : null, [db, opponentId]);
   const { data: opponentProfile } = useDoc(opponentProfileRef);
 
+  const isOpponentAi = opponentId === AI_BOT_CONFIG.uid;
+
   const isOpponentOffline = useMemo(() => {
+    if (isOpponentAi) return false;
     if (!opponentProfile?.lastSeen) return false;
     const now = Date.now();
     const FIVE_MINUTES = 5 * 60 * 1000;
     const lastSeenTime = opponentProfile.lastSeen instanceof Timestamp ? opponentProfile.lastSeen.toMillis() : new Date(opponentProfile.lastSeen).getTime();
     return (now - lastSeenTime) > FIVE_MINUTES;
-  }, [opponentProfile]);
+  }, [opponentProfile, isOpponentAi]);
 
   const isPending = game?.status === 'pending';
   const isFinished = game?.status === 'finished';
@@ -79,11 +83,60 @@ function OnlineGameContent() {
     return BOARD_TIME_LIMITS[game.boardSize] || 10800;
   }, [game?.boardSize]);
 
-  // Fetch moves early to avoid initialization errors in useEffects
   const movesQuery = useMemoFirebase(() => (db && roomId && user && (isInProgress || isFinished)) ? query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")) : null, [db, roomId, user, isInProgress, isFinished]);
   const { data: moves } = useCollection(movesQuery);
 
-  // 活性更新：进入房间时告知系统当前房间是活跃的
+  // AI 自动接受挑战
+  useEffect(() => {
+    if (db && roomId && game && isPending && isOpponentAi && user?.uid === game.playerBlackId) {
+      updateDoc(doc(db, "games", roomId), { 
+        status: 'in-progress',
+        startedAt: serverTimestamp(),
+        lastActivityAt: serverTimestamp() 
+      }).catch(() => {});
+    }
+  }, [db, roomId, game, isPending, isOpponentAi, user]);
+
+  // AI 回合处理
+  useEffect(() => {
+    const handleAiTurn = async () => {
+      if (!db || !roomId || !game || !isInProgress || isAiThinking) return;
+      if (game.currentTurn === 'white' && isOpponentAi && user?.uid === game.playerBlackId) {
+        setIsAiThinking(true);
+        
+        try {
+          // 构建棋盘字符串表示用于 AI 思考
+          const boardString = board.map(row => row.map(cell => cell === 'black' ? 'B' : cell === 'white' ? 'W' : '.').join('')).join('\n');
+          const historyStrings = boardHistory.map(b => b.map(row => row.map(c => c || '.').join('')).join(''));
+          
+          const suggestion = await suggestMove({
+            boardSize: game.boardSize,
+            rules: game.rules,
+            boardString,
+            playerColor: 'white',
+            history: historyStrings
+          });
+
+          if (suggestion.r === -1 && suggestion.c === -1) {
+            handlePass('white');
+          } else {
+            handleMove('white', suggestion.r, suggestion.c);
+          }
+        } catch (error) {
+          console.error("AI Move Failed:", error);
+          toast({ variant: "destructive", title: "AI 思考中断", description: "云端大脑连接异常。" });
+        } finally {
+          setIsAiThinking(false);
+        }
+      }
+    };
+
+    if (game?.currentTurn === 'white' && isOpponentAi) {
+        const timer = setTimeout(handleAiTurn, 1500); // 延迟一点模拟思考
+        return () => clearTimeout(timer);
+    }
+  }, [game?.currentTurn, isOpponentAi, isInProgress, moves?.length]);
+
   useEffect(() => {
     if (db && roomId && isInProgress) {
       updateDoc(doc(db, "games", roomId), { lastActivityAt: serverTimestamp() }).catch(() => {});
@@ -99,10 +152,9 @@ function OnlineGameContent() {
     }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
-  // 核心增强：强制回归结算 (Catch-up Settlement)
   useEffect(() => {
     if (db && roomId && game && isInProgress && !isFinished && !hasCheckedCatchup.current) {
-      if (!game.lastActivityAt) return; // 等待时间戳同步
+      if (!game.lastActivityAt) return; 
       
       const turn = game.currentTurn as 'black' | 'white';
       const lastActivity = game.lastActivityAt instanceof Timestamp ? game.lastActivityAt.toMillis() : new Date(game.lastActivityAt).getTime();
@@ -171,7 +223,7 @@ function OnlineGameContent() {
       history.push(tempBoard.map(row => [...row]));
       
       if (m.coordinatesX !== -1) {
-        const result = GoLogic.processMove(tempBoard, m.coordinatesX, m.coordinatesY, m.playerColor, []);
+        const result = GoLogic.processMove(tempBoard, m.coordinatesX, m.coordinatesY, m.playerColor, history.slice(-10));
         if (result.success) {
            tempBoard = result.newBoard;
            if (result.capturedCount > 0) p[m.playerColor === 'black' ? 'black' : 'white'] += result.capturedCount; 
@@ -179,32 +231,26 @@ function OnlineGameContent() {
       }
     });
     
-    return { board: tempBoard, prisoners: p, boardHistory: history.slice(-10) };
+    return { board: tempBoard, prisoners: p, boardHistory: history };
   }, [game?.boardSize, moves]);
 
-  const canMove = !isSpectating && isPlayer && isInProgress && (game?.currentTurn === (user?.uid === game?.playerBlackId ? 'black' : 'white'));
+  const canMove = !isSpectating && isPlayer && isInProgress && (game?.currentTurn === (user?.uid === game?.playerBlackId ? 'black' : 'white')) && !isAiThinking;
 
-  const handleMove = async (r: number, c: number) => {
-    if (!canMove || !user || !game) return;
-    const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
+  const handleMove = async (color: Player, r: number, c: number) => {
+    if (!db || !roomId || !game) return;
     
-    const result = GoLogic.processMove(board, r, c, playerColor, boardHistory);
+    const result = GoLogic.processMove(board, r, c, color, boardHistory.slice(-10));
     
     if (!result.success) {
-      let errorMsg = "无效落子";
-      if (result.error === 'ko') errorMsg = "禁止打劫！根据规则，不能立即回提。";
-      if (result.error === 'suicide') errorMsg = "禁止自杀！落子后棋子必须有气。";
-      
-      return toast({ 
-        variant: "destructive", 
-        title: "落子受限",
-        description: errorMsg
-      });
+      if (color === 'black') {
+        toast({ variant: "destructive", title: "落子受限", description: result.error === 'ko' ? "禁止打劫！" : "无效位置。" });
+      }
+      return;
     }
 
     addDoc(collection(db, `games/${roomId}/moves`), { 
       gameId: roomId, 
-      playerColor, 
+      playerColor: color, 
       coordinatesX: r, 
       coordinatesY: c, 
       moveNumber: (moves?.length || 0) + 1, 
@@ -212,7 +258,7 @@ function OnlineGameContent() {
     });
     
     updateDoc(doc(db, "games", roomId), { 
-      currentTurn: playerColor === 'black' ? 'white' : 'black', 
+      currentTurn: color === 'black' ? 'white' : 'black', 
       playerBlackTimeUsed: timeUsed.black, 
       playerWhiteTimeUsed: timeUsed.white, 
       moveCount: (moves?.length || 0) + 1,
@@ -220,14 +266,13 @@ function OnlineGameContent() {
     });
   };
 
-  const handlePass = async () => {
-    if (!canMove || !user || !game) return;
-    const playerColor = user.uid === game.playerBlackId ? 'black' : 'white';
+  const handlePass = async (color: Player) => {
+    if (!db || !roomId || !game) return;
     const isConsecutivePass = moves?.length && moves[moves.length - 1].coordinatesX === -1;
 
     addDoc(collection(db, `games/${roomId}/moves`), { 
       gameId: roomId, 
-      playerColor, 
+      playerColor: color, 
       coordinatesX: -1, 
       coordinatesY: -1, 
       moveNumber: (moves?.length || 0) + 1, 
@@ -258,7 +303,7 @@ function OnlineGameContent() {
       });
     } else {
       updateDoc(doc(db, "games", roomId), { 
-        currentTurn: playerColor === 'black' ? 'white' : 'black', 
+        currentTurn: color === 'black' ? 'white' : 'black', 
         playerBlackTimeUsed: timeUsed.black,
         playerWhiteTimeUsed: timeUsed.white,
         moveCount: (moves?.length || 0) + 1,
@@ -302,18 +347,12 @@ function OnlineGameContent() {
 
   const handleCancelInvite = async () => {
     if (!db || !roomId || !user || !game || game.status !== 'pending') return;
-    
     await updateDoc(doc(db, "games", roomId), {
       status: 'finished',
       finishedAt: serverTimestamp(),
       lastActivityAt: serverTimestamp(),
-      result: {
-        winner: null,
-        reason: '挑战已取消',
-        diff: 0
-      }
+      result: { winner: null, reason: '挑战已取消', diff: 0 }
     });
-    
     router.push('/game/online/lobby');
   };
 
@@ -327,53 +366,6 @@ function OnlineGameContent() {
 
   if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12" /></div>;
 
-  if (isFinished && (game?.result?.reason === '对方拒绝了挑战' || game?.result?.reason === '挑战已取消')) {
-    const isCancelled = game?.result?.reason === '挑战已取消';
-    return (
-      <div className="h-screen flex items-center justify-center bg-background p-6">
-        <Card className={cn("max-w-md w-full border-4 shadow-2xl animate-in zoom-in-95 duration-300", isCancelled ? "border-muted" : "border-red-500")}>
-          <CardHeader className="text-center">
-            <div className={cn("mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-6", isCancelled ? "bg-muted" : "bg-red-500/10")}>
-              <XCircle className={cn("h-10 w-10", isCancelled ? "text-muted-foreground" : "text-red-600")} />
-            </div>
-            <CardTitle className={cn("text-3xl font-black font-headline", isCancelled ? "text-muted-foreground" : "text-red-700")}>
-              {isCancelled ? "挑战已取消" : "挑战被婉拒"}
-            </CardTitle>
-            <CardDescription className="text-lg">
-              {isCancelled ? "您已撤回了对该棋手的挑战邀请。" : <>很遗憾，<span className="font-bold text-foreground">{game.playerWhiteName}</span> 暂时无法接受您的挑战。</>}
-            </CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button variant="outline" className="w-full gap-2 border-2 h-12 font-bold" onClick={() => router.push('/game/online/lobby')}>
-              <ArrowLeft className="h-4 w-4" /> 返回竞技大厅
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
-  if (isPending) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background p-6">
-        <Card className="max-w-md w-full border-4 border-blue-500 shadow-2xl animate-in fade-in slide-in-from-bottom-4">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mb-6">
-              <Timer className="h-10 w-10 text-blue-600 animate-spin" />
-            </div>
-            <CardTitle className="text-3xl font-black font-headline text-blue-700">等待对手回应</CardTitle>
-            <CardDescription className="text-lg">已向 <span className="font-bold text-foreground">{game?.playerWhiteName}</span> 发送挑战，请稍候...</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button variant="outline" className="w-full gap-2 border-2 h-12 font-bold" onClick={handleCancelInvite}>
-              <ArrowLeft className="h-4 w-4" /> 取消并返回大厅
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-blue-500/5 p-4 rounded-xl border-2 border-blue-500/10">
@@ -384,14 +376,9 @@ function OnlineGameContent() {
                <Wifi className="h-3 w-3 animate-pulse" /> 在线同步对弈 (ONLINE SYNC MATCH)
              </h2>
           </div>
-          {isSpectating && (
-             <Badge className="bg-yellow-500 text-white gap-2 border-0">
-               <Eye className="h-3 w-3" /> 观摩模式 (READ ONLY)
-             </Badge>
-          )}
           <div className="h-4 w-px bg-blue-500/20 hidden md:block" />
           <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-            <Globe className="h-3 w-3 text-green-500" /> 云端同步已开启
+            <Globe className="h-3 w-3 text-green-500" /> {isOpponentAi ? "AI 云端节点已连接" : "云端同步已开启"}
           </div>
         </div>
         <div className="flex gap-2">
@@ -409,24 +396,11 @@ function OnlineGameContent() {
                   game.currentTurn === 'black' ? 'bg-black border-white/20' : 'bg-white border-black/10'
                 )} />
                 <span className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
-                  {game.currentTurn === 'black' ? '黑方回合' : '白方回合'}
+                  {isAiThinking && game.currentTurn === 'white' ? 'AI 正在思考...' : (game.currentTurn === 'black' ? '黑方回合' : '白方回合')}
                 </span>
+                {isAiThinking && game.currentTurn === 'white' && <Loader2 className="h-3 w-3 animate-spin text-blue-500" />}
               </div>
-              {isOpponentOffline && !isFinished && (
-                <div className="flex items-center gap-2 text-red-600 animate-pulse">
-                   <AlertTriangle className="h-3 w-3" />
-                   <span className="text-[10px] font-bold uppercase">检测到对手连接异常</span>
-                </div>
-              )}
             </div>
-          )}
-          {isFinished && (
-             <div className="flex items-center gap-3 px-6 py-2 rounded-full bg-background border-4 border-primary/10 shadow-lg">
-                <Trophy className="h-4 w-4 text-accent" />
-                <span className="text-sm font-black uppercase tracking-widest">
-                  {dismissGameOver ? '对局已完结 - 正在复盘' : '对局已完结'}
-                </span>
-             </div>
           )}
       </div>
 
@@ -435,9 +409,9 @@ function OnlineGameContent() {
           <GoBoard 
             board={board} 
             size={game?.boardSize || 19} 
-            onMove={handleMove} 
+            onMove={(r, c) => handleMove('black', r, c)} 
             currentPlayer={game?.currentTurn as Player} 
-            readOnly={!canMove || isSpectating || isFinished} 
+            readOnly={!canMove || isSpectating || isFinished || isAiThinking} 
             lastMove={moves?.length ? moves[moves.length-1] : null}
             moveSetting={moveSetting}
           />
@@ -451,24 +425,12 @@ function OnlineGameContent() {
                   </CardTitle>
                 </CardHeader>
                 <div className="p-8 space-y-6 bg-background">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl bg-muted/30 border-2 border-primary/5 text-center space-y-1">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">黑方得分</p>
-                      <p className="text-4xl font-black font-headline">{game.result?.blackScore?.toFixed(1) || '0.0'}</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-muted/30 border-2 border-primary/5 text-center space-y-1">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">白方得分</p>
-                      <p className="text-4xl font-black font-headline">{game.result?.whiteScore?.toFixed(1) || '0.0'}</p>
-                    </div>
-                  </div>
-
                   <div className="p-6 rounded-2xl bg-blue-600/5 border-4 border-blue-600/20 text-center space-y-2">
                     <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终胜负 (Komi: {game.result?.komi})</p>
                     <h3 className="text-4xl font-black text-blue-800 font-headline">
                       {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {game.result?.diff?.toFixed(1) || '0.0'} 点
                     </h3>
                     <p className="text-xs text-muted-foreground italic">原因: {game.result?.reason}</p>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">共计 {moves?.length || 0} 手</p>
                   </div>
                 </div>
                 <CardFooter className="p-6 bg-muted/20 border-t flex gap-3">
@@ -491,88 +453,57 @@ function OnlineGameContent() {
                 <div className="flex items-center gap-2"><Timer className="h-3 w-3" /> 计时与状态</div>
                 <div className="flex items-center gap-1">
                    <div className={cn("w-1.5 h-1.5 rounded-full", isOpponentOffline ? "bg-red-500" : "bg-green-500")} />
-                   <span className="text-[8px] opacity-70">{isOpponentOffline ? "OFFLINE" : "LIVE"}</span>
+                   <span className="text-[8px] opacity-70 uppercase">{isOpponentAi ? "AI ONLINE" : (isOpponentOffline ? "OFFLINE" : "LIVE")}</span>
                 </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <div className={cn(
-                    "w-6 h-6 rounded-full bg-black shadow-md",
-                    isInProgress && game?.currentTurn === 'black' && "ring-2 ring-blue-500 ring-offset-2"
-                  )} />
+                  <div className={cn("w-6 h-6 rounded-full bg-black shadow-md", isInProgress && game?.currentTurn === 'black' && "ring-2 ring-blue-500 ring-offset-2")} />
                   <span className={cn("font-bold truncate max-w-[120px]", isInProgress && game?.currentTurn === 'black' && "text-blue-600")}>{game?.playerBlackName}</span>
                 </div>
                 <div className="text-right">
                   <p className="font-mono text-xl font-black tracking-tighter">{formatDuration(timeUsed.black)}</p>
-                  <p className="text-[9px] text-muted-foreground uppercase font-bold">Limit: {Math.floor(timeLimit/3600)}H</p>
                 </div>
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <div className={cn(
-                    "w-6 h-6 rounded-full bg-white border shadow-sm",
-                    isInProgress && game?.currentTurn === 'white' && "ring-2 ring-blue-500 ring-offset-2"
-                  )} />
+                  {isOpponentAi ? (
+                    <div className={cn("w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white", isInProgress && game?.currentTurn === 'white' && "ring-2 ring-blue-500 ring-offset-2")}>
+                      <Cpu className="h-3 w-3" />
+                    </div>
+                  ) : (
+                    <div className={cn("w-6 h-6 rounded-full bg-white border shadow-sm", isInProgress && game?.currentTurn === 'white' && "ring-2 ring-blue-500 ring-offset-2")} />
+                  )}
                   <span className={cn("font-bold truncate max-w-[120px]", isInProgress && game?.currentTurn === 'white' && "text-blue-600")}>{game?.playerWhiteName}</span>
                 </div>
                 <div className="text-right">
                   <p className="font-mono text-xl font-black tracking-tighter">{formatDuration(timeUsed.white)}</p>
-                  <p className="text-[9px] text-muted-foreground uppercase font-bold">Limit: {Math.floor(timeLimit/3600)}H</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           
-          {!isSpectating ? (
-            <div className="space-y-4">
-              {isFinished && (
-                <Card className="border-2 bg-blue-500/5 border-blue-500/20">
-                  <CardContent className="p-4">
-                    <Button variant="default" className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 gap-2 shadow-lg" onClick={() => router.push('/game/online/lobby')}>
-                      <LogOut className="h-5 w-5" /> 退出对局并返回大厅
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-              {isOpponentOffline && isInProgress && (
-                 <Card className="border-2 border-red-500/30 bg-red-500/5">
-                   <CardContent className="p-4 space-y-3 text-center">
-                      <p className="text-[10px] font-bold text-red-600 uppercase">对手已断开连接超过 5 分钟</p>
-                      <Button variant="destructive" className="w-full h-9 text-xs font-black gap-2" onClick={handleAbandon}>
-                         <UserX className="h-4 w-4" /> 判定对手弃赛并结算
-                      </Button>
-                   </CardContent>
-                 </Card>
-              )}
-              <ToolPanel 
-                onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
-                onResign={isInProgress && isPlayer ? () => setShowResignConfirm(true) : undefined} 
-                showChat 
-                moveSetting={moveSetting}
-                onMoveSettingChange={setMoveSetting}
-              />
-            </div>
-          ) : (
-            <Card className="border-2 bg-muted/30">
-              <CardContent className="p-6 text-center space-y-4">
-                <ShieldAlert className="h-8 w-8 text-muted-foreground mx-auto" />
-                <p className="text-sm font-bold text-muted-foreground">
-                  您当前处于观摩模式，无法进行任何对局操作。
-                </p>
-                <Button variant="outline" className="w-full h-10 font-bold border-2" onClick={() => router.push('/game/online/lobby')}>
-                  返回大厅
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+          <div className="space-y-4">
+            {isFinished && (
+              <Button variant="default" className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 gap-2 shadow-lg" onClick={() => router.push('/game/online/lobby')}>
+                <LogOut className="h-5 w-5" /> 退出并返回大厅
+              </Button>
+            )}
+            <ToolPanel 
+              onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
+              onResign={isInProgress && isPlayer && !isAiThinking ? () => setShowResignConfirm(true) : undefined} 
+              moveSetting={moveSetting}
+              onMoveSettingChange={setMoveSetting}
+            />
+          </div>
         </div>
       </div>
 
       <AlertDialog open={showPassConfirm} onOpenChange={setShowPassConfirm}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认弃权？</AlertDialogTitle></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={handlePass}>确认</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={() => handlePass('black')}>确认</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
       <AlertDialog open={showResignConfirm} onOpenChange={setShowResignConfirm}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle className="text-destructive">确认认输？</AlertDialogTitle></AlertDialogHeader>
