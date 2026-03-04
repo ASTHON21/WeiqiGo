@@ -140,7 +140,7 @@ function OnlineGameContent() {
       }
     };
     if (game?.currentTurn === 'white' && isOpponentAi) {
-        const timer = setTimeout(handleAiTurn, 500);
+        const timer = setTimeout(handleAiTurn, 1500);
         return () => clearTimeout(timer);
     }
   }, [game?.currentTurn, isOpponentAi, isInProgress, moves?.length]);
@@ -459,7 +459,8 @@ function OnlineGameContent() {
             )}
             <ToolPanel 
               onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
-              onResign={isInProgress && isPlayer && !isAiThinking ? () => setShowResignConfirm(true) : undefined} 
+              onResign={isInProgress && isPlayer ? () => setShowResignConfirm(true) : undefined} 
+              onExit={() => router.push('/game/online/lobby')}
               moveSetting={moveSetting}
               onMoveSettingChange={setMoveSetting}
             />
@@ -475,14 +476,16 @@ function OnlineGameContent() {
       <AlertDialog open={showResignConfirm} onOpenChange={setShowResignConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive flex items-center gap-2">
-              <Flag className="h-5 w-5" /> 确认认输？
+            <AlertDialogTitle className="text-destructive flex items-center gap-2 text-xl font-headline">
+              <Flag className="h-6 w-6" /> 确认认输？
             </AlertDialogTitle>
-            <p className="text-sm text-muted-foreground">认输后对局将立即结束，系统会判定对方获胜。</p>
+            <div className="p-4 bg-destructive/5 rounded-lg border border-destructive/10 text-sm text-muted-foreground">
+              认输后对局将立即结束，系统会判定对方获胜，并释放当前的竞技配额。
+            </div>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleResign}>确认认输</AlertDialogAction>
+            <AlertDialogCancel className="h-11 font-bold">取消</AlertDialogCancel>
+            <AlertDialogAction className="h-11 bg-destructive hover:bg-destructive/90 font-bold" onClick={handleResign}>确认认输</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
