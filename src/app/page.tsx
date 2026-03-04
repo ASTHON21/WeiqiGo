@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Play, Swords, FileUp, Users, CheckCircle2, XCircle, Languages, Moon, Sun, Loader2, ArrowRight, Flag } from 'lucide-react';
+import { Play, Swords, FileUp, Users, CheckCircle2, XCircle, Languages, Moon, Sun, Loader2, ArrowRight, Flag, ShieldCheck, Book } from 'lucide-react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -180,6 +180,19 @@ export default function HomePage() {
                           <TabsTrigger value="9" className="text-xs">9 x 9</TabsTrigger>
                           <TabsTrigger value="13" className="text-xs">13 x 13</TabsTrigger>
                           <TabsTrigger value="19" className="text-xs">19 x 19</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground text-center">{t('home.practice.rule')}</p>
+                      <Tabs value={practiceRule} onValueChange={setPracticeRule} className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 h-9">
+                          <TabsTrigger value="chinese" className="text-xs gap-1">
+                            <ShieldCheck className="h-3 w-3" /> {t('rules.chinese')}
+                          </TabsTrigger>
+                          <TabsTrigger value="territory" className="text-xs gap-1">
+                            <Book className="h-3 w-3" /> {t('rules.territory')}
+                          </TabsTrigger>
                         </TabsList>
                       </Tabs>
                     </div>
