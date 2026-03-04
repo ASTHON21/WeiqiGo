@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -97,11 +96,6 @@ function PracticeContent() {
     setScoreResult(null);
   };
 
-  const handleExit = () => {
-    practice.reset();
-    router.push('/game/online/lobby');
-  };
-
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -146,7 +140,6 @@ function PracticeContent() {
           <ToolPanel 
             onReset={handleReset} 
             onPass={isGameOver ? undefined : handlePass}
-            onExit={handleExit}
             moveSetting={isGameOver ? undefined : moveSetting}
             onMoveSettingChange={setMoveSetting}
           />

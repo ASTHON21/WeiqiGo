@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -519,7 +518,6 @@ function OnlineGameContent() {
             <ToolPanel 
               onPass={canMove ? () => setShowPassConfirm(true) : undefined} 
               onResign={isInProgress && isPlayer ? () => setShowResignConfirm(true) : undefined} 
-              onExit={() => router.push('/game/online/lobby')}
               moveSetting={moveSetting}
               onMoveSettingChange={setMoveSetting}
             />
