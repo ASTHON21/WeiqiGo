@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, Trophy, Globe, Flag } from 'lucide-react';
+import { Loader2, ArrowLeft, Trophy, Globe, Flag, Hourglass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -73,6 +73,7 @@ function OnlineGameContent() {
 
   const isFinished = game?.status === 'finished';
   const isInProgress = game?.status === 'in-progress';
+  const isPending = game?.status === 'pending';
   const isPlayer = user && game && (user.uid === game.playerWhiteId || user.uid === game.playerBlackId);
   
   const timeLimit = useMemo(() => {
@@ -109,12 +110,10 @@ function OnlineGameContent() {
       const lastActivity = game.lastActivityAt instanceof Timestamp ? game.lastActivityAt.toMillis() : new Date(game.lastActivityAt).getTime();
       const now = Date.now();
 
-      // 如果上次活跃时间早于当前时间且差距过大，进行结算
       if (lastActivity < now) {
         const elapsedSinceActivity = Math.floor((now - lastActivity) / 1000);
         const currentTimeUsed = turn === 'black' ? (game.playerBlackTimeUsed || 0) : (game.playerWhiteTimeUsed || 0);
         
-        // 增加 10s 宽限期以补偿网络延迟
         if (currentTimeUsed + elapsedSinceActivity > timeLimit + 10) {
           updateDoc(doc(db, "games", roomId), {
             status: 'finished',
@@ -264,6 +263,16 @@ function OnlineGameContent() {
     setShowResignConfirm(false);
   };
 
+  const handleCancelInvite = async () => {
+    if (!db || !roomId || !game) return;
+    await updateDoc(doc(db, "games", roomId), { 
+      status: 'finished', 
+      finishedAt: serverTimestamp(), 
+      result: { winner: null, reason: '挑战者取消了邀请', diff: 0 } 
+    });
+    router.push('/game/online/lobby');
+  };
+
   const formatDuration = (s: number) => {
     const hrs = Math.floor(s / 3600);
     const mins = Math.floor((s % 3600) / 60);
@@ -273,6 +282,53 @@ function OnlineGameContent() {
   };
 
   if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12" /></div>;
+
+  // 处理待定状态：显示等待界面
+  if (isPending && isPlayer && !isSpectating) {
+    const opponentName = user?.uid === game?.playerBlackId ? game?.playerWhiteName : game?.playerBlackName;
+    return (
+      <div className="h-screen flex items-center justify-center bg-background p-6">
+        <Card className="w-full max-w-md border-4 border-blue-500 shadow-2xl animate-in zoom-in-95">
+          <CardHeader className="text-center pb-2">
+            <div className="mx-auto w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mb-6">
+              <Hourglass className="h-10 w-10 text-blue-500 animate-spin" />
+            </div>
+            <CardTitle className="text-2xl font-black font-headline text-blue-700">等待对手进入对局...</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-muted-foreground">
+              挑战已发送给 <span className="font-bold text-foreground">{opponentName}</span>。
+              请耐心等待对方接受并开启对局。
+            </p>
+            <div className="p-4 bg-muted/30 rounded-lg border text-xs text-left">
+              <p className="font-bold mb-1 uppercase tracking-tight">对局设定：</p>
+              <ul className="space-y-1">
+                <li>• 棋盘尺寸：{game?.boardSize}x{game?.boardSize}</li>
+                <li>• 规则：{game?.rules === 'chinese' ? '中国规则' : '日韩规则'}</li>
+              </ul>
+            </div>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-3">
+            <Button variant="outline" className="w-full h-12 font-bold border-2 hover:bg-destructive hover:text-white hover:border-destructive transition-all" onClick={handleCancelInvite}>
+              取消挑战并返回大厅
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  // 处理被拒绝/已取消状态
+  if (isFinished && game?.result?.reason === '挑战者取消了邀请') {
+    return (
+      <div className="h-screen flex items-center justify-center p-6">
+        <Card className="max-w-md w-full border-2 text-center p-8">
+           <CardTitle className="mb-4">对局已取消</CardTitle>
+           <Button onClick={() => router.push('/game/online/lobby')}>返回大厅</Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
