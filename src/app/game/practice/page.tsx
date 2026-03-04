@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Home, RefreshCw, Loader2 } from 'lucide-react';
+import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Home, RefreshCw, Loader2, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -96,6 +96,11 @@ function PracticeContent() {
     setScoreResult(null);
   };
 
+  const handleExitToLobby = () => {
+    handleReset();
+    router.push('/game/online/lobby');
+  };
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -140,6 +145,7 @@ function PracticeContent() {
           <ToolPanel 
             onReset={handleReset} 
             onPass={isGameOver ? undefined : handlePass}
+            onExitToLobby={handleExitToLobby}
             moveSetting={isGameOver ? undefined : moveSetting}
             onMoveSettingChange={setMoveSetting}
           />

@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { RefreshCw, SkipForward, Settings2, Flag, Swords } from "lucide-react";
+import { RefreshCw, SkipForward, Settings2, Flag, Swords, LogOut } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MoveSetting } from "@/lib/types";
@@ -11,6 +11,7 @@ interface ToolPanelProps {
   onReset?: () => void;
   onPass?: () => void;
   onResign?: () => void;
+  onExitToLobby?: () => void; // 新增退出到大厅的回调
   moveSetting?: MoveSetting;
   onMoveSettingChange?: (setting: MoveSetting) => void;
 }
@@ -20,6 +21,7 @@ export function ToolPanel({
   onReset, 
   onPass, 
   onResign,
+  onExitToLobby,
   moveSetting = 'direct',
   onMoveSettingChange
 }: ToolPanelProps) {
@@ -66,6 +68,11 @@ export function ToolPanel({
           {onReset && (
             <Button variant="outline" className="w-full justify-start gap-2 h-9 text-xs" onClick={onReset}>
               <RefreshCw className="h-4 w-4" /> 重置 (Reset)
+            </Button>
+          )}
+          {onExitToLobby && (
+            <Button variant="outline" className="w-full justify-start gap-2 h-9 text-xs border-blue-500 text-blue-600 hover:bg-blue-50" onClick={onExitToLobby}>
+              <LogOut className="h-4 w-4" /> 清除并返回大厅
             </Button>
           )}
         </div>
