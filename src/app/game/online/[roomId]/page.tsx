@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, Trophy, Globe, Flag, Hourglass } from 'lucide-react';
+import { Loader2, ArrowLeft, Trophy, Globe, Flag, Hourglass, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -283,6 +283,38 @@ function OnlineGameContent() {
 
   if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12" /></div>;
 
+  // 处理被拒绝/已取消状态 (邀请阶段的中断)
+  if (isFinished && (game?.result?.reason === '对方拒绝了挑战' || game?.result?.reason === '挑战者取消了邀请')) {
+    const isRejected = game?.result?.reason === '对方拒绝了挑战';
+    return (
+      <div className="h-screen flex items-center justify-center p-6 bg-background">
+        <Card className={cn(
+          "max-w-md w-full border-4 shadow-2xl p-8 text-center animate-in zoom-in-95",
+          isRejected ? "border-destructive" : "border-muted"
+        )}>
+           <div className={cn(
+             "mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-6",
+             isRejected ? "bg-destructive/10" : "bg-muted/30"
+           )}>
+              {isRejected ? <XCircle className="h-10 w-10 text-destructive" /> : <Flag className="h-10 w-10 text-muted-foreground" />}
+           </div>
+           <CardTitle className={cn(
+             "text-2xl font-black font-headline mb-4",
+             isRejected ? "text-destructive" : "text-foreground"
+           )}>
+             {isRejected ? "挑战已被拒绝" : "对局已取消"}
+           </CardTitle>
+           <p className="text-muted-foreground mb-8">
+             {isRejected ? "对方目前不便对局或已离开大厅。建议寻找其他在线棋手发起挑战。" : "您已经取消了本次对局邀请。"}
+           </p>
+           <Button className="w-full h-12 font-bold" onClick={() => router.push('/game/online/lobby')}>
+             返回竞技大厅
+           </Button>
+        </Card>
+      </div>
+    );
+  }
+
   // 处理待定状态：显示等待界面
   if (isPending && isPlayer && !isSpectating) {
     const opponentName = user?.uid === game?.playerBlackId ? game?.playerWhiteName : game?.playerBlackName;
@@ -313,18 +345,6 @@ function OnlineGameContent() {
               取消挑战并返回大厅
             </Button>
           </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
-  // 处理被拒绝/已取消状态
-  if (isFinished && game?.result?.reason === '挑战者取消了邀请') {
-    return (
-      <div className="h-screen flex items-center justify-center p-6">
-        <Card className="max-w-md w-full border-2 text-center p-8">
-           <CardTitle className="mb-4">对局已取消</CardTitle>
-           <Button onClick={() => router.push('/game/online/lobby')}>返回大厅</Button>
         </Card>
       </div>
     );
