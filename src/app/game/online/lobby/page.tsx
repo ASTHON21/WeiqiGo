@@ -28,6 +28,7 @@ export default function OnlineLobbyPage() {
   const [selectedRule, setSelectedRule] = useState("chinese");
   const [isSendingInvite, setIsSendingInvite] = useState(false);
 
+  // 监听邀请
   const inviteQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -39,9 +40,11 @@ export default function OnlineLobbyPage() {
   }, [db, user]);
   const { data: incomingInvites } = useCollection(inviteQuery);
 
+  // 活跃棋手查询
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
   const { data: rawPlayers } = useCollection(playersQuery);
 
+  // 活跃对局统计 (用于资源回收)
   const activeGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -51,24 +54,27 @@ export default function OnlineLobbyPage() {
   }, [db]);
   const { data: allActiveGames } = useCollection(activeGamesQuery);
 
+  // 历史名局
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collection(db, "games"), where("status", "==", "finished"), limit(20));
   }, [db]);
   const { data: rawRecentGames } = useCollection(recentGamesQuery);
 
+  // 过滤真实在线玩家
   const activePlayers = useMemo(() => {
     if (!rawPlayers) return [];
     const now = Date.now();
     const FIVE_MINUTES = 5 * 60 * 1000;
     
     return rawPlayers.filter(p => {
-      if (!p.lastSeen || p.id === 'KATA-BOT') return false; // 显式过滤 AI
+      if (!p.lastSeen) return false;
       const lastSeenTime = p.lastSeen instanceof Timestamp ? p.lastSeen.toMillis() : new Date(p.lastSeen).getTime();
       return (now - lastSeenTime) < FIVE_MINUTES;
     });
   }, [rawPlayers]);
 
+  // 计算真实的活跃对局数 (排除 15 分钟无互动的僵尸对局)
   const trulyActiveGamesCount = useMemo(() => {
     if (!allActiveGames) return 0;
     const now = Date.now();
@@ -80,6 +86,7 @@ export default function OnlineLobbyPage() {
     }).length;
   }, [allActiveGames]);
 
+  // 正在对局中的玩家 ID 集合
   const playingPlayerIds = useMemo(() => {
     const ids = new Set<string>();
     const now = Date.now();

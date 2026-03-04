@@ -6,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Timer, ArrowLeft, Trophy, Wifi, Globe, LogOut, Flag } from 'lucide-react';
+import { Loader2, ArrowLeft, Trophy, Globe, Flag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -87,7 +87,7 @@ function OnlineGameContent() {
     }
   }, [db, roomId, isInProgress]);
 
-  // 初始同步消耗时间
+  // 同步时间进度
   useEffect(() => {
     if (game) {
       setTimeUsed({ 
@@ -97,31 +97,37 @@ function OnlineGameContent() {
     }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
-  // 超时回归检查逻辑
+  // 超时回归检查逻辑 (Catch-up Settlement)
   useEffect(() => {
     if (db && roomId && game && isInProgress && !isFinished && !hasCheckedCatchup.current) {
-      if (!game.lastActivityAt) return; 
-      const turn = game.currentTurn as 'black' | 'white';
-      const lastActivity = game.lastActivityAt instanceof Timestamp ? game.lastActivityAt.toMillis() : new Date(game.lastActivityAt).getTime();
-      const now = Date.now();
-      if (lastActivity > now) {
+      if (!game.lastActivityAt) {
         hasCheckedCatchup.current = true;
         return;
       }
-      const elapsedSinceActivity = Math.floor((now - lastActivity) / 1000);
-      const currentTimeUsed = turn === 'black' ? (game.playerBlackTimeUsed || 0) : (game.playerWhiteTimeUsed || 0);
-      if (currentTimeUsed + elapsedSinceActivity > timeLimit + 10) {
-        updateDoc(doc(db, "games", roomId), {
-          status: 'finished',
-          finishedAt: serverTimestamp(),
-          lastActivityAt: serverTimestamp(),
-          result: { 
-            winner: turn === 'black' ? 'white' : 'black', 
-            reason: '超时负 (自动结算)', 
-            diff: 0,
-            komi: game.komi || (game.rules === 'chinese' ? 3.75 : 6.5)
-          }
-        });
+      
+      const turn = game.currentTurn as 'black' | 'white';
+      const lastActivity = game.lastActivityAt instanceof Timestamp ? game.lastActivityAt.toMillis() : new Date(game.lastActivityAt).getTime();
+      const now = Date.now();
+
+      // 如果上次活跃时间早于当前时间且差距过大，进行结算
+      if (lastActivity < now) {
+        const elapsedSinceActivity = Math.floor((now - lastActivity) / 1000);
+        const currentTimeUsed = turn === 'black' ? (game.playerBlackTimeUsed || 0) : (game.playerWhiteTimeUsed || 0);
+        
+        // 增加 10s 宽限期以补偿网络延迟
+        if (currentTimeUsed + elapsedSinceActivity > timeLimit + 10) {
+          updateDoc(doc(db, "games", roomId), {
+            status: 'finished',
+            finishedAt: serverTimestamp(),
+            lastActivityAt: serverTimestamp(),
+            result: { 
+              winner: turn === 'black' ? 'white' : 'black', 
+              reason: '超时负 (自动结算)', 
+              diff: 0,
+              komi: game.komi || (game.rules === 'chinese' ? 3.75 : 6.5)
+            }
+          });
+        }
       }
       hasCheckedCatchup.current = true;
     }
@@ -179,9 +185,7 @@ function OnlineGameContent() {
     if (!db || !roomId || !game || !moves) return;
     const result = GoLogic.processMove(board, r, c, color, boardHistory.slice(-10));
     if (!result.success) {
-      if (color === 'black') {
-        toast({ variant: "destructive", title: "落子受限", description: result.error === 'ko' ? "禁止打劫！" : "无效位置。" });
-      }
+      toast({ variant: "destructive", title: "落子受限", description: result.error === 'ko' ? "禁止打劫！" : "无效位置。" });
       return;
     }
     addDoc(collection(db, `games/${roomId}/moves`), { 
@@ -350,7 +354,7 @@ function OnlineGameContent() {
           <Card className="border-2">
             <CardHeader className="py-2 bg-muted/20 border-b">
               <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center justify-between">
-                <div className="flex items-center gap-2">计时与状态</div>
+                计时与状态
                 <div className="flex items-center gap-1">
                    <div className={cn("w-1.5 h-1.5 rounded-full", isOpponentOffline ? "bg-red-500" : "bg-green-500")} />
                    <span className="text-[8px] opacity-70 uppercase">{(isOpponentOffline ? "OFFLINE" : "LIVE")}</span>

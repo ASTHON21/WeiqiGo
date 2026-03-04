@@ -4,11 +4,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Play, Swords, History, FileUp, Info, Users, Book, CheckCircle2, XCircle, ShieldCheck, Languages, Moon, Sun, Bell, Loader2, ArrowRight, Flag } from 'lucide-react';
+import { Play, Swords, History, FileUp, Users, CheckCircle2, XCircle, Languages, Moon, Sun, Loader2, ArrowRight, Flag } from 'lucide-react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
@@ -35,35 +33,21 @@ export default function HomePage() {
     setHasMounted(true);
   }, []);
 
-  // 监控黑方正在进行的对局
-  const blackGamesQuery = useMemoFirebase(() => {
+  // 监控正在进行的对局 (作为黑方或白方)
+  const activeGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(
       collection(db, "games"),
-      where("status", "==", "in-progress"),
-      where("playerBlackId", "==", user.uid),
-      limit(1)
+      where("status", "==", "in-progress")
     );
   }, [db, user?.uid]);
 
-  // 监控白方正在进行的对局
-  const whiteGamesQuery = useMemoFirebase(() => {
-    if (!db || !user?.uid) return null;
-    return query(
-      collection(db, "games"),
-      where("status", "==", "in-progress"),
-      where("playerWhiteId", "==", user.uid),
-      limit(1)
-    );
-  }, [db, user?.uid]);
-
-  const { data: bGames } = useCollection(blackGamesQuery);
-  const { data: wGames } = useCollection(whiteGamesQuery);
+  const { data: allActiveGames } = useCollection(activeGamesQuery);
 
   const activeGame = useMemo(() => {
-    const games = [...(bGames || []), ...(wGames || [])];
-    return games.length > 0 ? games[0] : null;
-  }, [bGames, wGames]);
+    if (!allActiveGames || !user) return null;
+    return allActiveGames.find(g => g.playerBlackId === user.uid || g.playerWhiteId === user.uid) || null;
+  }, [allActiveGames, user]);
 
   useEffect(() => {
     if (hasMounted) {
@@ -76,7 +60,7 @@ export default function HomePage() {
   };
 
   const handleEnterLobby = () => {
-    router.push(`/game/online/lobby?acceptInvites=${acceptingInvites}`);
+    router.push(`/game/online/lobby`);
   };
 
   const handleResignActiveGame = async (gameId: string) => {
@@ -89,7 +73,7 @@ export default function HomePage() {
         finishedAt: serverTimestamp(),
         result: {
           winner,
-          reason: '对手从主页认输',
+          reason: '用户从主页主动终结',
           diff: 0,
           komi: activeGame.komi || (activeGame.rules === 'chinese' ? 3.75 : 6.5)
         }
