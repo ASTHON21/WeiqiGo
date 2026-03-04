@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Menu, History, Home, Info } from 'lucide-react';
+import { Menu, Home, Info } from 'lucide-react';
 import Link from 'next/link';
 
 /**
@@ -44,12 +44,6 @@ export function GlobalMenu() {
             <Link href="/" className="w-full cursor-pointer flex items-center gap-2">
               <Home className="h-4 w-4" />
               <span>主页 (Home)</span>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/history" className="w-full cursor-pointer flex items-center gap-2">
-              <History className="h-4 w-4" />
-              <span>历史记录 (History)</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>

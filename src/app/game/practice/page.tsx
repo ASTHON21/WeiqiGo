@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Save, Home, RefreshCw, Loader2 } from 'lucide-react';
+import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Home, RefreshCw, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -17,7 +17,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -25,7 +24,7 @@ import {
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { GoLogic } from '@/lib/go-logic';
-import { MoveSetting, GameHistoryEntry } from '@/lib/types';
+import { MoveSetting } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
 
 function PracticeContent() {
@@ -43,7 +42,6 @@ function PracticeContent() {
   const [scoreResult, setScoreResult] = useState<any>(null);
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [isGameOver, setIsGameOver] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
     getRulesContent(ruleType, language).then(setRules);
@@ -97,49 +95,11 @@ function PracticeContent() {
     practice.reset();
     setIsGameOver(false);
     setScoreResult(null);
-    setIsSaved(false);
   };
 
   const handleExit = () => {
     practice.reset();
     router.push('/game/online/lobby');
-  };
-
-  const saveToLocalHistory = () => {
-    if (!scoreResult || isSaved) return;
-
-    const entry: GameHistoryEntry = {
-      id: `practice-${Date.now()}`,
-      date: new Date().toISOString(),
-      mode: 'practice',
-      boardSize: size,
-      moveHistory: practice.moveHistory,
-      result: {
-        winner: scoreResult.winner,
-        reason: '双方连续弃权',
-        blackScore: scoreResult.blackScore,
-        whiteScore: scoreResult.whiteScore,
-        details: scoreResult.details,
-        komi: scoreResult.komi,
-        diff: scoreResult.diff
-      }
-    };
-
-    try {
-      const existing = JSON.parse(localStorage.getItem('goMasterHistory') || '[]');
-      localStorage.setItem('goMasterHistory', JSON.stringify([entry, ...existing]));
-      setIsSaved(true);
-      toast({
-        title: "保存成功",
-        description: "本局记录已存入本地历史记录。",
-      });
-    } catch (e) {
-      toast({
-        title: "保存失败",
-        description: "本地存储空间不足或其他错误。",
-        variant: "destructive"
-      });
-    }
   };
 
   return (
@@ -273,10 +233,7 @@ function PracticeContent() {
                 返回棋盘
               </AlertDialogCancel>
             </div>
-            <div className="grid grid-cols-2 w-full gap-3">
-              <Button variant="outline" className="h-12 font-bold gap-2 border-2 border-blue-600 text-blue-700 hover:bg-blue-50" onClick={saveToLocalHistory} disabled={isSaved}>
-                <Save className="h-4 w-4" /> {isSaved ? '已保存' : '保存记录'}
-              </Button>
+            <div className="grid grid-cols-1 w-full">
               <AlertDialogAction className="h-12 font-bold bg-primary hover:bg-primary/90 gap-2" onClick={handleReset}>
                 <RefreshCw className="h-4 w-4" /> 重新开始
               </AlertDialogAction>

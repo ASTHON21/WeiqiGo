@@ -4,7 +4,7 @@
 import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Play, Disc, Swords, BookOpen, History } from 'lucide-react';
+import { Play, Disc, Swords, BookOpen } from 'lucide-react';
 
 export default function GameEntryPage() {
   const router = useRouter();
@@ -60,9 +60,6 @@ export default function GameEntryPage() {
         </div>
 
         <div className="flex justify-center gap-6 text-sm text-muted-foreground">
-          <Button variant="link" onClick={() => router.push('/history')} className="gap-2">
-            <History className="h-4 w-4" /> 历史对局记录
-          </Button>
           <Button variant="link" onClick={() => router.push('/')} className="gap-2">
              返回主页
           </Button>

@@ -6,13 +6,13 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Play, Swords, History, FileUp, Users, CheckCircle2, XCircle, Languages, Moon, Sun, Loader2, ArrowRight, Flag } from 'lucide-react';
+import { Play, Swords, FileUp, Users, CheckCircle2, XCircle, Languages, Moon, Sun, Loader2, ArrowRight, Flag } from 'lucide-react';
 import { getRulesContent } from '@/app/actions/sgf';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
 import { useTheme } from '@/context/theme-context';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 export default function HomePage() {
   const router = useRouter();
@@ -33,7 +33,6 @@ export default function HomePage() {
     setHasMounted(true);
   }, []);
 
-  // 监控正在进行的对局 (作为黑方或白方)
   const activeGamesQuery = useMemoFirebase(() => {
     if (!db || !user?.uid) return null;
     return query(
@@ -242,12 +241,6 @@ export default function HomePage() {
                 </Card>
               </div>
             )}
-          </div>
-
-          <div className="flex justify-center flex-wrap gap-8">
-            <Button variant="ghost" onClick={() => router.push('/history')} className="gap-2">
-              <History className="h-4 w-4" /> {t('home.history.btn')}
-            </Button>
           </div>
 
           <div className="text-xs text-center text-muted-foreground opacity-50">

@@ -14,7 +14,6 @@ interface LanguageContextType {
 const translations = {
   zh: {
     'nav.home': '首页',
-    'nav.history': '对局记录',
     'nav.about': '关于',
     'home.title': 'WEIQI GO',
     'home.subtitle': '“博弈之间，见天地，见众生。”',
@@ -33,7 +32,6 @@ const translations = {
     'home.online.decline': '不接受邀请',
     'home.online.start': '进入大厅',
     'home.rules.btn': '规则说明',
-    'home.history.btn': '历史记录',
     'home.announcement.btn': '系统公告',
     'home.announcement.title': '版本更新说明',
     'rules.chinese': '中国规则',
@@ -45,7 +43,6 @@ const translations = {
   },
   en: {
     'nav.home': 'Home',
-    'nav.history': 'Game History',
     'nav.about': 'About',
     'home.title': 'WEIQI GO',
     'home.subtitle': '"Between moves, see heaven, see earth, see all living beings."',
@@ -64,7 +61,6 @@ const translations = {
     'home.online.decline': 'Decline Invites',
     'home.online.start': 'Enter Lobby',
     'home.rules.btn': 'Rule Guide',
-    'home.history.btn': 'History',
     'home.announcement.btn': 'Announcements',
     'home.announcement.title': 'Release Notes',
     'rules.chinese': 'Chinese Rules',
