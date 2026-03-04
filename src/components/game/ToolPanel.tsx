@@ -1,7 +1,8 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Swords, MessageCircle, RefreshCw, Calculator, SkipForward, Settings2, Flag, LogOut } from "lucide-react";
+import { RefreshCw, SkipForward, Settings2, Flag, LogOut, Swords } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MoveSetting } from "@/lib/types";
@@ -23,7 +24,6 @@ export function ToolPanel({
   onPass, 
   onResign,
   onExit,
-  showChat,
   moveSetting = 'direct',
   onMoveSettingChange
 }: ToolPanelProps) {
@@ -64,7 +64,7 @@ export function ToolPanel({
           )}
           {onExit && (
             <Button variant="outline" className="w-full justify-start gap-2 h-9 text-xs" onClick={onExit}>
-              <LogOut className="h-4 w-4" /> 清除并返回大厅
+              <LogOut className="h-4 w-4" /> 退出并返回大厅
             </Button>
           )}
           {onAnalysis && (
@@ -75,11 +75,6 @@ export function ToolPanel({
           {onReset && (
             <Button variant="outline" className="w-full justify-start gap-2 h-9 text-xs" onClick={onReset}>
               <RefreshCw className="h-4 w-4" /> 重置 (Reset)
-            </Button>
-          )}
-          {showChat && (
-            <Button variant="secondary" className="w-full justify-start gap-2 h-9 text-xs">
-              <MessageCircle className="h-4 w-4" /> 聊天 (Chat)
             </Button>
           )}
         </div>

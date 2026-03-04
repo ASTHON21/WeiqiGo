@@ -4,9 +4,9 @@
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Swords, Timer, ArrowLeft, Trophy, ShieldAlert, Home, RefreshCw, Calculator, Wifi, Globe, Eye, XCircle, LogOut, AlertTriangle, UserX, Cpu, Flag } from 'lucide-react';
+import { Loader2, Timer, ArrowLeft, Trophy, Wifi, Globe, LogOut, Cpu, Flag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -43,6 +43,7 @@ function OnlineGameContent() {
   const db = useFirestore();
   const { toast } = useToast();
 
+  // 1. 基础状态
   const [moveSetting, setMoveSetting] = useState<MoveSetting>('direct');
   const [dismissGameOver, setDismissGameOver] = useState(false);
   const [showPassConfirm, setShowPassConfirm] = useState(false);
@@ -50,12 +51,16 @@ function OnlineGameContent() {
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
   const [isAiThinking, setIsAiThinking] = useState(false);
   const hasCheckedCatchup = useRef(false);
-  
   const aiController = useRef<KataGoController | null>(null);
 
+  // 2. 核心数据订阅 (必须在 useEffect 之前定义以避免 ReferenceError)
   const gameRef = useMemoFirebase(() => (db && roomId && user) ? doc(db, "games", roomId) : null, [db, roomId, user]);
   const { data: game, isLoading: loadingGame } = useDoc(gameRef);
 
+  const movesQuery = useMemoFirebase(() => (db && roomId && user && game) ? query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")) : null, [db, roomId, user, game?.id]);
+  const { data: moves } = useCollection(movesQuery);
+
+  // 3. 衍射数据
   const opponentId = useMemo(() => {
     if (!game || !user) return null;
     return user.uid === game.playerBlackId ? game.playerWhiteId : game.playerBlackId;
@@ -78,23 +83,21 @@ function OnlineGameContent() {
   const isPending = game?.status === 'pending';
   const isFinished = game?.status === 'finished';
   const isInProgress = game?.status === 'in-progress';
-  const isPlayer = user && (user.uid === game?.playerWhiteId || user.uid === game?.playerBlackId);
+  const isPlayer = user && game && (user.uid === game.playerWhiteId || user.uid === game.playerBlackId);
   
   const timeLimit = useMemo(() => {
     if (!game) return 10800;
     return BOARD_TIME_LIMITS[game.boardSize] || 10800;
   }, [game?.boardSize]);
 
-  const movesQuery = useMemoFirebase(() => (db && roomId && user && (isInProgress || isFinished)) ? query(collection(db, `games/${roomId}/moves`), orderBy("moveNumber", "asc")) : null, [db, roomId, user, isInProgress, isFinished]);
-  const { data: moves } = useCollection(movesQuery);
-
+  // 4. AI 生命周期管理
   useEffect(() => {
     if (isOpponentAi && game?.boardSize && isInProgress) {
       if (!aiController.current) {
         aiController.current = new KataGoController(game.boardSize);
         aiController.current.init().catch(err => {
           console.error("AI 引擎初始化失败:", err);
-          toast({ variant: "destructive", title: "AI 初始化失败", description: "无法载入本地 WASM 模块，请检查网络或资源文件。" });
+          toast({ variant: "destructive", title: "AI 初始化失败", description: "无法载入本地 WASM 模块。" });
         });
       }
     }
@@ -102,25 +105,16 @@ function OnlineGameContent() {
       aiController.current?.terminate();
       aiController.current = null;
     };
-  }, [isOpponentAi, game?.boardSize, isInProgress]);
+  }, [isOpponentAi, game?.boardSize, isInProgress, toast]);
 
-  useEffect(() => {
-    if (db && roomId && game && isPending && isOpponentAi && user?.uid === game.playerBlackId) {
-      updateDoc(doc(db, "games", roomId), { 
-        status: 'in-progress',
-        startedAt: serverTimestamp(),
-        lastActivityAt: serverTimestamp() 
-      }).catch(() => {});
-    }
-  }, [db, roomId, game, isPending, isOpponentAi, user]);
-
+  // 5. 对局逻辑控制
   useEffect(() => {
     const handleAiTurn = async () => {
-      if (!db || !roomId || !game || !isInProgress || isAiThinking || !aiController.current) return;
+      if (!db || !roomId || !game || !isInProgress || isAiThinking || !aiController.current || !moves) return;
       if (game.currentTurn === 'white' && isOpponentAi && user?.uid === game.playerBlackId) {
         setIsAiThinking(true);
         try {
-          const history = (moves || []).map(m => ({
+          const history = moves.map(m => ({
             r: m.coordinatesX,
             c: m.coordinatesY,
             color: m.playerColor as 'black' | 'white'
@@ -139,7 +133,7 @@ function OnlineGameContent() {
         }
       }
     };
-    if (game?.currentTurn === 'white' && isOpponentAi) {
+    if (game?.currentTurn === 'white' && isOpponentAi && isInProgress) {
         const timer = setTimeout(handleAiTurn, 1500);
         return () => clearTimeout(timer);
     }
@@ -224,7 +218,7 @@ function OnlineGameContent() {
     moves?.forEach(m => {
       history.push(tempBoard.map(row => [...row]));
       if (m.coordinatesX !== -1) {
-        const result = GoLogic.processMove(tempBoard, m.coordinatesX, m.coordinatesY, m.playerColor, history.slice(-10));
+        const result = GoLogic.processMove(tempBoard, m.coordinatesX, m.coordinatesY, m.playerColor as Player, history.slice(-10));
         if (result.success) {
            tempBoard = result.newBoard;
            if (result.capturedCount > 0) p[m.playerColor === 'black' ? 'black' : 'white'] += result.capturedCount; 
@@ -237,7 +231,7 @@ function OnlineGameContent() {
   const canMove = !isSpectating && isPlayer && isInProgress && (game?.currentTurn === (user?.uid === game?.playerBlackId ? 'black' : 'white')) && !isAiThinking;
 
   const handleMove = async (color: Player, r: number, c: number) => {
-    if (!db || !roomId || !game) return;
+    if (!db || !roomId || !game || !moves) return;
     const result = GoLogic.processMove(board, r, c, color, boardHistory.slice(-10));
     if (!result.success) {
       if (color === 'black') {
@@ -250,27 +244,27 @@ function OnlineGameContent() {
       playerColor: color, 
       coordinatesX: r, 
       coordinatesY: c, 
-      moveNumber: (moves?.length || 0) + 1, 
+      moveNumber: moves.length + 1, 
       timestamp: Date.now() 
     });
     updateDoc(doc(db, "games", roomId), { 
       currentTurn: color === 'black' ? 'white' : 'black', 
       playerBlackTimeUsed: timeUsed.black, 
       playerWhiteTimeUsed: timeUsed.white, 
-      moveCount: (moves?.length || 0) + 1,
+      moveCount: moves.length + 1,
       lastActivityAt: serverTimestamp() 
     });
   };
 
   const handlePass = async (color: Player) => {
-    if (!db || !roomId || !game) return;
-    const isConsecutivePass = moves?.length && moves[moves.length - 1].coordinatesX === -1;
+    if (!db || !roomId || !game || !moves) return;
+    const isConsecutivePass = moves.length > 0 && moves[moves.length - 1].coordinatesX === -1;
     addDoc(collection(db, `games/${roomId}/moves`), { 
       gameId: roomId, 
       playerColor: color, 
       coordinatesX: -1, 
       coordinatesY: -1, 
-      moveNumber: (moves?.length || 0) + 1, 
+      moveNumber: moves.length + 1, 
       timestamp: Date.now() 
     });
     setShowPassConfirm(false);
@@ -281,7 +275,7 @@ function OnlineGameContent() {
       updateDoc(doc(db, "games", roomId), { 
         status: 'finished', 
         finishedAt: serverTimestamp(), 
-        moveCount: (moves?.length || 0) + 1,
+        moveCount: moves.length + 1,
         lastActivityAt: serverTimestamp(),
         result: { 
           winner: score.winner, 
@@ -298,18 +292,18 @@ function OnlineGameContent() {
         currentTurn: color === 'black' ? 'white' : 'black', 
         playerBlackTimeUsed: timeUsed.black,
         playerWhiteTimeUsed: timeUsed.white,
-        moveCount: (moves?.length || 0) + 1,
+        moveCount: moves.length + 1,
         lastActivityAt: serverTimestamp() 
       });
     }
   };
 
   const handleResign = () => {
-    if (!isPlayer || !game || isFinished || !user) return;
+    if (!isPlayer || !game || isFinished || !user || !moves) return;
     updateDoc(doc(db, "games", roomId), { 
       status: 'finished', 
       finishedAt: serverTimestamp(), 
-      moveCount: (moves?.length || 0),
+      moveCount: moves.length,
       lastActivityAt: serverTimestamp(),
       result: { 
         winner: user.uid === game.playerBlackId ? 'white' : 'black', 
@@ -339,7 +333,7 @@ function OnlineGameContent() {
           <div className="flex items-center gap-2">
              <div className="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded-sm uppercase tracking-tighter">Live</div>
              <h2 className="text-sm font-black font-headline text-blue-700 tracking-tight flex items-center gap-2">
-               <Wifi className="h-3 w-3 animate-pulse" /> 在线同步对弈 (ONLINE SYNC MATCH)
+               在线同步对弈 (ONLINE SYNC MATCH)
              </h2>
           </div>
           <div className="h-4 w-px bg-blue-500/20 hidden md:block" />
@@ -375,7 +369,7 @@ function OnlineGameContent() {
           <GoBoard 
             board={board} 
             size={game?.boardSize || 19} 
-            onMove={(r, c) => handleMove('black', r, c)} 
+            onMove={(r, c) => handleMove(game?.currentTurn === 'black' ? 'black' : 'white', r, c)} 
             currentPlayer={game?.currentTurn as Player} 
             readOnly={!canMove || isSpectating || isFinished || isAiThinking} 
             lastMove={moves?.length ? moves[moves.length-1] : null}
@@ -404,7 +398,7 @@ function OnlineGameContent() {
                     <ArrowLeft className="h-4 w-4" /> 返回大厅
                   </Button>
                   <Button className="flex-1 h-12 font-bold bg-primary hover:bg-primary/90 gap-2" onClick={() => setDismissGameOver(true)}>
-                    <RefreshCw className="h-4 w-4" /> 进入复盘
+                    重新开始
                   </Button>
                 </CardFooter>
               </Card>
@@ -416,7 +410,7 @@ function OnlineGameContent() {
           <Card className="border-2">
             <CardHeader className="py-2 bg-muted/20 border-b">
               <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center justify-between">
-                <div className="flex items-center gap-2"><Timer className="h-3 w-3" /> 计时与状态</div>
+                <div className="flex items-center gap-2">计时与状态</div>
                 <div className="flex items-center gap-1">
                    <div className={cn("w-1.5 h-1.5 rounded-full", isOpponentOffline ? "bg-red-500" : "bg-green-500")} />
                    <span className="text-[8px] opacity-70 uppercase">{isOpponentAi ? "AI WASM ONLINE" : (isOpponentOffline ? "OFFLINE" : "LIVE")}</span>
@@ -470,7 +464,7 @@ function OnlineGameContent() {
 
       <AlertDialog open={showPassConfirm} onOpenChange={setShowPassConfirm}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认弃权？</AlertDialogTitle></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={() => handlePass('black')}>确认</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={() => handlePass(game?.currentTurn === 'black' ? 'black' : 'white')}>确认</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
 
       <AlertDialog open={showResignConfirm} onOpenChange={setShowResignConfirm}>
@@ -479,9 +473,6 @@ function OnlineGameContent() {
             <AlertDialogTitle className="text-destructive flex items-center gap-2 text-xl font-headline">
               <Flag className="h-6 w-6" /> 确认认输？
             </AlertDialogTitle>
-            <div className="p-4 bg-destructive/5 rounded-lg border border-destructive/10 text-sm text-muted-foreground">
-              认输后对局将立即结束，系统会判定对方获胜，并释放当前的竞技配额。
-            </div>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="h-11 font-bold">取消</AlertDialogCancel>
