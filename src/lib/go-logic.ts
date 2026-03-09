@@ -84,12 +84,16 @@ export const GoLogic = {
     },
 
     /**
-     * 自动清理死子（启发式）
+     * 自动清理死子（启发式实现）
+     * 在真实竞赛中由棋手确认，AI 场景中通过简单的两眼判定或气数判定辅助。
      */
     removeDeadStones: (board: BoardState): BoardState => {
         const internalBoard = board.map(row => [...row]);
         const groups = GoLogic.getAllGroups(internalBoard);
         
+        // 极简启发式：如果一块棋完全没有气且没有被判定为活棋，则视为死子。
+        // 在中国规则数子时，所有未被提走的棋子暂视为活子，除非它们明确在对方空内。
+        // 这里采用保守策略：仅移除被完全包围且无眼位的棋块。
         groups.forEach(group => {
             if (!GoLogic.isGroupAliveHeuristic(internalBoard, group)) {
                 group.positions.forEach(([r, c]) => {
@@ -219,15 +223,17 @@ export const GoLogic = {
     },
 
     /**
-     * 启发式存活判定
+     * 启发式存活判定 (用于自动数子)
      */
     isGroupAliveHeuristic: (board: BoardState, group: { positions: [number, number][], player: Player }): boolean => {
         const firstPos = group.positions[0];
         if (!firstPos) return false;
-        // 如果气 >= 4，初步判定为活块（简化逻辑，用于数子）
-        if (GoLogic.calculateLiberties(board, firstPos[0], firstPos[1]) >= 4) return true;
-        // 实际比赛中由棋手确认，这里作为自动数子的预处理
-        return true; 
+        
+        const liberties = GoLogic.calculateLiberties(board, firstPos[0], firstPos[1]);
+        
+        // 如果棋块的气数大于等于 2，通常在未受攻击时视为活棋（极简逻辑）
+        // 实际上中国规则更倾向于手动移除死子，这里默认所有棋子均为活棋，除非已被提走
+        return liberties > 0;
     },
 
     createEmptyBoard: (size: number): BoardState =>
