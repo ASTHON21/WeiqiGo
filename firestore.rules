@@ -40,16 +40,28 @@ service cloud.firestore {
                       request.resource.data.playerWhiteId == resource.data.playerWhiteId &&
                       request.resource.data.boardSize == resource.data.boardSize;
       
-      allow delete: if false;
+      // 允许参与者或系统清理过期（>1小时）的对局数据
+      allow delete: if isAuthenticated() && 
+                      (request.auth.uid == resource.data.playerBlackId || 
+                       request.auth.uid == resource.data.playerWhiteId ||
+                       (resource.data.status == 'finished' && request.time > resource.data.finishedAt + duration.value(60, 'm')) ||
+                       (resource.data.status == 'pending' && request.time > resource.data.startedAt + duration.value(60, 'm')));
 
-      // 移动记录：仅允许参与者在对局进行中添加
+      // 移动记录
       match /moves/{moveId} {
         allow read: if true;
         allow create: if isAuthenticated() && 
                         get(/databases/$(database)/documents/games/$(gameId)).data.status == 'in-progress' &&
                         (request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.playerBlackId || 
                          request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.playerWhiteId);
-        allow update, delete: if false;
+        
+        // 允许在删除对局时同步清理移动记录
+        allow delete: if isAuthenticated() && 
+                        (request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.playerBlackId || 
+                         request.auth.uid == get(/databases/$(database)/documents/games/$(gameId)).data.playerWhiteId ||
+                         get(/databases/$(database)/documents/games/$(gameId)).data == null); 
+        
+        allow update: if false;
       }
     }
   }

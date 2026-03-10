@@ -1,9 +1,10 @@
+
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, updateDoc, orderBy, limit, setDoc, serverTimestamp, Timestamp, getDocs } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, orderBy, limit, setDoc, serverTimestamp, Timestamp, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +41,66 @@ export default function OnlineLobbyPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  /**
+   * 被动垃圾回收：每当进入大厅，自动清理超过 1 小时的旧数据
+   */
+  useEffect(() => {
+    if (!db || !user) return;
+
+    const performCleanup = async () => {
+      const now = Date.now();
+      const ONE_HOUR = 60 * 60 * 1000;
+      const threshold = new Date(now - ONE_HOUR);
+
+      // 1. 查询已完赛且超过 1 小时的对局
+      const staleFinishedQuery = query(
+        collection(db, "games"),
+        where("status", "==", "finished"),
+        where("finishedAt", "<", Timestamp.fromDate(threshold))
+      );
+
+      // 2. 查询挂起且超过 1 小时的僵尸对局
+      const stalePendingQuery = query(
+        collection(db, "games"),
+        where("status", "==", "pending"),
+        where("startedAt", "<", Timestamp.fromDate(threshold))
+      );
+
+      try {
+        const [finishedSnap, pendingSnap] = await Promise.all([
+          getDocs(staleFinishedQuery),
+          getDocs(stalePendingQuery)
+        ]);
+
+        const staleDocs = [...finishedSnap.docs, ...pendingSnap.docs];
+        
+        if (staleDocs.length === 0) return;
+
+        // 批量清理
+        for (const gameDoc of staleDocs) {
+          // 清理子集合 moves
+          const movesRef = collection(db, "games", gameDoc.id, "moves");
+          const movesSnap = await getDocs(movesRef);
+          
+          const batch = writeBatch(db);
+          movesSnap.docs.forEach(mDoc => batch.delete(mDoc.ref));
+          batch.delete(doc(db, "games", gameDoc.id));
+          
+          await batch.commit();
+        }
+        
+        console.log(`[GC] Successfully purged ${staleDocs.length} stale games to free storage.`);
+      } catch (err) {
+        // 这里的错误通常由于权限（非参与者尝试删除未到 1 小时的记录）或网络引起，静默处理
+        console.warn("[GC] Silent cleanup skip or failure.");
+      }
+    };
+
+    // 延迟 2 秒执行清理，优先保证大厅加载
+    const timer = setTimeout(performCleanup, 2000);
+    return () => clearTimeout(timer);
+  }, [db, user]);
+
   // 监听邀请
   const inviteQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -56,7 +117,7 @@ export default function OnlineLobbyPage() {
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
   const { data: rawPlayers } = useCollection(playersQuery);
 
-  // 活跃对局统计 (用于资源回收)
+  // 活跃对局统计
   const activeGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -66,13 +127,13 @@ export default function OnlineLobbyPage() {
   }, [db]);
   const { data: allActiveGames } = useCollection(activeGamesQuery);
 
-  // 历史名局查询
+  // 历史名局查询（移除 status 过滤以避免复合索引报错）
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
       collection(db, "games"), 
       orderBy("finishedAt", "desc"),
-      limit(50) 
+      limit(20) 
     );
   }, [db]);
   const { data: rawRecentGames } = useCollection(recentGamesQuery);
@@ -90,7 +151,7 @@ export default function OnlineLobbyPage() {
     });
   }, [rawPlayers]);
 
-  // 过滤 1 小时内的已完赛名局
+  // 过滤 1 小时内的已完赛名局（客户端过滤）
   const filteredRecentGames = useMemo(() => {
     if (!rawRecentGames) return [];
     const now = Date.now();
