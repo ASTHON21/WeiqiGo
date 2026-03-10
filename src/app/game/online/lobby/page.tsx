@@ -3,17 +3,20 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, updateDoc, orderBy, limit, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc, orderBy, limit, setDoc, serverTimestamp, Timestamp, getDocs } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Eye, Gamepad2, Clock } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Download, Gamepad2, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/language-context';
 import { cn } from '@/lib/utils';
+import { exportToSGF } from '@/lib/sgf';
+import { format } from 'date-fns';
+import { GameHistoryEntry, Player } from '@/lib/types';
 
 export default function OnlineLobbyPage() {
   const router = useRouter();
@@ -26,6 +29,7 @@ export default function OnlineLobbyPage() {
   const [selectedSize, setSelectedSize] = useState("19");
   const [selectedRule, setSelectedRule] = useState("chinese");
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
 
   // 辅助函数：格式化时间
   const formatDuration = (s: number) => {
@@ -62,11 +66,7 @@ export default function OnlineLobbyPage() {
   }, [db]);
   const { data: allActiveGames } = useCollection(activeGamesQuery);
 
-  /**
-   * 历史名局查询逻辑优化
-   * 移除 where("status", "==", "finished") 以避免强制复合索引要求。
-   * 采用单字段排序并在客户端进行过滤。
-   */
+  // 历史名局查询
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -90,14 +90,13 @@ export default function OnlineLobbyPage() {
     });
   }, [rawPlayers]);
 
-  // 过滤 1 小时内的已完赛名局 (客户端过滤以规避索引问题)
+  // 过滤 1 小时内的已完赛名局
   const filteredRecentGames = useMemo(() => {
     if (!rawRecentGames) return [];
     const now = Date.now();
     const ONE_HOUR = 60 * 60 * 1000;
     
     return rawRecentGames.filter(game => {
-      // 仅显示状态为已完成的对局
       if (game.status !== 'finished') return false;
       if (!game.finishedAt) return false;
       const finishedTime = game.finishedAt instanceof Timestamp ? game.finishedAt.toMillis() : new Date(game.finishedAt).getTime();
@@ -105,7 +104,7 @@ export default function OnlineLobbyPage() {
     });
   }, [rawRecentGames]);
 
-  // 计算真实的活跃对局数 (排除 15 分钟无互动的僵尸对局)
+  // 计算真实的活跃对局数
   const trulyActiveGamesCount = useMemo(() => {
     if (!allActiveGames) return 0;
     const now = Date.now();
@@ -184,6 +183,56 @@ export default function OnlineLobbyPage() {
   const handleDeclineInvite = (gameId: string) => {
     if (!db) return;
     updateDoc(doc(db, "games", gameId), { status: 'finished', finishedAt: serverTimestamp(), result: { winner: null, reason: '对方拒绝了挑战', diff: 0 } });
+  };
+
+  const handleDownloadSGFFromLobby = async (game: any) => {
+    if (!db || isDownloading) return;
+    setIsDownloading(game.id);
+
+    try {
+      const movesQuery = query(collection(db, `games/${game.id}/moves`), orderBy("moveNumber", "asc"));
+      const movesSnap = await getDocs(movesQuery);
+      const moves = movesSnap.docs.map(d => d.data());
+
+      const historyEntry: GameHistoryEntry = {
+        id: game.id,
+        date: game.startedAt instanceof Timestamp ? game.startedAt.toDate().toISOString() : new Date().toISOString(),
+        mode: 'online',
+        boardSize: game.boardSize,
+        moveHistory: moves.map((m: any) => ({
+          r: m.coordinatesX,
+          c: m.coordinatesY,
+          player: m.playerColor as Player,
+          index: m.moveNumber
+        })),
+        metadata: {
+          event: 'Replay from Competition Lobby',
+          blackName: game.playerBlackName,
+          whiteName: game.playerWhiteName,
+          komi: (game.result?.komi || game.komi)?.toString(),
+          rules: game.rules === 'chinese' ? 'Chinese' : 'Japanese',
+          result: `${game.result?.winner === 'black' ? 'B' : 'W'}+${game.result?.diff?.toFixed(1) || '0.0'}`
+        },
+        result: game.result
+      };
+
+      const sgfData = exportToSGF(historyEntry);
+      const blob = new Blob([sgfData], { type: 'application/x-go-sgf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `WEIQI_REPLAY_${game.id.substring(0, 6)}_${format(new Date(), 'yyyyMMdd')}.sgf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: '下载成功', description: '棋谱已导出为 SGF 格式。' });
+    } catch (error) {
+      console.error("Download failed:", error);
+      toast({ title: '下载失败', description: '无法拉取棋谱记录。', variant: 'destructive' });
+    } finally {
+      setIsDownloading(null);
+    }
   };
 
   if (loadingUser) return <div className="h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>;
@@ -317,8 +366,14 @@ export default function OnlineLobbyPage() {
                          </div>
                       </div>
                     </div>
-                    <Button variant="outline" className="gap-2 border-2 hover:bg-blue-600 hover:text-white h-10 px-6 font-bold" onClick={() => router.push(`/game/online/${game.id}?mode=spectate`)}>
-                      <Eye className="h-4 w-4" /> {t('lobby.game.view')}
+                    <Button 
+                      variant="outline" 
+                      className="gap-2 border-2 hover:bg-blue-600 hover:text-white h-10 px-6 font-bold" 
+                      onClick={() => handleDownloadSGFFromLobby(game)}
+                      disabled={isDownloading === game.id}
+                    >
+                      {isDownloading === game.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      下载 SGF
                     </Button>
                   </CardContent>
                 </Card>
