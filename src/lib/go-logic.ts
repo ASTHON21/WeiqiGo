@@ -10,11 +10,6 @@ import { JapaneseScoring } from './scoring/japanese-scoring';
 export const GoLogic = {
     /**
      * 处理一次落子动作
-     * @param board 当前棋盘
-     * @param r 行
-     * @param c 列
-     * @param player 玩家颜色
-     * @param boardHistory 棋盘历史快照数组（用于劫争校验）
      */
     processMove: (
         board: BoardState, 
@@ -26,7 +21,7 @@ export const GoLogic = {
         const size = board.length;
         
         // 1. 基础合法性校验
-        if (r === -1 || c === -1) return { success: true, newBoard: board, capturedCount: 0 }; // 弃权不涉及规则检查
+        if (r === -1 || c === -1) return { success: true, newBoard: board, capturedCount: 0 }; 
         if (r < 0 || r >= size || c < 0 || c >= size) return { success: false, error: 'out_of_bounds', newBoard: board, capturedCount: 0 };
         if (board[r][c] !== null) return { success: false, error: 'occupied', newBoard: board, capturedCount: 0 };
 
@@ -34,14 +29,13 @@ export const GoLogic = {
         let newBoard = board.map(row => [...row]);
         newBoard[r][c] = player;
 
-        // 3. 检查并处理提子 (提掉对方)
+        // 3. 检查并处理提子
         const opponent: Player = player === 'black' ? 'white' : 'black';
         let capturedStones: [number, number][] = [];
         const neighbors: [number, number][] = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]];
 
         for (const [nr, nc] of neighbors) {
             if (nr >= 0 && nr < size && nc >= 0 && nc < size && newBoard[nr][nc] === opponent) {
-                // 如果对方这块棋没气了，则提掉
                 if (GoLogic.calculateLiberties(newBoard, nr, nc) === 0) {
                     const group = GoLogic.getGroup(newBoard, nr, nc);
                     group.forEach(([gr, gc]) => {
@@ -52,13 +46,12 @@ export const GoLogic = {
             }
         }
 
-        // 4. 自杀检查 (落子后己方必须有气，除非刚才提掉了对方)
+        // 4. 自杀检查
         if (GoLogic.calculateLiberties(newBoard, r, c) === 0) {
           return { success: false, error: 'suicide', newBoard: board, capturedCount: 0 };
         }
 
-        // 5. 劫争规则 (Ko Rule / 同型禁重)
-        // 核心：新生成的盘面状态不能与该对局之前的状态重复
+        // 5. 劫争规则 (Ko Rule)
         if (boardHistory.length > 0) {
             const isRepeat = boardHistory.some(prevBoard => GoLogic.isSameBoard(newBoard, prevBoard));
             if (isRepeat) return { success: false, error: 'ko', newBoard: board, capturedCount: 0 };
@@ -84,18 +77,16 @@ export const GoLogic = {
     },
 
     /**
-     * 自动清理死子（启发式实现）
-     * 在真实竞赛中由棋手确认，AI 场景中通过简单的两眼判定或气数判定辅助。
+     * 自动清理死子（竞赛结算专用启发式）
      */
     removeDeadStones: (board: BoardState): BoardState => {
         const internalBoard = board.map(row => [...row]);
         const groups = GoLogic.getAllGroups(internalBoard);
         
-        // 极简启发式：如果一块棋完全没有气且没有被判定为活棋，则视为死子。
-        // 在中国规则数子时，所有未被提走的棋子暂视为活子，除非它们明确在对方空内。
-        // 这里采用保守策略：仅移除被完全包围且无眼位的棋块。
+        // 移除被完全包围且气数为 0 的棋块
         groups.forEach(group => {
-            if (!GoLogic.isGroupAliveHeuristic(internalBoard, group)) {
+            const pos = group.positions[0];
+            if (GoLogic.calculateLiberties(internalBoard, pos[0], pos[1]) === 0) {
                 group.positions.forEach(([r, c]) => {
                     internalBoard[r][c] = null;
                 });
@@ -104,9 +95,6 @@ export const GoLogic = {
         return internalBoard;
     },
 
-    /**
-     * 辅助逻辑：判断两个盘面是否完全一致
-     */
     isSameBoard: (boardA: BoardState, boardB: BoardState): boolean => {
         const size = boardA.length;
         if (boardB.length !== size) return false;
@@ -118,9 +106,6 @@ export const GoLogic = {
         return true;
     },
 
-    /**
-     * 辅助逻辑：获取某位置棋块的气数
-     */
     calculateLiberties: (board: BoardState, r: number, c: number): number => {
         const group = GoLogic.getGroup(board, r, c);
         if (group.length === 0) return 0;
@@ -138,9 +123,6 @@ export const GoLogic = {
         return liberties.size;
     },
 
-    /**
-     * 辅助逻辑：获取相连的同色棋子块
-     */
     getGroup: (board: BoardState, r: number, c: number): [number, number][] => {
         const player = board[r][c];
         if (!player) return [];
@@ -164,9 +146,6 @@ export const GoLogic = {
         return group;
     },
 
-    /**
-     * 获取所有棋块
-     */
     getAllGroups: (board: BoardState): { positions: [number, number][], player: Player }[] => {
         const size = board.length;
         const visited = new Set<string>();
@@ -184,7 +163,7 @@ export const GoLogic = {
     },
 
     /**
-     * 寻找封闭区域 (用于数子/数目)
+     * 寻找封闭区域并判定归属（数目法核心）
      */
     findEnclosedArea: (board: BoardState, r: number, c: number, globalVisited: Set<string>): { points: [number, number][], owner: Player | 'seki' | null } => {
         const size = board.length;
@@ -216,24 +195,14 @@ export const GoLogic = {
         }
 
         let owner: Player | 'seki' | null = null;
-        if (owners.size === 1) owner = Array.from(owners)[0];
-        else if (owners.size > 1) owner = 'seki';
+        if (owners.size === 1) {
+            owner = Array.from(owners)[0];
+        } else if (owners.size > 1) {
+            // 被多种颜色棋子包围，属于双活（Seki）区域
+            owner = 'seki';
+        }
 
         return { points, owner };
-    },
-
-    /**
-     * 启发式存活判定 (用于自动数子)
-     */
-    isGroupAliveHeuristic: (board: BoardState, group: { positions: [number, number][], player: Player }): boolean => {
-        const firstPos = group.positions[0];
-        if (!firstPos) return false;
-        
-        const liberties = GoLogic.calculateLiberties(board, firstPos[0], firstPos[1]);
-        
-        // 如果棋块的气数大于等于 2，通常在未受攻击时视为活棋（极简逻辑）
-        // 实际上中国规则更倾向于手动移除死子，这里默认所有棋子均为活棋，除非已被提走
-        return liberties > 0;
     },
 
     createEmptyBoard: (size: number): BoardState =>
