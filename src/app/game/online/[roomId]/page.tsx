@@ -28,9 +28,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-/**
- * 棋盘尺寸对应的总时长上限 (秒)
- */
 const BOARD_TIME_LIMITS: Record<number, number> = {
   19: 3 * 3600, 
   13: 2 * 3600, 
@@ -52,9 +49,7 @@ function OnlineGameContent() {
   const [showPassConfirm, setShowPassConfirm] = useState(false);
   const [showResignConfirm, setShowResignConfirm] = useState(false);
   const [timeUsed, setTimeUsed] = useState({ black: 0, white: 0 });
-  const hasCheckedCatchup = useRef(false);
 
-  // 核心数据订阅
   const gameRef = useMemoFirebase(() => (db && roomId && user) ? doc(db, "games", roomId) : null, [db, roomId, user]);
   const { data: game, isLoading: loadingGame } = useDoc(gameRef);
 
@@ -86,7 +81,6 @@ function OnlineGameContent() {
     return BOARD_TIME_LIMITS[game.boardSize] || 10800;
   }, [game?.boardSize]);
 
-  // 同步已用时间
   useEffect(() => {
     if (game) {
       setTimeUsed({ 
@@ -96,7 +90,6 @@ function OnlineGameContent() {
     }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
 
-  // 实时计时器
   useEffect(() => {
     if (isInProgress && !isFinished && !isSpectating && isPlayer && game?.currentTurn) {
       const interval = setInterval(() => {
@@ -197,7 +190,8 @@ function OnlineGameContent() {
           whiteScore: score.whiteScore, 
           diff: score.diff, 
           details: score.details,
-          komi: score.komi
+          komi: score.komi,
+          isChinese: game.rules === 'chinese'
         } 
       });
     } else {
@@ -352,11 +346,11 @@ function OnlineGameContent() {
                       </h3>
                       <div className="flex items-center justify-center gap-4 pt-2">
                         <Badge variant="outline" className="border-blue-600/30 text-blue-700 bg-white">
-                          差距: {game.result?.diff?.toFixed(2)} {game.rules === 'chinese' ? '子' : '目'}
+                          差距: {game.result?.diff?.toFixed(2)} {game.result?.isChinese ? '子' : '目'}
                         </Badge>
-                        {game.rules === 'chinese' && (
+                        {game.result?.isChinese && (
                           <Badge variant="outline" className="border-blue-600/30 text-blue-700 bg-white">
-                            折合: {(game.result?.diff * 2)?.toFixed(2)} 目
+                            折合目数: {(game.result?.diff * 2)?.toFixed(2)} 目
                           </Badge>
                         )}
                       </div>
@@ -371,7 +365,11 @@ function OnlineGameContent() {
                          <div className="grid grid-cols-2 gap-x-8 gap-y-2">
                             <div className="flex justify-between items-center"><span className="text-muted-foreground">活子:</span><span className="font-mono font-bold">{game.result.details.blackStones} | {game.result.details.whiteStones}</span></div>
                             <div className="flex justify-between items-center"><span className="text-muted-foreground">围空:</span><span className="font-mono font-bold">{game.result.details.blackTerritory} | {game.result.details.whiteTerritory}</span></div>
-                            <div className="flex justify-between items-center"><span className="text-muted-foreground">提子:</span><span className="font-mono font-bold text-green-600">+{game.result.details.blackPrisoners} | +{game.result.details.whitePrisoners}</span></div>
+                            
+                            {game.rules === 'territory' && (
+                              <div className="flex justify-between items-center"><span className="text-muted-foreground">提子:</span><span className="font-mono font-bold text-green-600">+{game.result.details.blackPrisoners} | +{game.result.details.whitePrisoners}</span></div>
+                            )}
+                            
                             <div className="flex justify-between items-center"><span className="text-muted-foreground">死子:</span><span className="font-mono font-bold text-destructive">{game.result.details.blackDeadOnBoard} | {game.result.details.whiteDeadOnBoard}</span></div>
                          </div>
                       </div>

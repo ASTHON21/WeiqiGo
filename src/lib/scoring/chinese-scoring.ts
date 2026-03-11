@@ -10,14 +10,15 @@ import { GoLogic } from '../go-logic';
  * 白方总数 = 白活子数 + 白围空
  * 贴子 = 3.75 (固定值)
  * 黑胜 ⇔ 黑总数 > 白总数 + 3.75
+ * 
+ * 注意：中国规则中不计提子。
  */
 export class ChineseScoring implements ScoringStrategy {
-  calculate(board: BoardState, prisoners: { black: number, white: number } = { black: 0, white: 0 }): GameResult {
+  calculate(board: BoardState, _prisoners: { black: number, white: number } = { black: 0, white: 0 }): GameResult {
     const size = board.length;
     const KOMI = 3.75; // 固定贴子 3.75 子
 
-    // 1. 识别并移除死子（数子法前提是盘面仅剩活子）
-    // 我们通过计算原始棋盘与清理后棋盘的差异来统计“死子”
+    // 1. 识别并移除死子
     const cleanedBoard = GoLogic.removeDeadStones(board);
     
     let blackDeadOnBoard = 0;
@@ -57,21 +58,18 @@ export class ChineseScoring implements ScoringStrategy {
           } else if (owner === 'white') {
             whiteTerritory += points.length;
           } else {
-            // 公气在数子法中通常由双方平分
             neutralPoints += points.length;
           }
         }
       }
     }
 
-    // 4. 计算总数
-    // 按照用户要求，计算各自的活子+围空
-    // 公气各得一半
+    // 4. 计算总数 (子空皆地)
+    // 公气对半分
     const blackTotal = parseFloat((blackStones + blackTerritory + (neutralPoints / 2)).toFixed(2));
     const whiteTotal = parseFloat((whiteStones + whiteTerritory + (neutralPoints / 2)).toFixed(2));
 
     // 5. 胜负判定过程
-    // 黑胜 ⇔ 黑总数 > 白总数 + 3.75
     const isBlackWinner = blackTotal > (whiteTotal + KOMI);
     const winner: Player = isBlackWinner ? 'black' : 'white';
     
@@ -83,7 +81,7 @@ export class ChineseScoring implements ScoringStrategy {
       reason: '中国规则数子法 (精确结算)',
       blackScore: blackTotal,
       whiteScore: whiteTotal,
-      diff: diffZi, // 这里 diff 代表胜子数
+      diff: diffZi,
       komi: KOMI,
       details: {
         blackTerritory,
@@ -94,8 +92,8 @@ export class ChineseScoring implements ScoringStrategy {
         blackArea: blackTotal,
         whiteArea: whiteTotal,
         totalPoints: size * size,
-        blackPrisoners: prisoners.black,
-        whitePrisoners: prisoners.white,
+        blackPrisoners: 0, // 中国规则不应用提子
+        whitePrisoners: 0, 
         blackDeadOnBoard,
         whiteDeadOnBoard,
         komi: KOMI

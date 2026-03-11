@@ -69,7 +69,8 @@ function PracticeContent() {
     
     setScoreResult({
       ...result,
-      ruleName: ruleType === 'chinese' ? '中国规则' : '日韩规则'
+      ruleName: ruleType === 'chinese' ? '中国规则' : '日韩规则',
+      isChinese: ruleType === 'chinese'
     });
   };
 
@@ -177,23 +178,25 @@ function PracticeContent() {
             </CardContent>
           </Card>
 
-          <Card className="border-2">
-            <CardHeader className="py-3 bg-muted/30 border-b">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                <Info className="h-4 w-4 text-accent" /> 提子统计
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 flex justify-around">
-               <div className="text-center">
-                 <p className="text-[10px] text-muted-foreground font-bold uppercase">黑方提子</p>
-                 <p className="text-2xl font-black">{practice.prisoners.black}</p>
-               </div>
-               <div className="text-center">
-                 <p className="text-[10px] text-muted-foreground font-bold uppercase">白方提子</p>
-                 <p className="text-2xl font-black">{practice.prisoners.white}</p>
-               </div>
-            </CardContent>
-          </Card>
+          {ruleType === 'territory' && (
+            <Card className="border-2">
+              <CardHeader className="py-3 bg-muted/30 border-b">
+                <CardTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                  <Info className="h-4 w-4 text-accent" /> 提子统计
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 flex justify-around">
+                <div className="text-center">
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase">黑方提子</p>
+                  <p className="text-2xl font-black">{practice.prisoners.black}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase">白方提子</p>
+                  <p className="text-2xl font-black">{practice.prisoners.white}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -207,19 +210,17 @@ function PracticeContent() {
           
           <ScrollArea className="max-h-[60vh]">
             <div className="p-6 space-y-6">
-              {/* 总得分卡片 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-muted/30 border-2 border-primary/10 text-center space-y-1">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">黑方总数 (Area)</p>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">黑方总数 ({scoreResult?.isChinese ? 'Area' : 'Score'})</p>
                   <p className="text-4xl font-black text-foreground font-headline leading-none">{scoreResult?.blackScore?.toFixed(2)}</p>
                 </div>
                 <div className="p-4 rounded-xl bg-muted/30 border-2 border-primary/10 text-center space-y-1">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">白方总数 (Area)</p>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">白方总数 ({scoreResult?.isChinese ? 'Area' : 'Score'})</p>
                   <p className="text-4xl font-black text-foreground font-headline leading-none">{scoreResult?.whiteScore?.toFixed(2)}</p>
                 </div>
               </div>
 
-              {/* 胜负判定显示 */}
               <div className="p-6 rounded-2xl bg-blue-600/10 border-4 border-blue-600/20 text-center space-y-2">
                 <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">胜负判定过程</p>
                 <div className="flex items-center justify-center gap-3 text-sm font-bold text-muted-foreground">
@@ -232,15 +233,16 @@ function PracticeContent() {
                 </h3>
                 <div className="flex items-center justify-center gap-4 pt-2">
                   <Badge variant="outline" className="border-blue-600/30 text-blue-700 bg-white">
-                    胜子数: {scoreResult?.diff?.toFixed(2)} 子
+                    差距: {scoreResult?.diff?.toFixed(2)} {scoreResult?.isChinese ? '子' : '目'}
                   </Badge>
-                  <Badge variant="outline" className="border-blue-600/30 text-blue-700 bg-white">
-                    折合目数: {(scoreResult?.diff * 2)?.toFixed(2)} 目
-                  </Badge>
+                  {scoreResult?.isChinese && (
+                    <Badge variant="outline" className="border-blue-600/30 text-blue-700 bg-white">
+                      折合目数: {(scoreResult?.diff * 2)?.toFixed(2)} 目
+                    </Badge>
+                  )}
                 </div>
               </div>
 
-              {/* 详细统计数据 */}
               <div className="grid grid-cols-1 gap-4 text-xs">
                 <div className="p-4 border rounded-lg bg-muted/10 space-y-3">
                   <p className="font-bold flex items-center gap-2 border-b pb-2 uppercase tracking-tighter">
@@ -264,14 +266,20 @@ function PracticeContent() {
                       <span className="text-muted-foreground">白围空数:</span>
                       <span className="font-mono font-bold">{scoreResult?.details?.whiteTerritory}</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">黑方提子:</span>
-                      <span className="font-mono font-bold text-green-600">+{scoreResult?.details?.blackPrisoners}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">白方提子:</span>
-                      <span className="font-mono font-bold text-green-600">+{scoreResult?.details?.whitePrisoners}</span>
-                    </div>
+                    
+                    {!scoreResult?.isChinese && (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">黑方提子:</span>
+                          <span className="font-mono font-bold text-green-600">+{scoreResult?.details?.blackPrisoners}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">白方提子:</span>
+                          <span className="font-mono font-bold text-green-600">+{scoreResult?.details?.whitePrisoners}</span>
+                        </div>
+                      </>
+                    )}
+
                     <div className="flex justify-between items-center border-t pt-2 mt-1">
                       <span className="text-muted-foreground">终局黑死子:</span>
                       <span className="font-mono font-bold text-destructive">{scoreResult?.details?.blackDeadOnBoard}</span>
@@ -280,10 +288,6 @@ function PracticeContent() {
                       <span className="text-muted-foreground">终局白死子:</span>
                       <span className="font-mono font-bold text-destructive">{scoreResult?.details?.whiteDeadOnBoard}</span>
                     </div>
-                  </div>
-                  
-                  <div className="bg-primary/5 p-2 rounded text-center font-mono text-[10px] text-muted-foreground italic">
-                    * 贴子 {scoreResult?.komi} 子已根据竞赛标准计入。
                   </div>
                 </div>
               </div>
