@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -8,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Home, RefreshCw, Loader2, LogOut } from 'lucide-react';
+import { History, Swords, Book, Calculator, ShieldCheck, Trophy, Info, Lock, Home, RefreshCw, Loader2, LogOut, ChevronRight, Hash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -197,31 +198,97 @@ function PracticeContent() {
       </div>
 
       <AlertDialog open={!!scoreResult} onOpenChange={(open) => !open && setScoreResult(null)}>
-        <AlertDialogContent className="max-w-md border-4 border-primary p-0 overflow-y-auto max-h-[95vh] shadow-2xl">
+        <AlertDialogContent className="max-w-xl border-4 border-primary p-0 overflow-y-auto max-h-[95vh] shadow-2xl bg-background">
           <AlertDialogHeader className="bg-primary text-primary-foreground p-6 sticky top-0 z-10">
             <AlertDialogTitle className="flex items-center justify-center gap-2 text-xl font-headline uppercase tracking-tight">
-              <Calculator className="h-6 w-6" /> {scoreResult?.ruleName} 结算报告
+              <Calculator className="h-6 w-6" /> {scoreResult?.ruleName} 精确结算报告
             </AlertDialogTitle>
           </AlertDialogHeader>
-          <div className="p-8 space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-black/5 border-2 border-primary/10 text-center space-y-1">
-                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">黑方点数</p>
-                <p className="text-4xl font-black text-foreground font-headline leading-none">{scoreResult?.blackScore?.toFixed(1)}</p>
+          
+          <ScrollArea className="max-h-[60vh]">
+            <div className="p-6 space-y-6">
+              {/* 总得分卡片 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-muted/30 border-2 border-primary/10 text-center space-y-1">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">黑方总数 (Area)</p>
+                  <p className="text-4xl font-black text-foreground font-headline leading-none">{scoreResult?.blackScore?.toFixed(2)}</p>
+                </div>
+                <div className="p-4 rounded-xl bg-muted/30 border-2 border-primary/10 text-center space-y-1">
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">白方总数 (Area)</p>
+                  <p className="text-4xl font-black text-foreground font-headline leading-none">{scoreResult?.whiteScore?.toFixed(2)}</p>
+                </div>
               </div>
-              <div className="p-4 rounded-xl bg-black/5 border-2 border-primary/10 text-center space-y-1">
-                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">白方点数</p>
-                <p className="text-4xl font-black text-foreground font-headline leading-none">{scoreResult?.whiteScore?.toFixed(1)}</p>
-              </div>
-            </div>
 
-            <div className="p-6 rounded-2xl bg-blue-600/10 border-4 border-blue-600/20 text-center space-y-2">
-              <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终胜负判定 (Komi: {scoreResult?.komi})</p>
-              <h3 className="text-4xl font-black text-blue-800 font-headline">
-                {scoreResult?.winner === 'black' ? '黑方胜' : '白方胜'} {scoreResult?.diff?.toFixed(1) || '0.0'} 点
-              </h3>
+              {/* 胜负判定显示 */}
+              <div className="p-6 rounded-2xl bg-blue-600/10 border-4 border-blue-600/20 text-center space-y-2">
+                <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">胜负判定过程</p>
+                <div className="flex items-center justify-center gap-3 text-sm font-bold text-muted-foreground">
+                  <span>黑 {scoreResult?.blackScore?.toFixed(2)}</span>
+                  <ChevronRight className="h-4 w-4" />
+                  <span>白 {scoreResult?.whiteScore?.toFixed(2)} + 贴 {scoreResult?.komi}</span>
+                </div>
+                <h3 className="text-4xl font-black text-blue-800 font-headline">
+                  {scoreResult?.winner === 'black' ? '黑方获胜' : '白方获胜'}
+                </h3>
+                <div className="flex items-center justify-center gap-4 pt-2">
+                  <Badge variant="outline" className="border-blue-600/30 text-blue-700 bg-white">
+                    胜子数: {scoreResult?.diff?.toFixed(2)} 子
+                  </Badge>
+                  <Badge variant="outline" className="border-blue-600/30 text-blue-700 bg-white">
+                    折合目数: {(scoreResult?.diff * 2)?.toFixed(2)} 目
+                  </Badge>
+                </div>
+              </div>
+
+              {/* 详细统计数据 */}
+              <div className="grid grid-cols-1 gap-4 text-xs">
+                <div className="p-4 border rounded-lg bg-muted/10 space-y-3">
+                  <p className="font-bold flex items-center gap-2 border-b pb-2 uppercase tracking-tighter">
+                    <Hash className="h-3.5 w-3.5 text-primary" /> 分项统计明细
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">黑活子数:</span>
+                      <span className="font-mono font-bold">{scoreResult?.details?.blackStones}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">白活子数:</span>
+                      <span className="font-mono font-bold">{scoreResult?.details?.whiteStones}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">黑围空数:</span>
+                      <span className="font-mono font-bold">{scoreResult?.details?.blackTerritory}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">白围空数:</span>
+                      <span className="font-mono font-bold">{scoreResult?.details?.whiteTerritory}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">黑方提子:</span>
+                      <span className="font-mono font-bold text-green-600">+{scoreResult?.details?.blackPrisoners}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">白方提子:</span>
+                      <span className="font-mono font-bold text-green-600">+{scoreResult?.details?.whitePrisoners}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-t pt-2 mt-1">
+                      <span className="text-muted-foreground">终局黑死子:</span>
+                      <span className="font-mono font-bold text-destructive">{scoreResult?.details?.blackDeadOnBoard}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-t pt-2 mt-1">
+                      <span className="text-muted-foreground">终局白死子:</span>
+                      <span className="font-mono font-bold text-destructive">{scoreResult?.details?.whiteDeadOnBoard}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-primary/5 p-2 rounded text-center font-mono text-[10px] text-muted-foreground italic">
+                    * 贴子 {scoreResult?.komi} 子已根据竞赛标准计入。
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          </ScrollArea>
           
           <AlertDialogFooter className="p-6 bg-muted/30 border-t flex-col sm:flex-row gap-3 sticky bottom-0 z-10">
             <div className="grid grid-cols-2 w-full gap-3">

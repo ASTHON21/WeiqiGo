@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -5,7 +6,7 @@ import { GoBoard } from '@/components/game/GoBoard';
 import { ToolPanel } from '@/components/game/ToolPanel';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, Trophy, Globe, Flag, Hourglass, XCircle, SkipForward, History, Download } from 'lucide-react';
+import { Loader2, ArrowLeft, Trophy, Globe, Flag, Hourglass, XCircle, SkipForward, History, Download, ChevronRight, Hash, Calculator } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useMemo, Suspense, useRef } from 'react';
 import { useDoc, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -16,6 +17,7 @@ import { MoveSetting, Player, BoardState, GameHistoryEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { exportToSGF } from '@/lib/sgf';
 import { format } from 'date-fns';
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,9 +30,6 @@ import {
 
 /**
  * 棋盘尺寸对应的总时长上限 (秒)
- * 19x19: 3小时
- * 13x13: 2小时
- * 9x9: 1小时
  */
 const BOARD_TIME_LIMITS: Record<number, number> = {
   19: 3 * 3600, 
@@ -80,20 +79,12 @@ function OnlineGameContent() {
 
   const isFinished = game?.status === 'finished';
   const isInProgress = game?.status === 'in-progress';
-  const isPending = game?.status === 'pending';
   const isPlayer = user && game && (user.uid === game.playerWhiteId || user.uid === game.playerBlackId);
   
   const timeLimit = useMemo(() => {
     if (!game) return 10800;
     return BOARD_TIME_LIMITS[game.boardSize] || 10800;
   }, [game?.boardSize]);
-
-  // 更新活跃时间戳，用于离线超时判定
-  useEffect(() => {
-    if (db && roomId && isInProgress) {
-      updateDoc(doc(db, "games", roomId), { lastActivityAt: serverTimestamp() }).catch(() => {});
-    }
-  }, [db, roomId, isInProgress]);
 
   // 同步已用时间
   useEffect(() => {
@@ -104,40 +95,6 @@ function OnlineGameContent() {
       });
     }
   }, [game?.id, game?.playerBlackTimeUsed, game?.playerWhiteTimeUsed]);
-
-  // 超时回归检查逻辑 (Catch-up Settlement)
-  useEffect(() => {
-    if (db && roomId && game && isInProgress && !isFinished && !hasCheckedCatchup.current) {
-      if (!game.lastActivityAt) {
-        hasCheckedCatchup.current = true;
-        return;
-      }
-      
-      const turn = game.currentTurn as 'black' | 'white';
-      const lastActivity = game.lastActivityAt instanceof Timestamp ? game.lastActivityAt.toMillis() : new Date(game.lastActivityAt).getTime();
-      const now = Date.now();
-
-      if (lastActivity < now) {
-        const elapsedSinceActivity = Math.floor((now - lastActivity) / 1000);
-        const currentTimeUsed = turn === 'black' ? (game.playerBlackTimeUsed || 0) : (game.playerWhiteTimeUsed || 0);
-        
-        if (currentTimeUsed + elapsedSinceActivity > timeLimit + 10) {
-          updateDoc(doc(db, "games", roomId), {
-            status: 'finished',
-            finishedAt: serverTimestamp(),
-            lastActivityAt: serverTimestamp(),
-            result: { 
-              winner: turn === 'black' ? 'white' : 'black', 
-              reason: '超时负 (自动结算)', 
-              diff: 0,
-              komi: game.komi || (game.rules === 'chinese' ? 3.75 : 6.5)
-            }
-          }).catch(() => {});
-        }
-      }
-      hasCheckedCatchup.current = true;
-    }
-  }, [db, roomId, game, isInProgress, isFinished, timeLimit]);
 
   // 实时计时器
   useEffect(() => {
@@ -273,7 +230,6 @@ function OnlineGameContent() {
 
   const handleDownloadSGF = () => {
     if (!game || !moves) return;
-
     const historyEntry: GameHistoryEntry = {
       id: game.id,
       date: game.startedAt instanceof Timestamp ? game.startedAt.toDate().toISOString() : new Date().toISOString(),
@@ -295,7 +251,6 @@ function OnlineGameContent() {
       },
       result: game.result
     };
-
     try {
       const sgfData = exportToSGF(historyEntry);
       const blob = new Blob([sgfData], { type: 'application/x-go-sgf' });
@@ -313,16 +268,6 @@ function OnlineGameContent() {
     }
   };
 
-  const handleCancelInvite = async () => {
-    if (!db || !roomId || !game) return;
-    await updateDoc(doc(db, "games", roomId), { 
-      status: 'finished', 
-      finishedAt: serverTimestamp(), 
-      result: { winner: null, reason: '挑战者取消了邀请', diff: 0 } 
-    });
-    router.push('/game/online/lobby');
-  };
-
   const formatDuration = (s: number) => {
     const hrs = Math.floor(s / 3600);
     const mins = Math.floor((s % 3600) / 60);
@@ -332,71 +277,6 @@ function OnlineGameContent() {
   };
 
   if (loadingGame || loadingUser) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary w-12 h-12" /></div>;
-
-  if (isFinished && (game?.result?.reason === '对方拒绝了挑战' || game?.result?.reason === '挑战者取消了邀请')) {
-    const isRejected = game?.result?.reason === '对方拒绝了挑战';
-    return (
-      <div className="h-screen flex items-center justify-center p-6 bg-background">
-        <Card className={cn(
-          "max-w-md w-full border-4 shadow-2xl p-8 text-center animate-in zoom-in-95",
-          isRejected ? "border-destructive" : "border-muted"
-        )}>
-           <div className={cn(
-             "mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-6",
-             isRejected ? "bg-destructive/10" : "bg-muted/30"
-           )}>
-              {isRejected ? <XCircle className="h-10 w-10 text-destructive" /> : <Flag className="h-10 w-10 text-muted-foreground" />}
-           </div>
-           <CardTitle className={cn(
-             "text-2xl font-black font-headline mb-4",
-             isRejected ? "text-destructive" : "text-foreground"
-           )}>
-             {isRejected ? "挑战已被拒绝" : "对局已取消"}
-           </CardTitle>
-           <p className="text-muted-foreground mb-8">
-             {isRejected ? "对方目前不便对局或已离开大厅。建议寻找其他在线棋手发起挑战。" : "您已经取消了本次对局邀请。"}
-           </p>
-           <Button className="w-full h-12 font-bold" onClick={() => router.push('/game/online/lobby')}>
-             返回竞技大厅
-           </Button>
-        </Card>
-      </div>
-    );
-  }
-
-  if (isPending && isPlayer && !isSpectating) {
-    const opponentName = user?.uid === game?.playerBlackId ? game?.playerWhiteName : game?.playerBlackName;
-    return (
-      <div className="h-screen flex items-center justify-center bg-background p-6">
-        <Card className="w-full max-w-md border-4 border-blue-500 shadow-2xl animate-in zoom-in-95">
-          <CardHeader className="text-center pb-2">
-            <div className="mx-auto w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mb-6">
-              <Hourglass className="h-10 w-10 text-blue-500 animate-spin" />
-            </div>
-            <CardTitle className="text-2xl font-black font-headline text-blue-700">等待对手进入对局...</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <p className="text-muted-foreground">
-              挑战已发送给 <span className="font-bold text-foreground">{opponentName}</span>。
-              请耐心等待对方接受并开启对局。
-            </p>
-            <div className="p-4 bg-muted/30 rounded-lg border text-xs text-left">
-              <p className="font-bold mb-1 uppercase tracking-tight">对局设定：</p>
-              <ul className="space-y-1">
-                <li>• 棋盘尺寸：{game?.boardSize}x{game?.boardSize}</li>
-                <li>• 规则：{game?.rules === 'chinese' ? '中国规则' : '日韩规则'}</li>
-              </ul>
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-3">
-            <Button variant="outline" className="w-full h-12 font-bold border-2 hover:bg-destructive hover:text-white hover:border-destructive transition-all" onClick={handleCancelInvite}>
-              取消挑战并返回大厅
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
@@ -446,21 +326,58 @@ function OnlineGameContent() {
           
           {(isFinished && !dismissGameOver) && (
             <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4 z-50 animate-in fade-in zoom-in-95">
-              <Card className="w-full max-w-md border-4 border-primary shadow-2xl p-0 overflow-hidden">
+              <Card className="w-full max-w-xl border-4 border-primary shadow-2xl p-0 overflow-hidden">
                 <CardHeader className="bg-primary text-primary-foreground p-6">
                   <CardTitle className="flex items-center justify-center gap-2 text-xl font-headline uppercase tracking-tight">
                     <Trophy className="h-6 w-6" /> 对局结算报告
                   </CardTitle>
                 </CardHeader>
-                <div className="p-8 space-y-6 bg-background">
-                  <div className="p-6 rounded-2xl bg-blue-600/5 border-4 border-blue-600/20 text-center space-y-2">
-                    <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">最终胜负 (Komi: {game.result?.komi})</p>
-                    <h3 className="text-4xl font-black text-blue-800 font-headline">
-                      {game.result?.winner === 'black' ? '黑方胜' : '白方胜'} {game.result?.diff?.toFixed(1) || '0.0'} 点
-                    </h3>
-                    <p className="text-xs text-muted-foreground italic">原因: {game.result?.reason}</p>
+                <ScrollArea className="max-h-[60vh] bg-background">
+                  <div className="p-8 space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 rounded-xl bg-muted/30 border-2 border-primary/10 text-center space-y-1">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">黑方得分</p>
+                        <p className="text-4xl font-black font-headline leading-none">{game.result?.blackScore?.toFixed(2)}</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-muted/30 border-2 border-primary/10 text-center space-y-1">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">白方得分</p>
+                        <p className="text-4xl font-black font-headline leading-none">{game.result?.whiteScore?.toFixed(2)}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-6 rounded-2xl bg-blue-600/10 border-4 border-blue-600/20 text-center space-y-2">
+                      <p className="text-[11px] font-black text-blue-600 uppercase tracking-[0.2em]">判定详情</p>
+                      <h3 className="text-4xl font-black text-blue-800 font-headline">
+                        {game.result?.winner === 'black' ? '黑方获胜' : '白方获胜'}
+                      </h3>
+                      <div className="flex items-center justify-center gap-4 pt-2">
+                        <Badge variant="outline" className="border-blue-600/30 text-blue-700 bg-white">
+                          差距: {game.result?.diff?.toFixed(2)} {game.rules === 'chinese' ? '子' : '目'}
+                        </Badge>
+                        {game.rules === 'chinese' && (
+                          <Badge variant="outline" className="border-blue-600/30 text-blue-700 bg-white">
+                            折合: {(game.result?.diff * 2)?.toFixed(2)} 目
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground italic pt-2">原因: {game.result?.reason}</p>
+                    </div>
+
+                    {game.result?.details && (
+                      <div className="p-4 border rounded-lg bg-muted/10 space-y-3 text-xs">
+                         <p className="font-bold flex items-center gap-2 border-b pb-2 uppercase">
+                            <Hash className="h-3.5 w-3.5 text-primary" /> 分项数据
+                         </p>
+                         <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+                            <div className="flex justify-between items-center"><span className="text-muted-foreground">活子:</span><span className="font-mono font-bold">{game.result.details.blackStones} | {game.result.details.whiteStones}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-muted-foreground">围空:</span><span className="font-mono font-bold">{game.result.details.blackTerritory} | {game.result.details.whiteTerritory}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-muted-foreground">提子:</span><span className="font-mono font-bold text-green-600">+{game.result.details.blackPrisoners} | +{game.result.details.whitePrisoners}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-muted-foreground">死子:</span><span className="font-mono font-bold text-destructive">{game.result.details.blackDeadOnBoard} | {game.result.details.whiteDeadOnBoard}</span></div>
+                         </div>
+                      </div>
+                    )}
                   </div>
-                </div>
+                </ScrollArea>
                 <CardFooter className="p-6 bg-muted/20 border-t flex flex-col gap-3">
                   <div className="flex w-full gap-3">
                     <Button variant="outline" className="flex-1 h-12 font-bold border-2 gap-2" onClick={() => router.push('/game/online/lobby')}>

@@ -4,35 +4,32 @@ import { ScoringStrategy } from './strategy';
 import { GoLogic } from '../go-logic';
 
 /**
- * 中国规则数子法 (Area Scoring) - 国际竞赛标准实现
- * 
- * 核心逻辑：
- * 1. 面积 = 活子 + 围空。
- * 2. 贴子 (Komi) 以“子”为单位，根据棋盘尺寸自动适配：
- *    - 19x19: 3.75 子
- *    - 13x13: 3.25 子
- *    - 9x9:   2.75 子
- * 3. 判定：黑得分 >= (总点数/2 + 贴子) 则黑胜。
+ * 优化后的中国规则数子法 (Area Scoring)
+ * 遵循核心公式：
+ * 黑方总数 = 黑活子数 + 黑围空
+ * 白方总数 = 白活子数 + 白围空
+ * 贴子 = 3.75 (固定值)
+ * 黑胜 ⇔ 黑总数 > 白总数 + 3.75
  */
 export class ChineseScoring implements ScoringStrategy {
   calculate(board: BoardState, prisoners: { black: number, white: number } = { black: 0, white: 0 }): GameResult {
     const size = board.length;
-    const totalPoints = size * size;
-    
-    // 1. 获取竞赛标准的贴子 (Zi) 设定
-    let komiZi = 3.75; 
-    let blackWinsThreshold = 184.25; // (361 / 2) + 3.75
+    const KOMI = 3.75; // 固定贴子 3.75 子
 
-    if (size === 13) {
-      komiZi = 3.25;
-      blackWinsThreshold = 87.75; // (169 / 2) + 3.25
-    } else if (size === 9) {
-      komiZi = 2.75;
-      blackWinsThreshold = 43.25; // (81 / 2) + 2.75
-    }
-
-    // 2. 移除死子（数子法前提是盘面仅剩活子，死子视同空地）
+    // 1. 识别并移除死子（数子法前提是盘面仅剩活子）
+    // 我们通过计算原始棋盘与清理后棋盘的差异来统计“死子”
     const cleanedBoard = GoLogic.removeDeadStones(board);
+    
+    let blackDeadOnBoard = 0;
+    let whiteDeadOnBoard = 0;
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        if (board[r][c] !== cleanedBoard[r][c]) {
+          if (board[r][c] === 'black') blackDeadOnBoard++;
+          else if (board[r][c] === 'white') whiteDeadOnBoard++;
+        }
+      }
+    }
 
     const visited = new Set<string>();
     let blackStones = 0;
@@ -41,7 +38,7 @@ export class ChineseScoring implements ScoringStrategy {
     let whiteTerritory = 0;
     let neutralPoints = 0;
 
-    // 3. 统计活子数量
+    // 2. 统计活子数量
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         if (cleanedBoard[r][c] === 'black') blackStones++;
@@ -49,7 +46,7 @@ export class ChineseScoring implements ScoringStrategy {
       }
     }
 
-    // 4. 统计围空归属 (Area)
+    // 3. 统计围空归属
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         const key = `${r},${c}`;
@@ -60,45 +57,48 @@ export class ChineseScoring implements ScoringStrategy {
           } else if (owner === 'white') {
             whiteTerritory += points.length;
           } else {
-            // 公气：在数子法中，终局未填满的公气由双方平分
+            // 公气在数子法中通常由双方平分
             neutralPoints += points.length;
           }
         }
       }
     }
 
-    // 5. 最终面积计算
-    const blackArea = blackStones + blackTerritory + (neutralPoints / 2);
-    const whiteArea = whiteStones + whiteTerritory + (neutralPoints / 2);
+    // 4. 计算总数
+    // 按照用户要求，计算各自的活子+围空
+    // 公气各得一半
+    const blackTotal = parseFloat((blackStones + blackTerritory + (neutralPoints / 2)).toFixed(2));
+    const whiteTotal = parseFloat((whiteStones + whiteTerritory + (neutralPoints / 2)).toFixed(2));
 
-    // 6. 胜负判定
-    const isBlackWinner = blackArea >= blackWinsThreshold;
+    // 5. 胜负判定过程
+    // 黑胜 ⇔ 黑总数 > 白总数 + 3.75
+    const isBlackWinner = blackTotal > (whiteTotal + KOMI);
     const winner: Player = isBlackWinner ? 'black' : 'white';
     
-    // 计算差距：中国规则常以“子”显示，1子 = 2目
-    const diffZi = Math.abs(blackArea - (totalPoints / 2 + komiZi));
+    // 计算差距 (胜子数)
+    const diffZi = parseFloat(Math.abs(blackTotal - (whiteTotal + KOMI)).toFixed(2));
 
     return {
       winner,
-      reason: '数子法 (中国竞赛规则)',
-      blackScore: blackArea,
-      whiteScore: whiteArea,
-      diff: diffZi * 2, // 转换为目数显示以保持界面一致
-      komi: komiZi,
+      reason: '中国规则数子法 (精确结算)',
+      blackScore: blackTotal,
+      whiteScore: whiteTotal,
+      diff: diffZi, // 这里 diff 代表胜子数
+      komi: KOMI,
       details: {
         blackTerritory,
         whiteTerritory,
         blackStones,
         whiteStones,
         neutralPoints,
-        blackArea,
-        whiteArea,
-        totalPoints,
+        blackArea: blackTotal,
+        whiteArea: whiteTotal,
+        totalPoints: size * size,
         blackPrisoners: prisoners.black,
         whitePrisoners: prisoners.white,
-        blackDeadOnBoard: 0,
-        whiteDeadOnBoard: 0,
-        komi: komiZi
+        blackDeadOnBoard,
+        whiteDeadOnBoard,
+        komi: KOMI
       }
     };
   }
