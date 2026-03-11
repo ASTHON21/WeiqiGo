@@ -47,10 +47,12 @@ export function GoBoard({
   const [pendingMove, setPendingMove] = useState<{ r: number; c: number } | null>(null);
   const [lastClicked, setLastClicked] = useState<{ r: number; c: number; time: number } | null>(null);
   
+  // 音效引用与棋盘状态快照
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevBoardRef = useRef<BoardState | null>(null);
   const hasUnlockedAudio = useRef(false);
   
+  // 初始化音频资源
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
@@ -60,6 +62,7 @@ export function GoBoard({
     }
   }, []);
 
+  // 执行播放逻辑
   const playStoneSound = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
@@ -67,6 +70,7 @@ export function GoBoard({
     }
   };
 
+  // 核心：监测落子动作并触发音效
   useEffect(() => {
     if (prevBoardRef.current) {
       let stoneAdded = false;
@@ -81,6 +85,7 @@ export function GoBoard({
       }
       if (stoneAdded) playStoneSound();
     }
+    // 更新上一手快照
     prevBoardRef.current = board.map(row => [...row]);
   }, [board, size]);
 
@@ -88,6 +93,7 @@ export function GoBoard({
   const interactiveCellSize = `${(1 / (size - 1)) * 100}%`;
   const isInteractionDisabled = disabled || readOnly;
 
+  // 用户交互触发解锁（规避浏览器自动播放限制）
   const unlockAudio = () => {
     if (!hasUnlockedAudio.current && audioRef.current) {
       hasUnlockedAudio.current = true;
