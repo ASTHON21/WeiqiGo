@@ -17,6 +17,11 @@ export type BoardState = Stone[][];
 export type MoveSetting = 'direct' | 'confirm' | 'double-click';
 
 /**
+ * 手数编号显示模式
+ */
+export type NumberingMode = 'none' | 'last' | 'all';
+
+/**
  * 动作与历史
  */
 export interface Move {

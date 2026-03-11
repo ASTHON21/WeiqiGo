@@ -1,23 +1,24 @@
-
 "use client";
 
 import { useState } from 'react';
 import { SgfProcessor } from '@/lib/ai/sgf-processor';
 import { GibProcessor } from '@/lib/ai/gib-processor';
-import { LevelData } from '@/lib/types';
+import { LevelData, NumberingMode } from '@/lib/types';
 import { GoBoard } from '@/components/game/GoBoard';
 import { SgfHeader } from '@/components/game/SgfHeader';
 import { NavControls } from '@/components/game/NavControls';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSgfViewer } from '@/hooks/useSgfViewer';
-import { FileUp, BookOpen, RotateCcw, ArrowLeft, FileCode, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { FileUp, BookOpen, RotateCcw, ArrowLeft, FileCode, ShieldCheck, AlertTriangle, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
 export default function SgfViewerPage() {
   const [gameData, setGameData] = useState<LevelData | null>(null);
+  const [numberingMode, setNumberingMode] = useState<NumberingMode>('none');
   const router = useRouter();
   const { toast } = useToast();
 
@@ -27,7 +28,6 @@ export default function SgfViewerPage() {
 
     const extension = file.name.split('.').pop()?.toLowerCase();
     
-    // 严格安全限制：文件不能超过 64KB (标准 SGF 通常 < 20KB)
     const MAX_SAFE_SIZE = 64 * 1024;
     if (file.size > MAX_SAFE_SIZE) {
       toast({
@@ -43,7 +43,6 @@ export default function SgfViewerPage() {
     reader.onload = (event) => {
       const content = event.target?.result as string;
 
-      // 深度防御：检查文件是否包含二进制特征 (防止伪装成 SGF 的木马)
       if (content.includes('\u0000') || /[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(content)) {
         toast({
           variant: "destructive",
@@ -142,6 +141,8 @@ export default function SgfViewerPage() {
               size={gameData.boardSize} 
               readOnly={true}
               lastMove={viewer.lastMove}
+              numberingMode={numberingMode}
+              moveHistory={gameData.moves.slice(0, viewer.currentIndex)}
             />
           </div>
           <Card className="w-full max-w-[80vh] border-2">
@@ -167,6 +168,27 @@ export default function SgfViewerPage() {
             <CardContent className="flex-1 p-0 overflow-hidden">
               <ScrollArea className="h-full p-4">
                 <div className="space-y-4">
+                   {/* 显示设置面板 */}
+                   <div className="p-3 bg-muted/10 rounded-md border space-y-3 mb-4">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                        <Settings className="h-3 w-3" /> 显示设置
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium">手数编号</span>
+                        <Tabs 
+                          value={numberingMode} 
+                          onValueChange={(v) => setNumberingMode(v as NumberingMode)} 
+                          className="w-auto"
+                        >
+                          <TabsList className="h-8 p-0.5 bg-background border">
+                            <TabsTrigger value="none" className="text-[10px] px-2 h-7">无</TabsTrigger>
+                            <TabsTrigger value="last" className="text-[10px] px-2 h-7">当前</TabsTrigger>
+                            <TabsTrigger value="all" className="text-[10px] px-2 h-7">全部</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                      </div>
+                   </div>
+
                    <div className="p-3 bg-accent/5 rounded-md border border-accent/10">
                       <p className="text-xs font-bold text-accent uppercase mb-1">当前进度</p>
                       <p className="text-sm">

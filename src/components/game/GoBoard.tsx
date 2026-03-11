@@ -1,8 +1,7 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import type { BoardState, Move, Player, MoveSetting } from "@/lib/types"; 
+import type { BoardState, Move, Player, MoveSetting, NumberingMode } from "@/lib/types"; 
 import { cn } from "@/lib/utils";
 import { Icons } from "@/components/icons";
 import {
@@ -24,6 +23,8 @@ interface GoBoardProps {
   size: number;
   currentPlayer?: Player;
   moveSetting?: MoveSetting;
+  numberingMode?: NumberingMode;
+  moveHistory?: Move[]; // 用于计算手数编号的历史记录
 }
 
 const getStarPoints = (size: number): [number, number][] => {
@@ -41,18 +42,18 @@ export function GoBoard({
   lastMove, 
   size, 
   currentPlayer,
-  moveSetting = 'direct'
+  moveSetting = 'direct',
+  numberingMode = 'none',
+  moveHistory = []
 }: GoBoardProps) {
   const [hoveredCell, setHoveredCell] = useState<{ r: number; c: number } | null>(null);
   const [pendingMove, setPendingMove] = useState<{ r: number; c: number } | null>(null);
   const [lastClicked, setLastClicked] = useState<{ r: number; c: number; time: number } | null>(null);
   
-  // 音效引用与棋盘状态快照
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevBoardRef = useRef<BoardState | null>(null);
   const hasUnlockedAudio = useRef(false);
   
-  // 初始化音频资源 (使用高可靠性的开源落子音效)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const audio = new Audio('https://raw.githubusercontent.com/sabaki-go/Sabaki/master/resources/audio/move.mp3');
@@ -62,25 +63,18 @@ export function GoBoard({
     }
   }, []);
 
-  // 执行播放逻辑
   const playStoneSound = () => {
     if (audioRef.current) {
-      // 必须先重置进度以支持连续快速落子
       audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(err => {
-        // 静默处理自动播放限制错误
-        console.debug("Audio play blocked until interaction:", err);
-      });
+      audioRef.current.play().catch(() => {});
     }
   };
 
-  // 核心：监测落子动作并触发音效 (支持本地与在线同步)
   useEffect(() => {
     if (prevBoardRef.current && prevBoardRef.current.length === size) {
       let stoneAdded = false;
       for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
-          // 检测到棋盘上位置从 null 变为有子
           if (board[r][c] !== null && prevBoardRef.current[r][c] === null) {
             stoneAdded = true;
             break;
@@ -92,41 +86,65 @@ export function GoBoard({
         playStoneSound();
       }
     }
-    // 更新上一手快照
     prevBoardRef.current = board.map(row => [...row]);
   }, [board, size]);
+
+  // 计算当前棋盘上每个位置对应的手数号码
+  const stoneNumbersMap = useMemo(() => {
+    if (numberingMode === 'none') return new Map<string, number>();
+    
+    const map = new Map<string, number>();
+    
+    if (numberingMode === 'last') {
+      if (lastMove && lastMove.r !== -1) {
+        map.set(`${lastMove.r},${lastMove.c}`, (lastMove.index ?? 0) + 1);
+      }
+      return map;
+    }
+
+    if (numberingMode === 'all') {
+      // 遍历当前棋盘上有棋子的位置
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (board[r][c] !== null) {
+            // 在历史记录中寻找最后一次落在该位置的记录
+            const move = [...moveHistory].reverse().find(m => m.r === r && m.c === c);
+            if (move) {
+              map.set(`${r},${c}`, (move.index ?? 0) + 1);
+            }
+          }
+        }
+      }
+      return map;
+    }
+
+    return map;
+  }, [numberingMode, moveHistory, board, size, lastMove]);
 
   const starPoints = useMemo(() => getStarPoints(size), [size]);
   const interactiveCellSize = `${(1 / (size - 1)) * 100}%`;
   const isInteractionDisabled = disabled || readOnly;
 
-  // 用户交互触发解锁 (规避浏览器自动播放限制)
   const unlockAudio = () => {
     if (!hasUnlockedAudio.current && audioRef.current) {
       hasUnlockedAudio.current = true;
-      // 通过一次播放空音频的 Promise 链解锁系统音轨
       const playPromise = audioRef.current.play();
       if (playPromise !== undefined) {
         playPromise.then(() => {
-          // 成功解锁后立即暂停，等待后续实际落子触发
           audioRef.current?.pause();
           audioRef.current!.currentTime = 0;
         }).catch(() => {
-          hasUnlockedAudio.current = false; // 解锁失败，下次重试
+          hasUnlockedAudio.current = false;
         });
       }
     }
   };
 
   const handleCellClick = (r: number, c: number) => {
-    // 任何点击都尝试解锁音频
     unlockAudio();
-
     if (isInteractionDisabled || board[r][c] !== null) return;
-
     if (moveSetting === 'direct') {
       onMove?.(r, c);
-      // 主动触发一次音效确保响应性
       playStoneSound();
     } else if (moveSetting === 'confirm') {
       setPendingMove({ r, c });
@@ -172,6 +190,7 @@ export function GoBoard({
           {Array.from({ length: size }).map((_, r) =>
             Array.from({ length: size }).map((_, c) => {
               const cell = board[r]?.[c];
+              const stoneNumber = stoneNumbersMap.get(`${r},${c}`);
               return (
                 <div
                   key={`${r}-${c}`}
@@ -188,13 +207,24 @@ export function GoBoard({
                   onMouseEnter={() => !isInteractionDisabled && setHoveredCell({ r, c })}
                 >
                   {cell && (
-                    <Icons.Stone
-                      className={cn(
-                        "absolute h-[90%] w-[90%] transition-transform z-10",
-                        cell === "black" ? "fill-black" : "fill-white stroke-black/20 stroke-[0.5px]",
-                        lastMove?.c === c && lastMove?.r === r ? "scale-105" : "scale-100",
+                    <>
+                      <Icons.Stone
+                        className={cn(
+                          "absolute h-[90%] w-[90%] transition-transform z-10",
+                          cell === "black" ? "fill-black" : "fill-white stroke-black/20 stroke-[0.5px]",
+                          lastMove?.c === c && lastMove?.r === r ? "scale-105" : "scale-100",
+                        )}
+                      />
+                      {stoneNumber !== undefined && (
+                        <span className={cn(
+                          "absolute z-30 font-mono font-black pointer-events-none select-none",
+                          cell === "black" ? "text-white" : "text-black",
+                          size === 19 ? "text-[8px]" : size === 13 ? "text-[10px]" : "text-sm"
+                        )}>
+                          {stoneNumber}
+                        </span>
                       )}
-                    />
+                    </>
                   )}
                   {lastMove?.c === c && lastMove?.r === r && (
                     <div className="absolute h-1/4 w-1/4 rounded-full bg-red-500/60 animate-pulse z-20"/>
