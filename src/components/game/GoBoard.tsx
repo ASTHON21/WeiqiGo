@@ -52,11 +52,11 @@ export function GoBoard({
   const prevBoardRef = useRef<BoardState | null>(null);
   const hasUnlockedAudio = useRef(false);
   
-  // 初始化音频资源
+  // 初始化音频资源 (使用高可靠性的开源落子音效)
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
-      audio.volume = 0.8;
+      const audio = new Audio('https://raw.githubusercontent.com/sabaki-go/Sabaki/master/resources/audio/move.mp3');
+      audio.volume = 1.0;
       audio.preload = 'auto';
       audioRef.current = audio;
     }
@@ -65,17 +65,22 @@ export function GoBoard({
   // 执行播放逻辑
   const playStoneSound = () => {
     if (audioRef.current) {
+      // 必须先重置进度以支持连续快速落子
       audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
+      audioRef.current.play().catch(err => {
+        // 静默处理自动播放限制错误
+        console.debug("Audio play blocked until interaction:", err);
+      });
     }
   };
 
-  // 核心：监测落子动作并触发音效
+  // 核心：监测落子动作并触发音效 (支持本地与在线同步)
   useEffect(() => {
-    if (prevBoardRef.current) {
+    if (prevBoardRef.current && prevBoardRef.current.length === size) {
       let stoneAdded = false;
       for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
+          // 检测到棋盘上位置从 null 变为有子
           if (board[r][c] !== null && prevBoardRef.current[r][c] === null) {
             stoneAdded = true;
             break;
@@ -83,7 +88,9 @@ export function GoBoard({
         }
         if (stoneAdded) break;
       }
-      if (stoneAdded) playStoneSound();
+      if (stoneAdded) {
+        playStoneSound();
+      }
     }
     // 更新上一手快照
     prevBoardRef.current = board.map(row => [...row]);
@@ -93,23 +100,33 @@ export function GoBoard({
   const interactiveCellSize = `${(1 / (size - 1)) * 100}%`;
   const isInteractionDisabled = disabled || readOnly;
 
-  // 用户交互触发解锁（规避浏览器自动播放限制）
+  // 用户交互触发解锁 (规避浏览器自动播放限制)
   const unlockAudio = () => {
     if (!hasUnlockedAudio.current && audioRef.current) {
       hasUnlockedAudio.current = true;
-      audioRef.current.play().then(() => {
-        audioRef.current?.pause();
-        audioRef.current!.currentTime = 0;
-      }).catch(() => {});
+      // 通过一次播放空音频的 Promise 链解锁系统音轨
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          // 成功解锁后立即暂停，等待后续实际落子触发
+          audioRef.current?.pause();
+          audioRef.current!.currentTime = 0;
+        }).catch(() => {
+          hasUnlockedAudio.current = false; // 解锁失败，下次重试
+        });
+      }
     }
   };
 
   const handleCellClick = (r: number, c: number) => {
-    if (isInteractionDisabled || board[r][c] !== null) return;
+    // 任何点击都尝试解锁音频
     unlockAudio();
+
+    if (isInteractionDisabled || board[r][c] !== null) return;
 
     if (moveSetting === 'direct') {
       onMove?.(r, c);
+      // 主动触发一次音效确保响应性
       playStoneSound();
     } else if (moveSetting === 'confirm') {
       setPendingMove({ r, c });
