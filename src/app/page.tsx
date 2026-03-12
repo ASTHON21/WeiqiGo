@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -257,7 +256,7 @@ export default function HomePage() {
           </div>
 
           <div className="text-xs text-center text-muted-foreground opacity-50">
-            Weiqi Go Hub v2.2.2 · Powered by Firebase Studio
+            Weiqi Go Hub v1.0.5 · Powered by Firebase Studio
           </div>
         </div>
       </div>
