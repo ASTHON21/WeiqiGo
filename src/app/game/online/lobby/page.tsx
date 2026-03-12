@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Download, Gamepad2, Clock, Timer } from 'lucide-react';
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Download, Gamepad2, Clock, Timer, Hash } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/language-context';
 import { cn } from '@/lib/utils';
@@ -429,7 +429,10 @@ export default function OnlineLobbyPage() {
                       <div className="flex flex-col items-center gap-1 min-w-[100px]">
                         <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest bg-muted px-2 py-0.5 rounded">VS</div>
                         <Badge variant="outline" className="border-2 font-mono h-6">{game.boardSize}x{game.boardSize}</Badge>
-                        <div className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 mt-1">
+                        <div className="flex items-center gap-1 text-[9px] font-bold text-muted-foreground mt-0.5">
+                          <Hash className="h-2.5 w-2.5" /> 总手: {game.moveCount || 0}
+                        </div>
+                        <div className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 mt-0.5">
                           {game.rules === 'chinese' ? '中国规则' : '日韩规则'}
                         </div>
                       </div>
