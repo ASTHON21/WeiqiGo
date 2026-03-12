@@ -22,7 +22,7 @@ export default function AboutPage() {
         <Card className="border-2 shadow-xl overflow-hidden">
           <CardHeader className="text-center pb-2 bg-muted/20 border-b">
             <CardTitle className="text-3xl font-headline text-primary">博弈之间，见天地</CardTitle>
-            <p className="text-xs text-muted-foreground mt-2">v2.2.1 | 本地优先 · 极速同步 · 沉浸体验</p>
+            <p className="text-xs text-muted-foreground mt-2">v1.0.5 | 无需登录 · 极速同步 · 沉浸体验</p>
           </CardHeader>
           <CardContent className="space-y-6 pt-6">
             <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed text-justify">
@@ -42,7 +42,7 @@ export default function AboutPage() {
                    <h3 className="text-blue-600 font-bold flex items-center gap-2 mb-1">
                     <Cpu className="h-4 w-4" /> 架构理念
                   </h3>
-                  <p className="text-sm text-foreground">核心逻辑本地化，状态数据原子化。</p>
+                  <p className="text-sm text-foreground">核心逻辑本地化，免登录即开即弈，状态数据原子化。</p>
                   <p className="text-[10px] text-muted-foreground">旨在为用户提供独立、私密且高效的纯粹博弈环境。</p>
                 </div>
               </div>
@@ -84,7 +84,7 @@ export default function AboutPage() {
               <div className="flex flex-col items-center p-4 rounded-lg bg-muted/30">
                 <Info className="h-6 w-6 text-accent mb-2" />
                 <span className="text-xs font-bold">规则集</span>
-                <span className="text-sm">AS / TBC 适配</span>
+                <span className="text-sm">Area Scoring / Territory Scoring 适配</span>
               </div>
               <div className="flex flex-col items-center p-4 rounded-lg bg-muted/30">
                 <Mail className="h-6 w-6 text-accent mb-2" />
