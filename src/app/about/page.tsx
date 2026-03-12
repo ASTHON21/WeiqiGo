@@ -25,10 +25,9 @@ export default function AboutPage() {
             <p className="text-xs text-muted-foreground mt-2">v2.2.1 | 本地优先 · 极速同步 · 沉浸体验</p>
           </CardHeader>
           <CardContent className="space-y-6 pt-6">
-            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed">
+            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed text-justify">
               <p>
-                <strong>WEIQI GO (弈道)</strong> 是一款秉持 **“本地优先 (Local-First)”** 理念设计的现代化围棋博弈平台。
-                不同于传统的全服务端运算架构，我们将核心规则引擎部署于浏览器本地，确保了极致的响应速度与交互流畅度。
+                弈道（WEIQI GO）——在黑白纵横间，与千古智慧相逢。十九路，纳天地经纬，运筹帷幄；十三路，玲珑变幻，见微知著；九路，瞬息攻守，方寸争锋。无论棋友远隔重洋，只需一屏，便可连线对弈，手谈如晤。弈道，让古老的十九道棋盘，在数字时代重焕灵性，陪你于每一局中，体悟“不得贪胜”的从容、“入界宜缓”的智慧。
               </p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
