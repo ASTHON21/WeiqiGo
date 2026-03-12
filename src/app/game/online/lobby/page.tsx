@@ -3,15 +3,15 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { collection, query, where, doc, updateDoc, orderBy, limit, setDoc, serverTimestamp, Timestamp, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Download, Gamepad2, Clock } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/tabs";
+import { Swords, Users, PlayCircle, Loader2, UserPlus, Wifi, ShieldCheck, Book, User, CheckCircle2, XCircle, Trophy, Download, Gamepad2, Clock, Timer } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/language-context';
 import { cn } from '@/lib/utils';
@@ -31,6 +31,9 @@ export default function OnlineLobbyPage() {
   const [selectedRule, setSelectedRule] = useState("chinese");
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
+  
+  // 新增：跟踪发出的邀请
+  const [waitingGameId, setWaitingGameId] = useState<string | null>(null);
 
   // 辅助函数：格式化时间
   const formatDuration = (s: number) => {
@@ -52,14 +55,12 @@ export default function OnlineLobbyPage() {
       const ONE_HOUR = 60 * 60 * 1000;
       const threshold = new Date(now - ONE_HOUR);
 
-      // 1. 查询已完赛且超过 1 小时的对局
       const staleFinishedQuery = query(
         collection(db, "games"),
         where("status", "==", "finished"),
         where("finishedAt", "<", Timestamp.fromDate(threshold))
       );
 
-      // 2. 查询挂起且超过 1 小时的僵尸对局
       const stalePendingQuery = query(
         collection(db, "games"),
         where("status", "==", "pending"),
@@ -76,9 +77,7 @@ export default function OnlineLobbyPage() {
         
         if (staleDocs.length === 0) return;
 
-        // 批量清理
         for (const gameDoc of staleDocs) {
-          // 清理子集合 moves
           const movesRef = collection(db, "games", gameDoc.id, "moves");
           const movesSnap = await getDocs(movesRef);
           
@@ -88,20 +87,16 @@ export default function OnlineLobbyPage() {
           
           await batch.commit();
         }
-        
-        console.log(`[GC] Successfully purged ${staleDocs.length} stale games to free storage.`);
       } catch (err) {
-        // 这里的错误通常由于权限（非参与者尝试删除未到 1 小时的记录）或网络引起，静默处理
         console.warn("[GC] Silent cleanup skip or failure.");
       }
     };
 
-    // 延迟 2 秒执行清理，优先保证大厅加载
     const timer = setTimeout(performCleanup, 2000);
     return () => clearTimeout(timer);
   }, [db, user]);
 
-  // 监听邀请
+  // 监听收到的邀请
   const inviteQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -112,6 +107,26 @@ export default function OnlineLobbyPage() {
     );
   }, [db, user]);
   const { data: incomingInvites } = useCollection(inviteQuery);
+
+  // 监听发出的邀请状态
+  const waitingGameRef = useMemoFirebase(() => (db && waitingGameId) ? doc(db, "games", waitingGameId) : null, [db, waitingGameId]);
+  const { data: waitingGameData } = useDoc(waitingGameRef);
+
+  // 处理发出邀请的状态变化
+  useEffect(() => {
+    if (waitingGameData) {
+      if (waitingGameData.status === 'in-progress') {
+        toast({ title: "挑战被接受", description: "正在进入对局..." });
+        const gid = waitingGameData.id;
+        setWaitingGameId(null);
+        router.push(`/game/online/${gid}`);
+      } else if (waitingGameData.status === 'finished') {
+        const reason = waitingGameData.result?.reason || "挑战已被取消";
+        toast({ title: "挑战结束", description: reason, variant: reason.includes("拒绝") ? "destructive" : "default" });
+        setWaitingGameId(null);
+      }
+    }
+  }, [waitingGameData, router, toast]);
 
   // 活跃棋手查询
   const playersQuery = useMemoFirebase(() => db ? query(collection(db, "userProfiles"), orderBy("lastSeen", "desc"), limit(20)) : null, [db]);
@@ -127,7 +142,7 @@ export default function OnlineLobbyPage() {
   }, [db]);
   const { data: allActiveGames } = useCollection(activeGamesQuery);
 
-  // 历史名局查询（移除 status 过滤以避免复合索引报错）
+  // 历史名局查询
   const recentGamesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -138,12 +153,10 @@ export default function OnlineLobbyPage() {
   }, [db]);
   const { data: rawRecentGames } = useCollection(recentGamesQuery);
 
-  // 过滤真实在线玩家
   const activePlayers = useMemo(() => {
     if (!rawPlayers) return [];
     const now = Date.now();
     const FIVE_MINUTES = 5 * 60 * 1000;
-    
     return rawPlayers.filter(p => {
       if (!p.lastSeen) return false;
       const lastSeenTime = p.lastSeen instanceof Timestamp ? p.lastSeen.toMillis() : new Date(p.lastSeen).getTime();
@@ -151,12 +164,10 @@ export default function OnlineLobbyPage() {
     });
   }, [rawPlayers]);
 
-  // 过滤 1 小时内的已完赛名局（客户端过滤）
   const filteredRecentGames = useMemo(() => {
     if (!rawRecentGames) return [];
     const now = Date.now();
     const ONE_HOUR = 60 * 60 * 1000;
-    
     return rawRecentGames.filter(game => {
       if (game.status !== 'finished') return false;
       if (!game.finishedAt) return false;
@@ -165,7 +176,6 @@ export default function OnlineLobbyPage() {
     });
   }, [rawRecentGames]);
 
-  // 计算真实的活跃对局数
   const trulyActiveGamesCount = useMemo(() => {
     if (!allActiveGames) return 0;
     const now = Date.now();
@@ -177,12 +187,10 @@ export default function OnlineLobbyPage() {
     }).length;
   }, [allActiveGames]);
 
-  // 正在对局中的玩家 ID 集合
   const playingPlayerIds = useMemo(() => {
     const ids = new Set<string>();
     const now = Date.now();
     const STALE_THRESHOLD = 15 * 60 * 1000;
-
     allActiveGames?.forEach(g => {
       if (g.status === 'in-progress') {
         const lastActivity = g.lastActivityAt instanceof Timestamp ? g.lastActivityAt.toMillis() : new Date(g.lastActivityAt).getTime();
@@ -228,10 +236,23 @@ export default function OnlineLobbyPage() {
 
     setDoc(gameRef, gameData).then(() => {
       toast({ title: "挑战已发送", description: `等待 ${invitingPlayer.name} 接受...` });
-      router.push(`/game/online/${gameId}`);
+      setWaitingGameId(gameId); // 设置等待状态
+      setInvitingPlayer(null);
+      setIsSendingInvite(false);
     }).catch((err) => {
       toast({ variant: "destructive", title: "发起失败", description: "网络异常。" });
       setIsSendingInvite(false);
+    });
+  };
+
+  const handleCancelInvite = () => {
+    if (!db || !waitingGameId) return;
+    updateDoc(doc(db, "games", waitingGameId), { 
+      status: 'finished', 
+      finishedAt: serverTimestamp(), 
+      result: { winner: null, reason: '挑战已被发起者撤回', diff: 0 } 
+    }).then(() => {
+      setWaitingGameId(null);
     });
   };
 
@@ -249,12 +270,10 @@ export default function OnlineLobbyPage() {
   const handleDownloadSGFFromLobby = async (game: any) => {
     if (!db || isDownloading) return;
     setIsDownloading(game.id);
-
     try {
       const movesQuery = query(collection(db, `games/${game.id}/moves`), orderBy("moveNumber", "asc"));
       const movesSnap = await getDocs(movesQuery);
       const moves = movesSnap.docs.map(d => d.data());
-
       const historyEntry: GameHistoryEntry = {
         id: game.id,
         date: game.startedAt instanceof Timestamp ? game.startedAt.toDate().toISOString() : new Date().toISOString(),
@@ -276,7 +295,6 @@ export default function OnlineLobbyPage() {
         },
         result: game.result
       };
-
       const sgfData = exportToSGF(historyEntry);
       const blob = new Blob([sgfData], { type: 'application/x-go-sgf' });
       const url = URL.createObjectURL(blob);
@@ -289,7 +307,6 @@ export default function OnlineLobbyPage() {
       URL.revokeObjectURL(url);
       toast({ title: '下载成功', description: '棋谱已导出为 SGF 格式。' });
     } catch (error) {
-      console.error("Download failed:", error);
       toast({ title: '下载失败', description: '无法拉取棋谱记录。', variant: 'destructive' });
     } finally {
       setIsDownloading(null);
@@ -449,6 +466,7 @@ export default function OnlineLobbyPage() {
         </TabsContent>
       </Tabs>
 
+      {/* 邀请配置对话框 */}
       <Dialog open={!!invitingPlayer} onOpenChange={(open) => !open && !isSendingInvite && setInvitingPlayer(null)}>
         <DialogContent className="max-w-md border-4 shadow-2xl">
           <DialogHeader>
@@ -481,12 +499,47 @@ export default function OnlineLobbyPage() {
             <Button variant="ghost" className="flex-1 font-bold" onClick={() => setInvitingPlayer(null)} disabled={isSendingInvite}>取消</Button>
             <Button className="flex-1 bg-blue-600 hover:bg-blue-700 font-bold gap-2" onClick={handleInvite} disabled={isSendingInvite}>
               {isSendingInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-              {isSendingInvite ? "正在进入..." : "开始博弈"}
+              {isSendingInvite ? "正在发送..." : "发送挑战"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* 发起挑战后的等待对话框 */}
+      <Dialog open={!!waitingGameId} onOpenChange={() => {}}>
+        <DialogContent className="max-w-md border-4 border-blue-500 shadow-2xl">
+          <DialogHeader className="text-center">
+            <div className="mx-auto w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
+              <Timer className="h-8 w-8 text-blue-500 animate-spin-slow" />
+            </div>
+            <DialogTitle className="text-2xl font-black font-headline text-blue-700">等待对手响应...</DialogTitle>
+            <DialogDescription className="text-base">
+              您已向 <span className="font-bold text-foreground">{waitingGameData?.playerWhiteName}</span> 发起挑战。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-4 bg-muted/30 rounded-lg border text-sm space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground font-bold text-[10px] uppercase tracking-widest">设定尺寸</span>
+              <Badge variant="outline" className="font-mono border-2">{waitingGameData?.boardSize}x{waitingGameData?.boardSize}</Badge>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground font-bold text-[10px] uppercase tracking-widest">对弈规则</span>
+              <Badge className="bg-blue-600 border-0">
+                {waitingGameData?.rules === 'chinese' ? '中国规则' : '日韩规则'}
+              </Badge>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" className="w-full h-12 border-2 hover:bg-destructive hover:text-white hover:border-destructive transition-all font-bold" onClick={handleCancelInvite}>
+              撤回挑战
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 收到挑战时的对话框 */}
       <Dialog open={!!currentInvite} onOpenChange={() => {}}>
         <DialogContent className="max-w-md border-4 border-blue-500 shadow-2xl">
           <DialogHeader className="text-center">
@@ -513,8 +566,8 @@ export default function OnlineLobbyPage() {
           </div>
 
           <DialogFooter className="grid grid-cols-2 gap-3 mt-4">
-            <Button variant="outline" className="h-12 border-2" onClick={() => handleDeclineInvite(currentInvite.id)}>拒绝</Button>
-            <Button className="h-12 bg-blue-600" onClick={() => handleAcceptInvite(currentInvite.id)}>接受</Button>
+            <Button variant="outline" className="h-12 border-2 font-bold" onClick={() => handleDeclineInvite(currentInvite.id)}>拒绝</Button>
+            <Button className="h-12 bg-blue-600 font-bold" onClick={() => handleAcceptInvite(currentInvite.id)}>接受挑战</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
