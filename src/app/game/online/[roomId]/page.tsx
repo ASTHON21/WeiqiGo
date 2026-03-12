@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -369,8 +368,6 @@ function OnlineGameContent() {
                             {game.rules === 'territory' && (
                               <div className="flex justify-between items-center"><span className="text-muted-foreground">提子:</span><span className="font-mono font-bold text-green-600">+{game.result.details.blackPrisoners} | +{game.result.details.whitePrisoners}</span></div>
                             )}
-                            
-                            <div className="flex justify-between items-center"><span className="text-muted-foreground">死子:</span><span className="font-mono font-bold text-destructive">{game.result.details.blackDeadOnBoard} | {game.result.details.whiteDeadOnBoard}</span></div>
                          </div>
                       </div>
                     )}

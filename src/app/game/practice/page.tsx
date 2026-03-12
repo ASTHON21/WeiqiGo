@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -279,15 +278,6 @@ function PracticeContent() {
                         </div>
                       </>
                     )}
-
-                    <div className="flex justify-between items-center border-t pt-2 mt-1">
-                      <span className="text-muted-foreground">终局黑死子:</span>
-                      <span className="font-mono font-bold text-destructive">{scoreResult?.details?.blackDeadOnBoard}</span>
-                    </div>
-                    <div className="flex justify-between items-center border-t pt-2 mt-1">
-                      <span className="text-muted-foreground">终局白死子:</span>
-                      <span className="font-mono font-bold text-destructive">{scoreResult?.details?.whiteDeadOnBoard}</span>
-                    </div>
                   </div>
                 </div>
               </div>
